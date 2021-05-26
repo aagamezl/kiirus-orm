@@ -1,0 +1,54 @@
+{
+  "name": "kiirus-orm",
+  "version": "1.0.0",
+  "description": "Relational Database ORM",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "coverage": "nyc ava",
+    "lint": "ts-standard",
+    "test": "ava",
+    "test:watch": "ava --watch"
+  },
+  "ava": {
+    "files": [
+      "test/**/*.spec.ts"
+    ],
+    "extensions": [
+      "ts"
+    ],
+    "require": [
+      "ts-node/register"
+    ]
+  },
+  "ts-standard": {
+    "project": "./tsconfig.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aagamezl/kiirus-orm.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/aagamezl/kiirus-orm/issues"
+  },
+  "homepage": "https://github.com/aagamezl/kiirus-orm#readme",
+  "devDependencies": {
+    "@ava/typescript": "^1.1.1",
+    "@types/node": "^15.6.1",
+    "@types/sinon": "^10.0.0",
+    "ava": "^3.15.0",
+    "nyc": "^15.1.0",
+    "sinon": "^11.0.0",
+    "ts-node": "^10.0.0",
+    "ts-standard": "^10.0.0",
+    "typescript": "^4.2.4"
+  },
+  "dependencies": {
+    "@devnetic/utils": "^1.2.1"
+  }
+}
