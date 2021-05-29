@@ -6,7 +6,13 @@ export const collect = (items: any): Collection => {
   return new Collection(items)
 }
 
-export const value = (value: any, ...args: any): Collection => {
+/**
+ * Return the default value of the given value.
+ *
+ * @param  any  value
+ * @return any
+ */
+export const value = (value: any, ...args: any): any => {
   return value instanceof Function ? value(...args) : value;
 }
 
@@ -50,4 +56,15 @@ export const dataGet = (target: any, key?: string | Array<any> | number, default
   }
 
   return target
+}
+
+
+/**
+ * Get the first element of an array. Useful for method chaining.
+ *
+ * @param  array  array
+ * @return any
+ */
+export const head = (array: Array<any>) => {
+  return array[0];
 }

@@ -40,6 +40,16 @@ export abstract class Grammar {
   }
 
   /**
+   * Get the appropriate query parameter place-holder for a value.
+   *
+   * @param  any  value
+   * @return string
+   */
+  public parameter(value: any): string {
+    return this.isExpression(value) ? this.getValue(value) : '?';
+  }
+
+  /**
    * Set the grammar's table prefix.
    *
    * @param  string  prefix

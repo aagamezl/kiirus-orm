@@ -1,7 +1,14 @@
 import * as utils from '@devnetic/utils';
+import { collect } from '../../../Collections/Helpers';
 
-import { AggregateInterface, Builder, UnionInterface } from '../Builder';
+import {
+  AggregateInterface,
+  Builder,
+  UnionInterface,
+  WhereInterface
+} from '../Builder';
 import { Expression } from '../Expression';
+import { JoinClause, TJoinClause } from '../JoinClause';
 import { Grammar as BaseGrammar } from './../../';
 
 interface SelectComponentInterface {
@@ -51,98 +58,12 @@ export class Grammar extends BaseGrammar {
     // we need to prepend "distinct" onto the column name so that the query takes
     // it into account when it performs the aggregating operations on the data.
     if (Array.isArray(query.distinct)) {
-      column = 'distinct ' + this.columnize(query.distinct);
-    } else if(query.distinct && column !== '*') {
+      column = 'distinct ' + this.columnize(query.distinctProperty as Array<any>);
+    } else if(query.distinctProperty && column !== '*') {
       column = 'distinct ' + column;
     }
 
     return 'select ' + aggregate.function + '(' + column + ') as aggregate';
-  }
-
-  /**
-   * Compile a select query into SQL.
-   *
-   * @param  \Illuminate\Database\Query\Builder  query
-   * @return string
-   */
-  public compileSelect(query: Builder): string {
-    if (query.unions.length > 0 && query.aggregateProperty) {
-      return this.compileUnionAggregate(query);
-    }
-
-    // If the query does not have any columns set, we'll set the columns to the
-    // * character to just get all of the columns from the database. Then we
-    // can build the query and concatenate all the pieces together as one.
-    const original = query.columns;
-
-    if (query.columns.length === 0) {
-      query.columns = ['*'];
-    }
-
-    // To compile the query, we'll spin through each component of the query and
-    // see if that component exists. If it does we'll just call the compiler
-    // function for the component which is responsible for making the SQL.
-    let sql = this.concatenate(this.compileComponents(query)).trim();
-
-    if (query.unions.length > 0) {
-      sql = this.wrapUnion(sql) + ' ' + this.compileUnions(query);
-    }
-
-    query.columns = original;
-
-    return sql;
-  }
-
-  /**
-   * Compile a single union statement.
-   *
-   * @param  array  union
-   * @return string
-   */
-  protected compileUnion(union: UnionInterface) {
-    const conjunction = union.all ? ' union all ' : ' union ';
-
-    return conjunction + this.wrapUnion(union.query.toSql());
-  }
-
-  /**
-   * Compile the "union" queries attached to the main query.
-   *
-   * @param  \Illuminate\Database\Query\Builder  query
-   * @return string
-   */
-  protected compileUnions(query: Builder) {
-    let sql = '';
-
-    for (const union of query.unions) {
-      sql += this.compileUnion(union);
-    }
-
-    if (query.unionOrders.length > 0) {
-      sql += ' ' + this.compileOrders(query, query.unionOrders);
-    }
-
-    if (query.unionLimit) {
-      sql += ' ' + this.compileLimit(query, query.unionLimit);
-    }
-
-    if (query.unionOffset) {
-      sql += ' ' + this.compileOffset(query, query.unionOffset);
-    }
-
-    return sql.trimLeft();
-  }
-
-  /**
-   * Concatenate an array of segments, removing empties.
-   *
-   * @param  array  segments
-   * @return string
-   */
-  protected concatenate(segments: Record<string, any>): string {
-    return Object.values(segments).filter((value) => {
-      return String(value) !== '';
-    }).join(' ');
   }
 
   /**
@@ -160,7 +81,7 @@ export class Grammar extends BaseGrammar {
       return;
     }
 
-    const select = query.distinct ? 'select distinct ' : 'select ';
+    const select = query.distinctProperty ? 'select distinct ' : 'select ';
 
     return select + this.columnize(columns);
   }
@@ -196,6 +117,25 @@ export class Grammar extends BaseGrammar {
    */
   protected compileFrom(query: Builder, table: string) {
     return 'from ' + this.wrapTable(table);
+  }
+
+  /**
+   * Compile the "join" portions of the query.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  array  joins
+   * @return string
+   */
+  protected compileJoins(query: Builder, joins: Array<any>) {
+    return collect(joins).map((join: TJoinClause) => {
+      const table = this.wrapTable(join.table);
+
+      const nestedJoins: string = join.joins.length === 0 ? '' : ' ' + this.compileJoins(query, join.joins);
+
+      const tableAndNestedJoins = join.joins.length === 0 ? table : '(' + table + nestedJoins + ')';
+
+      return `${join.type} join ${tableAndNestedJoins} ${this.compileWheres(join as unknown as Builder)}`.trim();
+    }).implode(' ');
   }
 
   /**
@@ -249,6 +189,52 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile a select query into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @return string
+   */
+  public compileSelect(query: Builder): string {
+    if (query.unions.length > 0 && query.aggregateProperty) {
+      return this.compileUnionAggregate(query);
+    }
+
+    // If the query does not have any columns set, we'll set the columns to the
+    // * character to just get all of the columns from the database. Then we
+    // can build the query and concatenate all the pieces together as one.
+    const original = query.columns;
+
+    if (query.columns.length === 0) {
+      query.columns = ['*'];
+    }
+
+    // To compile the query, we'll spin through each component of the query and
+    // see if that component exists. If it does we'll just call the compiler
+    // function for the component which is responsible for making the SQL.
+    let sql = this.concatenate(this.compileComponents(query)).trim();
+
+    if (query.unions.length > 0) {
+      sql = this.wrapUnion(sql) + ' ' + this.compileUnions(query);
+    }
+
+    query.columns = original;
+
+    return sql;
+  }
+
+  /**
+   * Compile a single union statement.
+   *
+   * @param  array  union
+   * @return string
+   */
+  protected compileUnion(union: UnionInterface) {
+    const conjunction = union.all ? ' union all ' : ' union ';
+
+    return conjunction + this.wrapUnion(union.query.toSql());
+  }
+
+  /**
    * Compile a union aggregate query into SQL.
    *
    * @param  \Illuminate\Database\Query\Builder  query
@@ -263,6 +249,106 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile the "union" queries attached to the main query.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @return string
+   */
+  protected compileUnions(query: Builder) {
+    let sql = '';
+
+    for (const union of query.unions) {
+      sql += this.compileUnion(union);
+    }
+
+    if (query.unionOrders.length > 0) {
+      sql += ' ' + this.compileOrders(query, query.unionOrders);
+    }
+
+    if (query.unionLimit) {
+      sql += ' ' + this.compileLimit(query, query.unionLimit);
+    }
+
+    if (query.unionOffset) {
+      sql += ' ' + this.compileOffset(query, query.unionOffset);
+    }
+
+    return sql.trimLeft();
+  }
+
+  /**
+   * Compile the "where" portions of the query.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @return string
+   */
+  public compileWheres(query: Builder) {
+    // Each type of where clauses has its own compiler function which is responsible
+    // for actually creating the where clauses SQL. This helps keep the code nice
+    // and maintainable since each clause has a very small method that it uses.
+    if (query.wheres.length === 0) {
+      return '';
+    }
+
+    // If we actually have some where clauses, we will strip off the first boolean
+    // operator, which is added by the query builders for convenience so we can
+    // avoid checking for the first clauses in each of the compilers methods.
+    const sql = this.compileWheresToArray(query);
+
+    if (sql.length > 0) {
+      return this.concatenateWhereClauses(query, sql);
+    }
+
+    return '';
+  }
+
+  /**
+   * Get an array of all the where clauses for the query.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @return array
+   */
+  protected compileWheresToArray(query: Builder): Array<any> {
+    return collect(query.wheres).map((where) => {
+      return where['boolean'] + ' ' + (this as any)[`where${where['type']}`](query, where);
+    }).all();
+  }
+
+  /**
+   * Concatenate an array of segments, removing empties.
+   *
+   * @param  array  segments
+   * @return string
+   */
+  protected concatenate(segments: Record<string, any>): string {
+    return Object.values(segments).filter((value) => {
+      return String(value) !== '';
+    }).join(' ');
+  }
+
+  /**
+   * Format the where clause statements into one string.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  array  sql
+   * @return string
+   */
+  protected concatenateWhereClauses(query: Builder, sql: Array<any>): string {
+    const conjunction = query instanceof JoinClause ? 'on' : 'where';
+
+    return conjunction + ' ' + this.removeLeadingBoolean(sql.join(' '));
+  }
+
+  /**
+   * Get the grammar specific operators.
+   *
+   * @return array
+   */
+  public getOperators(): Array<any> {
+    return this.operators;
+  }
+
+  /**
    * Determine if the given string is a JSON selector.
    *
    * @param  string  value
@@ -270,6 +356,42 @@ export class Grammar extends BaseGrammar {
    */
   protected isJsonSelector(value: string): boolean {
     return value.includes('->');
+  }
+
+  /**
+   * Remove the leading boolean from a statement.
+   *
+   * @param  string  value
+   * @return string
+   */
+  protected removeLeadingBoolean(value: string): string {
+    return value.replace(/and |or /i, '');
+  }
+
+  /**
+   * Compile a basic where clause.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  array  where
+   * @return string
+   */
+  protected whereBasic(query: Builder, where: WhereInterface): string {
+    const value = this.parameter(where['value']);
+
+    const operator = (where as any)['operator'].replace('?', '??');
+
+    return this.wrap((where as any)['column']) + ' ' + operator + ' ' + value;
+  }
+
+  /**
+   * Compile a where clause comparing two columns.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  array  where
+   * @return string
+   */
+  protected whereColumn(query: Builder, where: Record<string, string>): string {
+    return this.wrap(where['first']) + ' ' + where['operator'] + ' ' + this.wrap(where['second']);
   }
 
   /**
@@ -287,7 +409,8 @@ export class Grammar extends BaseGrammar {
     // If the value being wrapped has a column alias we will need to separate out
     // the pieces so we can wrap each of the segments of the expression on its
     // own, and then join these both back together using the "as" connector.
-    if (String(value).includes(' as ') !== false) {
+    // if (String(value).includes(' as ') !== false) {
+    if (/\sAS\s/i.test(String(value)) !== false) {
       return this.wrapAliasedValue(String(value), prefixAlias);
     }
 
