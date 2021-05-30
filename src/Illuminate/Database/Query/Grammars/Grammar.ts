@@ -1,5 +1,5 @@
 import * as utils from '@devnetic/utils';
-import { collect } from '../../../Collections/Helpers';
+import { collect, end, head, last, reset } from '../../../Collections/Helpers';
 
 import {
   AggregateInterface,
@@ -40,7 +40,6 @@ export class Grammar extends BaseGrammar {
     { name: 'orders', property: 'orders' },
     { name: 'limit', property: 'limitProperty' },
     { name: 'offset', property: 'offsetProperty' },
-    { name: 'unions', property: 'unions' },
     { name: 'lock', property: 'lockProperty' }
   ];
 
@@ -67,6 +66,20 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile a basic having clause.
+   *
+   * @param  Record<string, any>  having
+   * @return string
+   */
+  protected compileBasicHaving(having: Record<string, any>): string {
+    const column = this.wrap(having.column);
+
+    const parameter = this.parameter(having.value);
+
+    return having.boolean + ' ' + column + ' ' + having.operator + ' ' + parameter;
+  }
+
+  /**
    * Compile the "select *" portion of the query.
    *
    * @param  \Illuminate\Database\Query\Builder  query
@@ -90,7 +103,7 @@ export class Grammar extends BaseGrammar {
    * Compile the components necessary for a select clause.
    *
    * @param  \Illuminate\Database\Query\Builder  query
-   * @return array
+   * @return Record<string, any>
    */
   protected compileComponents(query: Builder): Record<string, any> {
     const sql: Record<string, any> = {};
@@ -120,6 +133,56 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile a single having clause.
+   *
+   * @param  array  having
+   * @return string
+   */
+  protected compileHaving(having: Record<string, string>): string {
+    // If the having clause is "raw", we can just return the clause straight away
+    // without doing any more processing on it. Otherwise, we will compile the
+    // clause into SQL based on the components that make it up from builder.
+    if (having.type === 'Raw') {
+      return having.boolean + ' ' + having.sql;
+    } else if(having.type === 'between') {
+      return this.compileHavingBetween(having);
+    }
+
+    return this.compileBasicHaving(having);
+  }
+
+  /**
+   * Compile a "between" having clause.
+   *
+   * @param  array  having
+   * @return string
+   */
+  protected compileHavingBetween(having: Record<string, any>): string {
+    const between = having.not ? 'not between' : 'between';
+
+    const column = this.wrap(having['column']);
+
+    const min = this.parameter(head(having.values));
+
+    const max = this.parameter(last(having.values));
+
+    return having.boolean + ' ' + column + ' ' + between + ' ' + min + ' and ' + max;
+  }
+
+  /**
+   * Compile the "having" portions of the query.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  Array<any>  havings
+   * @return string
+   */
+  protected compileHavings(query: Builder, havings: Array<any>): string {
+    const sql = havings.map(having => this.compileHaving(having)).join(' ');
+
+    return sql ? 'having ' + this.removeLeadingBoolean(sql) : '';
+  }
+
+  /**
    * Compile the "join" portions of the query.
    *
    * @param  \Illuminate\Database\Query\Builder  query
@@ -146,7 +209,7 @@ export class Grammar extends BaseGrammar {
    * @return string
    */
   protected compileLimit(query: Builder, limit: number): string {
-    return `limit {Number(limit)}`;
+    return `limit ${limit}`;
   }
 
   /**
@@ -157,7 +220,7 @@ export class Grammar extends BaseGrammar {
    * @return string
    */
   protected compileOffset(query: Builder, offset: number) {
-    return `offset {Number(offset)}`;
+    return `offset ${offset}`;
   }
 
   /**
@@ -195,7 +258,7 @@ export class Grammar extends BaseGrammar {
    * @return string
    */
   public compileSelect(query: Builder): string {
-    if (query.unions.length > 0 && query.aggregateProperty) {
+    if ((query.unions.length > 0 || query.havings.length > 0) && query.aggregateProperty) {
       return this.compileUnionAggregate(query);
     }
 
@@ -310,7 +373,7 @@ export class Grammar extends BaseGrammar {
    */
   protected compileWheresToArray(query: Builder): Array<any> {
     return collect(query.wheres).map((where) => {
-      return where['boolean'] + ' ' + (this as any)[`where${where['type']}`](query, where);
+      return where['boolean'] + ' ' + (this as any)[`where${where.type}`](query, where);
     }).all();
   }
 
@@ -337,6 +400,20 @@ export class Grammar extends BaseGrammar {
     const conjunction = query instanceof JoinClause ? 'on' : 'where';
 
     return conjunction + ' ' + this.removeLeadingBoolean(sql.join(' '));
+  }
+
+  /**
+   * Compile a date based where clause.
+   *
+   * @param  string  type
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  array  where
+   * @return string
+   */
+  protected dateBasedWhere(type: string, query: Builder, where: WhereInterface): string {
+    const value = this.parameter(where.value);
+
+    return type + '(' + this.wrap(where.column as Expression | string) + ') ' + where.operator + ' ' + value;
   }
 
   /**
@@ -384,14 +461,194 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile a "between" where clause.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  WhereInterface  where
+   * @return string
+   */
+  protected whereBetween(query: Builder, where: WhereInterface) {
+    const between = where['not'] ? 'not between' : 'between';
+
+    const min = this.parameter(reset((where as any).values));
+
+    const max = this.parameter(end((where as any).values));
+
+    return this.wrap((where as any).column) + ' ' + between + ' ' + min + ' and ' + max;
+  }
+
+  /**
+   * Compile a "between" where clause.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  array  where
+   * @return string
+   */
+  protected whereBetweenColumns(query: Builder, where: WhereInterface): string {
+    const between = where['not'] ? 'not between' : 'between';
+
+    const min = this.wrap(reset((where as any).values));
+
+    const max = this.wrap(end((where as any).values));
+
+    return this.wrap((where as any).column) + ' ' + between + ' ' + min + ' and ' + max;
+  }
+
+  /**
    * Compile a where clause comparing two columns.
    *
    * @param  \Illuminate\Database\Query\Builder  query
    * @param  array  where
    * @return string
    */
-  protected whereColumn(query: Builder, where: Record<string, string>): string {
-    return this.wrap(where['first']) + ' ' + where['operator'] + ' ' + this.wrap(where['second']);
+  protected whereColumn(query: Builder, where: WhereInterface): string {
+    return this.wrap((where as any)['first']) + ' ' + where['operator'] + ' ' + this.wrap((where as any)['second']);
+  }
+
+  /**
+   * Compile a "where date" clause.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  WhereInterface  where
+   * @return string
+   */
+  protected whereDate(query: Builder, where: WhereInterface): string {
+    return this.dateBasedWhere('date', query, where);
+  }
+
+  /**
+   * Compile a "where day" clause.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  array  where
+   * @return string
+   */
+  protected whereDay(query: Builder, where: WhereInterface): string {
+    return this.dateBasedWhere('day', query, where);
+  }
+
+  /**
+   * Compile a "where in" clause.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  WhereInterface  where
+   * @return string
+   */
+  protected whereIn(query: Builder, where: WhereInterface): string {
+    if ((where as any).values?.length > 0) {
+      return this.wrap((where as any).column) + ' in (' + this.parameterize((where as any).values) + ')';
+    }
+
+    return '0 = 1';
+  }
+
+  /**
+   * Compile a "where in raw" clause.
+   *
+   * For safety, whereIntegerInRaw ensures this method is only used with integer values.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  WhereInterface  where
+   * @return string
+   */
+  protected whereInRaw(query: Builder, where: WhereInterface): string {
+    if ((where as any).values?.length > 0) {
+      return this.wrap((where as any).column) + ' in (' + (where as any).values.join(', ') + ')';
+    }
+
+    return '0 = 1';
+  }
+
+  /**
+   * Compile a "where month" clause.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  array  where
+   * @return string
+   */
+  protected whereMonth(query: Builder, where: WhereInterface): string {
+    return this.dateBasedWhere('month', query, where);
+  }
+
+  /**
+   * Compile a nested where clause.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  WhereInterface  where
+   * @return string
+   */
+  protected whereNested(query: Builder, where: WhereInterface) {
+    // Here we will calculate what portion of the string we need to remove. If this
+    // is a join clause query, we need to remove the "on" portion of the SQL and
+    // if it is a normal query we need to take the leading "where" of queries.
+    const offset = query instanceof JoinClause ? 3 : 6;
+
+    return '(' + this.compileWheres((where as any).query).substr(offset) + ')';
+  }
+
+  /**
+   * Compile a "where not in" clause.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  WhereInterface  where
+   * @return string
+   */
+  protected whereNotIn(query: Builder, where: WhereInterface): string {
+    if ((where as any).values.length > 0) {
+      return this.wrap((where as any).column) + ' not in (' + this.parameterize((where as any).values) + ')';
+    }
+
+    return '1 = 1';
+  }
+
+  /**
+   * Compile a "where not in raw" clause.
+   *
+   * For safety, whereIntegerInRaw ensures this method is only used with integer values.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  WhereInterface  where
+   * @return string
+   */
+  protected whereNotInRaw(query: Builder, where: WhereInterface): string {
+    if ((where as any).values?.length > 0) {
+      return this.wrap((where as any).column) + ' not in (' + (where as any).values.join(', ') + ')';
+    }
+
+    return '1 = 1';
+  }
+
+  /**
+   * Compile a raw where clause.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  array  where
+   * @return string
+   */
+  protected whereRaw(query: Builder, where: WhereInterface): string {
+    return String(where.sql);
+  }
+
+  /**
+   * Compile a "where time" clause.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  WhereInterface  where
+   * @return string
+   */
+  protected whereTime(query: Builder, where: WhereInterface): string {
+    return this.dateBasedWhere('time', query, where);
+  }
+
+  /**
+   * Compile a "where year" clause.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  array  where
+   * @return string
+   */
+  protected whereYear(query: Builder, where: WhereInterface): string {
+    return this.dateBasedWhere('year', query, where);
   }
 
   /**

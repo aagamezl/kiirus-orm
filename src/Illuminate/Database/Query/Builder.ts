@@ -27,17 +27,20 @@ export interface AggregateInterface {
   columns: Array<any>;
 }
 
-export type TBindings = Record<string, Array <string>>;
+export type TBindings = Record<string, Array<string>>;
 
 export interface WhereInterface {
   boolean?: string;
   column?: Function | Expression | string | Array<any>;
   first?: string | Array<any>;
+  not?: boolean
   operator?: string;
   query?: Builder;
   second?: string;
+  sql?: string;
   type: string;
   value?: any;
+  values?: Array<any>;
 }
 
 export class Builder {
@@ -46,7 +49,7 @@ export class Builder {
    *
    * @var AggregateInterface
    */
-  public aggregateProperty: AggregateInterface | undefined;
+  public aggregateProperty?: AggregateInterface;
 
   /**
    * The callbacks that should be invoked before the query is executed.
@@ -110,11 +113,32 @@ export class Builder {
   public grammar: Grammar;
 
   /**
+   * The having constraints for the query.
+   *
+   * @var array
+   */
+  public havings: Array<any> = [];
+
+  /**
    * The table joins for the query.
    *
    * @var array
    */
   public joins: Array<any> = [];
+
+  /**
+   * The maximum number of records to return.
+   *
+   * @var number
+   */
+  public limitProperty: number | undefined;
+
+  /**
+   * The number of records to skip.
+   *
+   * @var number
+   */
+  public offsetProperty: number | undefined;
 
   /**
    * All of the available clause operators.
@@ -226,6 +250,26 @@ export class Builder {
   }
 
   /**
+   * Add a date based (year, month, day, time) statement to the query.
+   *
+   * @param  string  type
+   * @param  string  column
+   * @param  string  operator
+   * @param  mixed  value
+   * @param  string  boolean
+   * @return Builder
+   */
+  protected addDateBasedWhere(type: string, column: string, operator: string, value: any, boolean: string = 'and'): Builder {
+    this.wheres.push({ column, type, boolean, operator, value });
+
+    if (!(value instanceof Expression)) {
+      this.addBinding(value, 'where');
+    }
+
+    return this;
+  }
+
+  /**
    * Add another query builder as a nested where to the query builder.
    *
    * @param  \Illuminate\Database\Query\Builder  query
@@ -279,6 +323,18 @@ export class Builder {
     }
 
     this.beforeQueryCallbacks = [];
+  }
+
+  /**
+   * Remove all of the expressions from a list of bindings.
+   *
+   * @param  array  bindings
+   * @return array
+   */
+  public cleanBindings(bindings: Array<any>): Array<any> {
+    return Arr.values(bindings.filter((binding: any) => {
+      return !(binding instanceof Expression);
+    }));
   }
 
   /**
@@ -399,7 +455,7 @@ export class Builder {
    * @param  array|string  columns
    * @return \Illuminate\Support\Collection
    */
-  public get(columns: Array<any>|string = ['*']): Collection {
+  public get(columns: Array<any> | string = ['*']): Collection {
     return collect(this.onceWithColumns(Arr.wrap(columns), () => {
       return this.processor.processSelect(this, this.runSelect());
     }));
@@ -535,6 +591,22 @@ export class Builder {
   }
 
   /**
+   * Set the "limit" value of the query.
+   *
+   * @param  number  value
+   * @return Builder
+   */
+  public limit(value: number): Builder {
+    const property = this.unions.length > 0 ? 'unionLimit' : 'limitProperty';
+
+    if (value >= 0) {
+      (this as any)[property] = value;
+    }
+
+    return this;
+  }
+
+  /**
    * Get a new join clause.
    *
    * @param  \Illuminate\Database\Query\Builder  parentQuery
@@ -552,7 +624,7 @@ export class Builder {
    * @return \Illuminate\Database\Query\Builder
    */
   public newQuery(): Builder {
-    return new this.constructor.prototype(this.connection, this.grammar, this.processor);
+    return new (this.constructor as any)(this.connection, this.grammar, this.processor);
   }
 
   /**
@@ -579,6 +651,199 @@ export class Builder {
   }
 
   /**
+   * Set the "offset" value of the query.
+   *
+   * @param  number  value
+   * @return Builder
+   */
+  public offset(value: number): Builder {
+    const property = this.unions ? 'unionOffset' : 'offsetProperty';
+
+    (this as any)[property] = Math.max(0, value);
+
+    return this;
+  }
+
+  /**
+   * Add an "order by" clause to the query.
+   *
+   * @param  Function|\Illuminate\Database\Query\Builder|\Illuminate\Database\Query\Expression|string  column
+   * @param  string  direction
+   * @return this
+   *
+   * @throws \InvalidArgumentException
+   */
+  public orderBy(column: Function | Builder | Expression | string, direction: string = 'asc') {
+    if (this.isQueryable(column)) {
+      const [query, bindings] = this.createSub(column);
+
+      column = new Expression('(' + query + ')');
+
+      this.addBinding(bindings, this.unions ? 'unionOrder' : 'order');
+    }
+
+    direction = direction.toLowerCase();
+
+    if (!['asc', 'desc'].includes(direction)) {
+      throw new Error('InvalidArgumentException: Order direction must be "asc" or "desc".');
+    }
+
+    (this as any)[this.unions.length > 0 ? 'unionOrders' : 'orders'].push({
+      column,
+      direction,
+    });
+
+    return this;
+  }
+
+  /**
+   * Add an "or where" clause to the query.
+   *
+   * @param  Function|string|Array<any>  column
+   * @param  any  operator
+   * @param  any  value
+   * @return Builder
+   */
+  public orWhere(column: Function | string | Array < any >, operator ?: any, value ?: any): Builder {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    );
+
+    return this.where(column, operator, value, 'or');
+  }
+
+  /**
+   * Add an "or where" clause comparing two columns to the query.
+   *
+   * @param  string|array  first
+   * @param  string  operator
+   * @param  string  second
+   * @return Builder
+   */
+  public orWhereColumn(first: string | Array < any >, operator ?: string, second ?: string): Builder {
+    return this.whereColumn(first, operator, second, 'or');
+  }
+
+  /**
+   * Add an "or where date" statement to the query.
+   *
+   * @param  string  column
+   * @param  string | number  operator
+   * @param  [Date|string]  value
+   * @return this
+   */
+  public orWhereDate(column: string, operator: string | number, value ?: Date | string): Builder {
+    [value, operator] = this.prepareValueAndOperator(
+      String(value), String(operator), arguments.length === 2
+    );
+
+    return this.whereDate(column, operator, value, 'or');
+  }
+
+  /**
+   * Add an "or where day" statement to the query.
+   *
+   * @param  string  column
+   * @param  string  operator
+   * @param  [Date|string]  value
+   * @return Builder
+   */
+  public orWhereDay(column: string, operator: any, value ?: any): Builder {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    );
+
+    return this.whereDay(column, operator, value, 'or');
+  }
+
+  /**
+ * Add an "or where month" statement to the query.
+ *
+ * @param  string  column
+ * @param  string | number  operator
+ * @param  [Date|string]  value
+ * @return Builder
+ */
+  public orWhereMonth(column: string, operator: any, value ?: any): Builder {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    );
+
+    return this.whereMonth(column, operator, value, 'or');
+  }
+
+  /**
+   * Add an "or where in" clause to the query.
+   *
+   * @param  string  column
+   * @param  any  values
+   * @return Builder
+   */
+  public orWhereIn(column: string, values: any): Builder {
+    return this.whereIn(column, values, 'or');
+  }
+
+  /**
+   * Add an "or where in raw" clause for integer values to the query.
+   *
+   * @param  string  column
+   * @param  Array<any> values
+   * @return Builder
+   */
+  public orWhereIntegerInRaw(column: string, values: Array<any>): Builder {
+    return this.whereIntegerInRaw(column, values, 'or');
+  }
+
+  /**
+   * Add an "or where not in raw" clause for integer values to the query.
+   *
+   * @param  string  column
+   * @param  Array<any>  values
+   * @return Builder
+   */
+  public orWhereIntegerNotInRaw(column: string, values: Array<any>): Builder {
+    return this.whereIntegerNotInRaw(column, values, 'or');
+  }
+
+  /**
+   * Add an "or where not in" clause to the query.
+   *
+   * @param  string  column
+   * @param  any  values
+   * @return Builder
+   */
+  public orWhereNotIn(column: string, values: Array<any>): Builder {
+    return this.whereNotIn(column, values, 'or');
+  }
+
+  /**
+   * Add a raw or where clause to the query.
+   *
+   * @param  string  sql
+   * @param  any  bindings
+   * @return Builder
+   */
+  public orWhereRaw(sql: string, bindings: Array < any > =[]): Builder {
+    return this.whereRaw(sql, bindings, 'or');
+  }
+
+  /**
+   * Add an "or where year" statement to the query.
+   *
+   * @param  string  column
+   * @param  string | number  operator
+   * @param  [Date|string|number]  value
+   * @return Builder
+   */
+  public orWhereYear(column: string, operator: any, value ?: any): Builder {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    );
+
+    return this.whereYear(column, operator, value, 'or');
+  }
+
+  /**
    * Parse the subquery into SQL and bindings.
    *
    * @param  any  query
@@ -586,12 +851,12 @@ export class Builder {
    *
    * @throws \InvalidArgumentException
    */
-  protected parseSub(query: any): Array<any> {
-    if (query instanceof this.constructor.prototype || query instanceof EloquentBuilder || query instanceof Relation) {
+  protected parseSub(query: any): Array < any > {
+    if(query instanceof this.constructor.prototype || query instanceof EloquentBuilder || query instanceof Relation) {
       query = this.prependDatabaseNameIfCrossDatabaseQuery(query);
 
       return [query.toSql(), query.getBindings()];
-    } else if(typeof query === 'string') {
+    } else if (typeof query === 'string') {
       return [query, []];
     } else {
       throw new Error(
@@ -610,8 +875,8 @@ export class Builder {
    *
    * @throws \InvalidArgumentException
    */
-  public prepareValueAndOperator(value: string, operator: string, useDefault: boolean = false): Array<any> {
-    if (useDefault) {
+  public prepareValueAndOperator(value: string, operator: string, useDefault: boolean = false): Array < any > {
+    if(useDefault) {
       return [operator, '='];
     } else if(this.invalidOperatorAndValue(operator, value)) {
       throw new Error('InvalidArgumentException: Illegal operator and value combination.');
@@ -643,7 +908,7 @@ export class Builder {
    *
    * @return array
    */
-  protected runSelect(): Array<any> {
+  protected runSelect(): Array < any > {
     return this.connection.select(
       this.toSql(), this.getBindings()
     );
@@ -660,7 +925,7 @@ export class Builder {
     this.bindings['select'] = [];
     columns = Array.isArray(columns) ? columns : [...arguments];
 
-    for (const [as, column] of Object.entries(columns)) {
+    for(const [as, column] of Object.entries(columns)) {
       if (typeof as === 'string' && this.isQueryable(column)) {
         this.selectSub(String(column), as);
       } else {
@@ -706,14 +971,91 @@ export class Builder {
   }
 
   /**
+   * Alias to set the "offset" value of the query.
+   *
+   * @param  number  value
+   * @return Builder
+   */
+  public skip(value: number): Builder {
+    return this.offset(value);
+  }
+
+  /**
+   * Alias to set the "limit" value of the query.
+   *
+   * @param  number  value
+   * @return Builder
+   */
+  public take(value: number): Builder {
+    return this.limit(value);
+  }
+
+  /**
+   * Pass the query to a given callback.
+   *
+   * @param  Function  callback
+   * @return Builder
+   */
+  public tap(callback: Function): Builder {
+    return this.when(true, callback);
+  }
+
+  /**
    * Get the SQL representation of the query.
    *
    * @return string
    */
-  toSql(): string {
+  public toSql(): string {
     this.applyBeforeQueryCallbacks();
 
     return this.grammar.compileSelect(this);
+  }
+
+  /**
+   * Add a union statement to the query.
+   *
+   * @param  \Illuminate\Database\Query\Builder|\Closure  query
+   * @param  boolean  all
+   * @return Builder
+   */
+  public union(query: Builder | Function, all: boolean = false): Builder {
+    if (query instanceof Function) {
+      query(query = this.newQuery());
+    }
+
+    this.unions.push({ query, all });
+
+    this.addBinding(query.getBindings(), 'union');
+
+    return this;
+  }
+
+  /**
+   * Add a union all statement to the query.
+   *
+   * @param  \Illuminate\Database\Query\Builder|\Closure  query
+   * @return this
+   */
+  public unionAll(query: Builder): Builder {
+    return this.union(query, true);
+  }
+
+  /**
+   * Apply the callback's query changes if the given "value" is false.
+   *
+   * @param  mixed  value
+   * @param  Function
+   * @param  [Function]  default
+   * @return any|Builder
+   */
+  public unless(value: any, callback: Function, defaultCallback ?: Function): any | Builder {
+    if (!value) {
+      return callback(this, value) ?? this;
+    } else if (defaultCallback) {
+      return defaultCallback(this, value) ?? this;
+    }
+
+    return this;
   }
 
   /**
@@ -724,7 +1066,7 @@ export class Builder {
  * @param  callable|null  default
  * @return mixed|this
  */
-  public when(value: any, callback: Function, defaultCallback?: Function): Builder {
+  public when(value: any, callback: Function, defaultCallback ?: Function): Builder {
     if (value) {
       return callback(this, value) ?? this;
     } else if (defaultCallback) {
@@ -743,7 +1085,7 @@ export class Builder {
    * @param  string  boolean
    * @return Builder
    */
-  public where(column: Function | Expression | string | Array<any>, operator?: any, value?: any, boolean: string = 'and'): Builder {
+  public where(column: Function | Expression | string | Array < any >, operator ?: any, value ?: any, boolean: string = 'and'): Builder {
     // If the column is an array, we will assume it is an array of key-value pairs
     // and can add them each as a where clause. We will maintain the boolean we
     // received when the method was called and pass it into the nested where.
@@ -824,6 +1166,42 @@ export class Builder {
   }
 
   /**
+   * Add a where between statement to the query.
+   *
+   * @param  string|\Illuminate\Database\Query\Expression  column
+   * @param  array  values
+   * @param  string  boolean
+   * @param  boolean  not
+   * @return Builder
+   */
+  public whereBetween(column: string | Expression, values: Array < any >, boolean: string = 'and', not: boolean = false): Builder {
+    const type = 'Between';
+
+    this.wheres.push({ type, column, values, boolean, not });
+
+    this.addBinding(this.cleanBindings(Arr.flatten(values)).slice(0, 2), 'where');
+
+    return this;
+  }
+
+  /**
+   * Add a where between statement using columns to the query.
+   *
+   * @param  string  column
+   * @param  array  values
+   * @param  string  boolean
+   * @param  boolean  not
+   * @return Builder
+   */
+  public whereBetweenColumns(column: string, values: Array < any >, boolean: string = 'and', not: boolean = false): Builder {
+    const type = 'BetweenColumns';
+
+    this.wheres.push({ type, column, values, boolean, not });
+
+    return this;
+  }
+
+  /**
    * Add a "where" clause comparing two columns to the query.
    *
    * @param  string|array  first
@@ -832,7 +1210,7 @@ export class Builder {
    * @param  string|null  boolean
    * @return this
    */
-  public whereColumn(first: string | Array<any>, operator?: string, second?: string, boolean: string = 'and'): Builder {
+  public whereColumn(first: string | Array < any >, operator ?: string, second ?: string, boolean: string = 'and'): Builder {
     // If the column is an array, we will assume it is an array of key-value pairs
     // and can add them each as a where clause. We will maintain the boolean we
     // received when the method was called and pass it into the nested where.
@@ -860,6 +1238,158 @@ export class Builder {
   }
 
   /**
+   * Add a "where date" statement to the query.
+   *
+   * @param  string  column
+   * @param  string | number | Expression  operator
+   * @param  [Date | string]  value
+   * @param  string  boolean
+   * @return Builder
+   */
+  public whereDate(column: string, operator: any, value ?: any, boolean: string = 'and'): Builder {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    );
+
+    value = this.flattenValue(value);
+
+    if (value instanceof Date) {
+      value = utils.dateFormat(value, 'Y-m-d');
+    }
+
+    return this.addDateBasedWhere('Date', column, operator, value, boolean);
+  }
+
+  /**
+   * Add a "where day" statement to the query.
+   *
+   * @param  string  column
+   * @param  string | number | Expression  operator
+   * @param  [Date|string|Expression]  value
+   * @param  string  boolean
+   * @return this
+   */
+  public whereDay(column: string, operator: any, value ?: any, boolean: string = 'and'): Builder {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    );
+
+    value = this.flattenValue(value);
+
+    if (value instanceof Date) {
+      value = utils.dateFormat(value, 'd');
+    }
+
+    // if (!(value instanceof Expression)) {
+    //   value = String(value)?.padStart(2, '0');
+    // }
+
+    return this.addDateBasedWhere('Day', column, operator, value, boolean);
+  }
+
+  /**
+   * Add a "where in" clause to the query.
+   *
+   * @param  string  column
+   * @param  mixed  values
+   * @param  string  boolean
+   * @param  boolean  not
+   * @return Builder
+   */
+  public whereIn(column: string, values: any, boolean: string = 'and', not: boolean = false): Builder {
+    const type = not ? 'NotIn' : 'In';
+
+    // If the value is a query builder instance we will assume the developer wants to
+    // look for any values that exists within this given query. So we will add the
+    // query accordingly so that this query is properly executed when it is run.
+    if (this.isQueryable(values)) {
+      const [query, bindings] = this.createSub(values);
+
+      values = [new Expression(query)];
+
+      this.addBinding(bindings, 'where');
+    }
+
+    // Next, if the value is Arrayable we need to cast it to its raw array form so we
+    // have the underlying array value instead of an Arrayable object which is not
+    // able to be added as a binding, etc. We will then add to the wheres array.
+    // if (values instanceof Arrayable) {
+    //   values = values.toArray();
+    // }
+
+    this.wheres.push({ type, column, values, boolean });
+
+    // Finally we'll add a binding for each values unless that value is an expression
+    // in which case we will just skip over it since it will be the query as a raw
+    // string and not as a parameterized place-holder to be replaced by the PDO.
+    this.addBinding(this.cleanBindings(values), 'where');
+
+    return this;
+  }
+
+  /**
+   * Add a "where in raw" clause for integer values to the query.
+   *
+   * @param  string  column
+   * @param  \Illuminate\Contracts\Support\Arrayable|array  values
+   * @param  string  boolean
+   * @param  boolean  not
+   * @return Builder
+   */
+  public whereIntegerInRaw(column: string, values: Array < any >, boolean: string = 'and', not: boolean = false): Builder {
+    const type = not ? 'NotInRaw' : 'InRaw';
+
+    // if (values instanceof Arrayable) {
+    //   values = values.toArray();
+    // }
+
+    values = values.map(value => parseInt(value, 10));
+
+    this.wheres.push({ type, column, values, boolean });
+
+    return this;
+  }
+
+  /**
+   * Add a "where not in raw" clause for integer values to the query.
+   *
+   * @param  string  column
+   * @param  Array<any>  values
+   * @param  string  boolean
+   * @return Builder
+   */
+  public whereIntegerNotInRaw(column: string, values: Array < any >, boolean: string = 'and'): Builder {
+    return this.whereIntegerInRaw(column, values, boolean, true);
+  }
+
+  /**
+   * Add a "where month" statement to the query.
+   *
+   * @param  string  column
+   * @param  string | number | Expression  operator
+   * @param  Date | string | Expression  value
+   * @param  string  boolean
+   * @return this
+   */
+  public whereMonth(column: string, operator: any, value ?: any, boolean: string = 'and'): Builder {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    );
+
+    value = this.flattenValue(value);
+
+    if (value instanceof Date) {
+      value = utils.dateFormat(value, 'm');
+    }
+
+    // if (!(value instanceof Expression)) {
+    //   value = String(value)?.padStart(2, '0');
+    // }
+
+    return this.addDateBasedWhere('Month', column, operator, value, boolean);
+  }
+
+  /**
    * Add a nested where statement to the query.
    *
    * @param  \Function  callback
@@ -875,6 +1405,42 @@ export class Builder {
   }
 
   /**
+   * Add a where not between statement to the query.
+   *
+   * @param  string  column
+   * @param  array  values
+   * @param  string  boolean
+   * @return Builder
+   */
+  public whereNotBetween(column: string, values: Array < any >, boolean: string = 'and'): Builder {
+    return this.whereBetween(column, values, boolean, true);
+  }
+
+  /**
+   * Add a where not between statement using columns to the query.
+   *
+   * @param  string  column
+   * @param  array  values
+   * @param  string  boolean
+   * @return Builder
+   */
+  public whereNotBetweenColumns(column: string, values: Array < any >, boolean: string = 'and'): Builder {
+    return this.whereBetweenColumns(column, values, boolean, true);
+  }
+
+  /**
+   * Add a "where not in" clause to the query.
+   *
+   * @param  string  column
+   * @param  any  values
+   * @param  string  boolean
+   * @return Builder
+   */
+  public whereNotIn(column: string, values: Array < any >, boolean: string = 'and'): Builder {
+    return this.whereIn(column, values, boolean, true);
+  }
+
+  /**
    * Add a "where null" clause to the query.
    *
    * @param  string|array  columns
@@ -882,12 +1448,28 @@ export class Builder {
    * @param  boolean  not
    * @return this
    */
-  public whereNull(columns: string | Array<any>, boolean: string = 'and', not: boolean = false): Builder {
+  public whereNull(columns: string | Array < any >, boolean: string = 'and', not: boolean = false): Builder {
     const type = not ? 'NotNull' : 'Null';
 
     for (const column of Arr.wrap(columns)) {
       this.wheres.push({ type, column, boolean });
     }
+
+    return this;
+  }
+
+  /**
+   * Add a raw where clause to the query.
+   *
+   * @param  string  sql
+   * @param  any  bindings
+   * @param  string  boolean
+   * @return this
+   */
+  public whereRaw(sql: string, bindings: Array < any > =[], boolean: string = 'and'): Builder {
+    this.wheres.push({ type: 'Raw', sql, boolean });
+
+    this.addBinding(bindings, 'where');
 
     return this;
   }
@@ -917,5 +1499,51 @@ export class Builder {
     this.addBinding(query.getBindings(), 'where');
 
     return this;
+  }
+
+  /**
+   * Add a "where time" statement to the query.
+   *
+   * @param  string  column
+   * @param  string  operator
+   * @param  Date|string|null  value
+   * @param  string  boolean
+   * @return this
+   */
+  public whereTime(column: string, operator: any, value ?: any, boolean: string = 'and'): Builder {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    );
+
+    value = this.flattenValue(value);
+
+    if (value instanceof Date) {
+      value = utils.dateFormat(value, 'H:i:s');
+    }
+
+    return this.addDateBasedWhere('Time', column, operator, value, boolean);
+  }
+
+  /**
+   * Add a "where year" statement to the query.
+   *
+   * @param  string  column
+   * @param  string | number | Expression  operator
+   * @param  [Date|string|Number]  value
+   * @param  string  boolean
+   * @return this
+   */
+  public whereYear(column: string, operator: any, value ?: any, boolean: string = 'and'): Builder {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    );
+
+    value = this.flattenValue(value);
+
+    if (value instanceof Date) {
+      value = utils.dateFormat(value, 'Y');
+    }
+
+    return this.addDateBasedWhere('Year', column, operator, value, boolean);
   }
 }

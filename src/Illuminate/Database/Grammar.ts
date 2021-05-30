@@ -50,6 +50,16 @@ export abstract class Grammar {
   }
 
   /**
+   * Create query parameter place-holders for an array.
+   *
+   * @param  Array<any>  values
+   * @return string
+   */
+  public parameterize(values: Array<any>): string {
+    return values.map((value) => this.parameter(value)).join(', ');
+  }
+
+  /**
    * Set the grammar's table prefix.
    *
    * @param  string  prefix

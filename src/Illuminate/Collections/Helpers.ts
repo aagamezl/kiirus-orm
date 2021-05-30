@@ -58,6 +58,15 @@ export const dataGet = (target: any, key?: string | Array<any> | number, default
   return target
 }
 
+/**
+ * Get the last element of an array. Useful for method chaining.
+ *
+ * @param  array  array
+ * @return any
+ */
+export const end = (array: Array<any>) => {
+  return array[array.length - 1];
+}
 
 /**
  * Get the first element of an array. Useful for method chaining.
@@ -67,4 +76,24 @@ export const dataGet = (target: any, key?: string | Array<any> | number, default
  */
 export const head = (array: Array<any>) => {
   return array[0];
+}
+
+/**
+ * Get the last element from an array.
+ *
+ * @param  array  array
+ * @return any
+ */
+export const last = (array: Array<any>) => {
+  return end(array);
+}
+
+/**
+ * Get the first element of an array. Useful for method chaining.
+ *
+ * @param  array  array
+ * @return any
+ */
+export const reset = (array: Array<any>) => {
+  return head(array);
 }

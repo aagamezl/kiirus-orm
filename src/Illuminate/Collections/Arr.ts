@@ -132,6 +132,16 @@ export class Arr {
     return results;
   }
 
+  public static values(array: Array<any>): Array<any> {
+    const values: Array<any> = [];
+
+    for (const value of array.values()) {
+      values.push(value);
+    }
+
+    return values
+  }
+
   /**
    * If the given value is not an array and not null, wrap it in one.
    *
