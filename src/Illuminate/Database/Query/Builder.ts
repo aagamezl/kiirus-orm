@@ -11,6 +11,7 @@ import { Arr } from '../../Collections/Arr';
 import { collect, head } from '../../Collections/Helpers';
 import { JoinClause, TJoinClause } from './JoinClause';
 import { Collection } from '../../Collections/Collection';
+import { tap } from '../../Support';
 
 export interface UnionInterface {
   all: boolean,
@@ -80,7 +81,7 @@ export class Builder {
    *
    * @var array
    */
-  public columns: Array<string> = [];
+  public columns: Array<any> = [];
 
   /**
    * The database connection instance.
@@ -111,6 +112,13 @@ export class Builder {
    * @var \Illuminate\Database\Query\Grammars\Grammar
    */
   public grammar: Grammar;
+
+  /**
+   * The groupings for the query.
+   *
+   * @var Array<any>
+   */
+  public groups: Array<any> = [];
 
   /**
    * The having constraints for the query.
@@ -153,6 +161,13 @@ export class Builder {
     '~', '~*', '!~', '!~*', 'similar to',
     'not similar to', 'not ilike', '~~*', '!~~*',
   ];
+
+  /**
+   * The orderings for the query.
+   *
+   * @var Array<any>
+   */
+  public orders: Array<any> = [];
 
   /**
    * The database query post processor instance.
@@ -237,11 +252,11 @@ export class Builder {
    */
   public addBinding(value: any, type: string = 'where'): Builder {
     if (!this.bindings[type]) {
-      throw new Error(`InvalidArgumentException: Invalid binding type: ${type}.`);
+      throw new TypeError(`InvalidArgumentException: Invalid binding type: ${type}.`);
     }
 
     if (Array.isArray(value)) {
-      this.bindings[type] = Object.values([...this.bindings[type], ...value]) as Array<string>;
+      this.bindings[type] = Array.from(Object.values([...this.bindings[type], ...value]));
     } else {
       this.bindings[type].push(value);
     }
@@ -313,6 +328,25 @@ export class Builder {
   }
 
   /**
+   * Execute an aggregate function on the database.
+   *
+   * @param  string  functionName
+   * @param  array  columns
+   * @return any
+   */
+  public aggregate(functionName: string, columns: Array<any> = ['*']): any {
+    const results = this.cloneWithout(this.unions.length > 0 || this.havings.length > 0 ? [] : ['columns'])
+      .cloneWithoutBindings(this.unions.length > 0 || this.havings.length > 0 ? [] : ['select'])
+      .setAggregate(functionName, columns)
+      .get(columns);
+
+    if (!results.isEmpty()) {
+      // return array_change_key_case(results[0])['aggregate'];
+      return (results.all()[0] as any)['aggregate'];
+    }
+  }
+
+  /**
    * Invoke the "before query" modification callbacks.
    *
    * @return void
@@ -335,6 +369,60 @@ export class Builder {
     return Arr.values(bindings.filter((binding: any) => {
       return !(binding instanceof Expression);
     }));
+  }
+
+  /**
+   * Clone the query.
+   *
+   * @return Builder
+   */
+  public clone(): Builder {
+    const cloned = Object.assign({}, this);
+
+    Object.setPrototypeOf(cloned, Object.getPrototypeOf(this));
+    return cloned;
+  }
+
+  /**
+   * Clone the query without the given properties.
+   *
+   * @param  Array<any>  properties
+   * @return Builder
+   */
+  public cloneWithout(properties: Array<any>): Builder {
+    return tap(this.clone(), (clone: Builder) => {
+      for (const property of properties) {
+        if (Array.isArray((clone as any)[property])) {
+          (clone as any)[property] = [];
+        } else {
+          (clone as any)[property] = undefined;
+        }
+      }
+    });
+  }
+
+  /**
+   * Clone the query without the given bindings.
+   *
+   * @param  Array<string>  except
+   * @return Builder
+   */
+  public cloneWithoutBindings(except: Array<string>): Builder {
+    return tap(this.clone(), (clone: Builder) => {
+      for (const type of except) {
+        clone.bindings[type] = [];
+      }
+    });
+  }
+
+  /**
+   * Retrieve the "count" result of the query.
+   *
+   * @param  string  columns
+   * @return number
+   */
+  public count(columns: string = '*') {
+    return this.aggregate('count', Arr.wrap(columns));
   }
 
   /**
@@ -507,6 +595,110 @@ export class Builder {
   }
 
   /**
+   * Add a "group by" clause to the query.
+   *
+   * @param  string | Array<any>  ...groups
+   * @return Builder
+   */
+  public groupBy(...groups: Array<any>): Builder {
+    for (const group of groups) {
+      this.groups = [
+        ...this.groups,
+        ...Arr.wrap(group)
+      ];
+    }
+
+    return this;
+  }
+
+  /**
+   * Add a raw groupBy clause to the query.
+   *
+   * @param  string  sql
+   * @param  array  bindings
+   * @return Builder
+   */
+  public groupByRaw(sql: string, bindings: Array<any> = []): Builder {
+    this.groups.push(new Expression(sql));
+
+    this.addBinding(bindings, 'groupBy');
+
+    return this;
+  }
+
+  /**
+   * Add a "having" clause to the query.
+   *
+   * @param  string  column
+   * @param  [string]  operator
+   * @param  [string]  value
+   * @param  string  boolean
+   * @return Builder
+   */
+  public having(column: string, operator?: any, value?: any, boolean: string = 'and'): Builder {
+    const type = 'Basic';
+
+    // Here we will make some assumptions about the operator. If only 2 values are
+    // passed to the method, we will assume that the operator is an equals sign
+    // and keep going. Otherwise, we'll require the operator to be passed in.
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    );
+
+    // If the given operator is not found in the list of valid operators we will
+    // assume that the developer is just short-cutting the '=' operators and
+    // we will set the operators to '=' and set the values appropriately.
+    if (this.invalidOperator(operator)) {
+      [value, operator] = [operator, '='];
+    }
+
+    this.havings.push({ type, column, operator, value, boolean });
+
+    if (!(value instanceof Expression)) {
+      this.addBinding(this.flattenValue(value), 'having');
+    }
+
+    return this;
+  }
+
+  /**
+   * Add a "having between " clause to the query.
+   *
+   * @param  string  column
+   * @param  array  values
+   * @param  string  boolean
+   * @param  boolean  not
+   * @return Builder
+   */
+  public havingBetween(column: string, values: Array<any>, boolean: string = 'and', not: boolean = false): Builder {
+    const type = 'between';
+
+    this.havings.push({ type, column, values, boolean, not });
+
+    this.addBinding(this.cleanBindings(Arr.flatten(values)).slice(0, 2), 'having');
+
+    return this;
+  }
+
+  /**
+   * Add a raw having clause to the query.
+   *
+   * @param  string  sql
+   * @param  array  bindings
+   * @param  string  boolean
+   * @return Builder
+   */
+  public havingRaw(sql: string, bindings: Array<any> = [], boolean: string = 'and'): Builder {
+    const type = 'Raw';
+
+    this.havings.push({ type, sql, boolean });
+
+    this.addBinding(bindings, 'having');
+
+    return this;
+  }
+
+  /**
    * Determine if the given operator is supported.
    *
    * @param  string  operator
@@ -534,8 +726,8 @@ export class Builder {
   /**
    * Determine if the value is a query builder instance or a Closure.
    *
-   * @param  mixed  value
-   * @return bool
+   * @param  any  value
+   * @return boolean
    */
   protected isQueryable(value: unknown): boolean {
     return value instanceof Builder ||
@@ -548,12 +740,12 @@ export class Builder {
    * Add a join clause to the query.
    *
    * @param  string  table
-   * @param  \Function|string  first
-   * @param  string|null  operator
-   * @param  string|null  second
+   * @param  Function|string  first
+   * @param  [string]  operator
+   * @param  [string]  second
    * @param  string  type
-   * @param  bool  where
-   * @return this
+   * @param  boolean  where
+   * @return Builder
    */
   public join(
     table: string,
@@ -633,8 +825,8 @@ export class Builder {
    * After running the callback, the columns are reset to the original value.
    *
    * @param  array  columns
-   * @param  callable  callback
-   * @return mixed
+   * @param  Function  callback
+   * @return any
    */
   protected onceWithColumns(columns: Array<any>, callback: Function) {
     const original = this.columns;
@@ -685,7 +877,7 @@ export class Builder {
     direction = direction.toLowerCase();
 
     if (!['asc', 'desc'].includes(direction)) {
-      throw new Error('InvalidArgumentException: Order direction must be "asc" or "desc".');
+      throw new TypeError('InvalidArgumentException: Order direction must be "asc" or "desc".');
     }
 
     (this as any)[this.unions.length > 0 ? 'unionOrders' : 'orders'].push({
@@ -697,6 +889,49 @@ export class Builder {
   }
 
   /**
+   * Add a descending "order by" clause to the query.
+   *
+   * @param  string | Function  column
+   * @return Builder
+   */
+  public orderByDesc(column: string | Function): Builder {
+    return this.orderBy(column, 'desc');
+  }
+
+  /**
+   * Add a raw "order by" clause to the query.
+   *
+   * @param  string  sql
+   * @param  array  bindings
+   * @return Builder
+   */
+  public orderByRaw(sql: string, bindings: Array<any> = []): Builder {
+    const type = 'Raw';
+
+    (this as any)[this.unions.length > 0 ? 'unionOrders' : 'orders'].push({ type, sql });
+
+    this.addBinding(bindings, this.unions ? 'unionOrder' : 'order');
+
+    return this;
+  }
+
+  /**
+   * Add an "or having" clause to the query.
+   *
+   * @param  string  column
+   * @param  [string]  operator
+   * @param  [Builder]  value
+   * @return Builder
+   */
+  public orHaving(column: string, operator?: any, value?: any): Builder {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    );
+
+    return this.having(column, operator, value, 'or');
+  }
+
+  /**
    * Add an "or where" clause to the query.
    *
    * @param  Function|string|Array<any>  column
@@ -704,7 +939,7 @@ export class Builder {
    * @param  any  value
    * @return Builder
    */
-  public orWhere(column: Function | string | Array < any >, operator ?: any, value ?: any): Builder {
+  public orWhere(column: Function | string | Array < any >, operator?: any, value?: any): Builder {
     [value, operator] = this.prepareValueAndOperator(
       value, operator, arguments.length === 2
     );
@@ -720,7 +955,7 @@ export class Builder {
    * @param  string  second
    * @return Builder
    */
-  public orWhereColumn(first: string | Array < any >, operator ?: string, second ?: string): Builder {
+  public orWhereColumn(first: string | Array < any >, operator?: string, second?: string): Builder {
     return this.whereColumn(first, operator, second, 'or');
   }
 
@@ -730,9 +965,9 @@ export class Builder {
    * @param  string  column
    * @param  string | number  operator
    * @param  [Date|string]  value
-   * @return this
+   * @return Builder
    */
-  public orWhereDate(column: string, operator: string | number, value ?: Date | string): Builder {
+  public orWhereDate(column: string, operator: string | number, value?: Date | string): Builder {
     [value, operator] = this.prepareValueAndOperator(
       String(value), String(operator), arguments.length === 2
     );
@@ -748,28 +983,12 @@ export class Builder {
    * @param  [Date|string]  value
    * @return Builder
    */
-  public orWhereDay(column: string, operator: any, value ?: any): Builder {
+  public orWhereDay(column: string, operator: any, value?: any): Builder {
     [value, operator] = this.prepareValueAndOperator(
       value, operator, arguments.length === 2
     );
 
     return this.whereDay(column, operator, value, 'or');
-  }
-
-  /**
- * Add an "or where month" statement to the query.
- *
- * @param  string  column
- * @param  string | number  operator
- * @param  [Date|string]  value
- * @return Builder
- */
-  public orWhereMonth(column: string, operator: any, value ?: any): Builder {
-    [value, operator] = this.prepareValueAndOperator(
-      value, operator, arguments.length === 2
-    );
-
-    return this.whereMonth(column, operator, value, 'or');
   }
 
   /**
@@ -805,6 +1024,22 @@ export class Builder {
     return this.whereIntegerNotInRaw(column, values, 'or');
   }
 
+ /**
+   * Add an "or where month" statement to the query.
+   *
+   * @param  string  column
+   * @param  string | number  operator
+   * @param  [Date|string]  value
+   * @return Builder
+   */
+  public orWhereMonth(column: string, operator: any, value?: any): Builder {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    );
+
+    return this.whereMonth(column, operator, value, 'or');
+  }
+
   /**
    * Add an "or where not in" clause to the query.
    *
@@ -814,6 +1049,26 @@ export class Builder {
    */
   public orWhereNotIn(column: string, values: Array<any>): Builder {
     return this.whereNotIn(column, values, 'or');
+  }
+
+  /**
+   * Add an "or where not null" clause to the query.
+   *
+   * @param  string | Array<any> column
+   * @return Builder
+   */
+  public orWhereNotNull(column: string | Array<any>): Builder {
+    return this.whereNotNull(column, 'or');
+  }
+
+  /**
+   * Add an "or where null" clause to the query.
+   *
+   * @param  string  column
+   * @return Builder
+   */
+  public orWhereNull(column: string | Array<any>): Builder {
+    return this.whereNull(column, 'or');
   }
 
   /**
@@ -835,7 +1090,7 @@ export class Builder {
    * @param  [Date|string|number]  value
    * @return Builder
    */
-  public orWhereYear(column: string, operator: any, value ?: any): Builder {
+  public orWhereYear(column: string, operator: any, value?: any): Builder {
     [value, operator] = this.prepareValueAndOperator(
       value, operator, arguments.length === 2
     );
@@ -851,15 +1106,15 @@ export class Builder {
    *
    * @throws \InvalidArgumentException
    */
-  protected parseSub(query: any): Array < any > {
-    if(query instanceof this.constructor.prototype || query instanceof EloquentBuilder || query instanceof Relation) {
+  protected parseSub(query: any): Array <any> {
+    if(query instanceof this.constructor || query instanceof EloquentBuilder || query instanceof Relation) {
       query = this.prependDatabaseNameIfCrossDatabaseQuery(query);
 
       return [query.toSql(), query.getBindings()];
     } else if (typeof query === 'string') {
       return [query, []];
     } else {
-      throw new Error(
+      throw new TypeError(
         'InvalidArgumentException: A subquery must be a query builder instance, a Closure, or a string.'
       );
     }
@@ -879,7 +1134,7 @@ export class Builder {
     if(useDefault) {
       return [operator, '='];
     } else if(this.invalidOperatorAndValue(operator, value)) {
-      throw new Error('InvalidArgumentException: Illegal operator and value combination.');
+      throw new TypeError('InvalidArgumentException: Illegal operator and value combination.');
     }
 
     return [value, operator];
@@ -904,6 +1159,26 @@ export class Builder {
   }
 
   /**
+   * Remove all existing orders and optionally add a new order.
+   *
+   * @param  string  column
+   * @param  string  direction
+   * @return Builder
+   */
+  public reorder(column = '', direction = 'asc'): Builder {
+    this.orders = [];
+    this.unionOrders = [];
+    this.bindings['order'] = [];
+    this.bindings['unionOrder'] = [];
+
+    if (column) {
+      return this.orderBy(column, direction);
+    }
+
+    return this;
+  }
+
+  /**
    * Run the query as a "select" statement against the connection.
    *
    * @return array
@@ -920,16 +1195,16 @@ export class Builder {
    * @param  array|mixed  columns
    * @return this
    */
-  public select(...columns: Array<string> | any): Builder {
+  public select(...columns: any): Builder {
     this.columns = [];
     this.bindings['select'] = [];
-    columns = Array.isArray(columns) ? columns : [...arguments];
+    columns = Array.isArray(columns) ? columns.flat() : [...arguments];
 
-    for(const [as, column] of Object.entries(columns)) {
-      if (typeof as === 'string' && this.isQueryable(column)) {
+    for (const [as, column] of Array.from(Object.entries(columns))) {
+      if (!utils.isInteger(as) && this.isQueryable(column)) {
         this.selectSub(String(column), as);
       } else {
-        this.columns.push(String(column));
+        this.columns.push(column);
       }
     }
 
@@ -940,10 +1215,10 @@ export class Builder {
    * Add a new "raw" select expression to the query.
    *
    * @param  string  expression
-   * @param  array  bindings
+   * @param  Array<any>  bindings
    * @return this
    */
-  public selectRaw(expression: string, bindings = []): Builder {
+  public selectRaw(expression: string, bindings: Array<any> = []): Builder {
     this.addSelect(new Expression(expression));
 
     if (bindings) {
@@ -968,6 +1243,25 @@ export class Builder {
     return this.selectRaw(
       '(' + querySub + ') as ' + this.grammar.wrap(as), bindings
     );
+  }
+
+  /**
+   * Set the aggregate property without running the query.
+   *
+   * @param  string  functionName
+   * @param  Array<string>  columns
+   * @return Builder
+   */
+  protected setAggregate(functionName: string, columns: Array<string>): Builder {
+    this.aggregateProperty = { function: functionName, columns };
+
+    if (this.groups.length === 0) {
+      this.orders = [];
+
+      this.bindings['order'] = [];
+    }
+
+    return this;
   }
 
   /**
@@ -1048,7 +1342,7 @@ export class Builder {
    * @param  [Function]  default
    * @return any|Builder
    */
-  public unless(value: any, callback: Function, defaultCallback ?: Function): any | Builder {
+  public unless(value: any, callback: Function, defaultCallback?: Function): any | Builder {
     if (!value) {
       return callback(this, value) ?? this;
     } else if (defaultCallback) {
@@ -1066,7 +1360,7 @@ export class Builder {
  * @param  callable|null  default
  * @return mixed|this
  */
-  public when(value: any, callback: Function, defaultCallback ?: Function): Builder {
+  public when(value: any, callback: Function, defaultCallback?: Function): Builder {
     if (value) {
       return callback(this, value) ?? this;
     } else if (defaultCallback) {
@@ -1085,7 +1379,7 @@ export class Builder {
    * @param  string  boolean
    * @return Builder
    */
-  public where(column: Function | Expression | string | Array < any >, operator ?: any, value ?: any, boolean: string = 'and'): Builder {
+  public where(column: Function | Expression | string | Array < any >, operator?: any, value?: any, boolean: string = 'and'): Builder {
     // If the column is an array, we will assume it is an array of key-value pairs
     // and can add them each as a where clause. We will maintain the boolean we
     // received when the method was called and pass it into the nested where.
@@ -1210,7 +1504,7 @@ export class Builder {
    * @param  string|null  boolean
    * @return this
    */
-  public whereColumn(first: string | Array < any >, operator ?: string, second ?: string, boolean: string = 'and'): Builder {
+  public whereColumn(first: string | Array < any >, operator?: string, second?: string, boolean: string = 'and'): Builder {
     // If the column is an array, we will assume it is an array of key-value pairs
     // and can add them each as a where clause. We will maintain the boolean we
     // received when the method was called and pass it into the nested where.
@@ -1246,7 +1540,7 @@ export class Builder {
    * @param  string  boolean
    * @return Builder
    */
-  public whereDate(column: string, operator: any, value ?: any, boolean: string = 'and'): Builder {
+  public whereDate(column: string, operator: any, value?: any, boolean: string = 'and'): Builder {
     [value, operator] = this.prepareValueAndOperator(
       value, operator, arguments.length === 2
     );
@@ -1269,7 +1563,7 @@ export class Builder {
    * @param  string  boolean
    * @return this
    */
-  public whereDay(column: string, operator: any, value ?: any, boolean: string = 'and'): Builder {
+  public whereDay(column: string, operator: any, value?: any, boolean: string = 'and'): Builder {
     [value, operator] = this.prepareValueAndOperator(
       value, operator, arguments.length === 2
     );
@@ -1371,7 +1665,7 @@ export class Builder {
    * @param  string  boolean
    * @return this
    */
-  public whereMonth(column: string, operator: any, value ?: any, boolean: string = 'and'): Builder {
+  public whereMonth(column: string, operator: any, value?: any, boolean: string = 'and'): Builder {
     [value, operator] = this.prepareValueAndOperator(
       value, operator, arguments.length === 2
     );
@@ -1436,8 +1730,19 @@ export class Builder {
    * @param  string  boolean
    * @return Builder
    */
-  public whereNotIn(column: string, values: Array < any >, boolean: string = 'and'): Builder {
+  public whereNotIn(column: string, values: any, boolean: string = 'and'): Builder {
     return this.whereIn(column, values, boolean, true);
+  }
+
+  /**
+   * Add a "where not null" clause to the query.
+   *
+   * @param  string|Array<any>  columns
+   * @param  [string]  boolean
+   * @return this
+   */
+  public whereNotNull(columns: string | Array<any>, boolean: string = 'and'): Builder {
+    return this.whereNull(columns, boolean, true);
   }
 
   /**
@@ -1448,7 +1753,7 @@ export class Builder {
    * @param  boolean  not
    * @return this
    */
-  public whereNull(columns: string | Array < any >, boolean: string = 'and', not: boolean = false): Builder {
+  public whereNull(columns: string | Array <any>, boolean: string = 'and', not: boolean = false): Builder {
     const type = not ? 'NotNull' : 'Null';
 
     for (const column of Arr.wrap(columns)) {
@@ -1510,7 +1815,7 @@ export class Builder {
    * @param  string  boolean
    * @return this
    */
-  public whereTime(column: string, operator: any, value ?: any, boolean: string = 'and'): Builder {
+  public whereTime(column: string, operator: any, value?: any, boolean: string = 'and'): Builder {
     [value, operator] = this.prepareValueAndOperator(
       value, operator, arguments.length === 2
     );
@@ -1533,7 +1838,7 @@ export class Builder {
    * @param  string  boolean
    * @return this
    */
-  public whereYear(column: string, operator: any, value ?: any, boolean: string = 'and'): Builder {
+  public whereYear(column: string, operator: any, value?: any, boolean: string = 'and'): Builder {
     [value, operator] = this.prepareValueAndOperator(
       value, operator, arguments.length === 2
     );

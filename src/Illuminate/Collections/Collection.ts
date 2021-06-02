@@ -87,6 +87,15 @@ export class Collection {
   }
 
   /**
+   * Determine if the collection is empty or not.
+   *
+   * @return boolean
+   */
+  public isEmpty() {
+    return !this.items || this.items.length === 0;
+  }
+
+  /**
  * Join all items from the collection using a string. The final items can use a separate glue string.
  *
  * @param  string  glue

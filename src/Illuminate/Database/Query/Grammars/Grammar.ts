@@ -56,7 +56,7 @@ export class Grammar extends BaseGrammar {
     // If the query has a "distinct" constraint and we're not asking for all columns
     // we need to prepend "distinct" onto the column name so that the query takes
     // it into account when it performs the aggregating operations on the data.
-    if (Array.isArray(query.distinct)) {
+    if (Array.isArray(query.distinctProperty)) {
       column = 'distinct ' + this.columnize(query.distinctProperty as Array<any>);
     } else if(query.distinctProperty && column !== '*') {
       column = 'distinct ' + column;
@@ -111,7 +111,7 @@ export class Grammar extends BaseGrammar {
     for (const component of this.selectComponents) {
       const { name, property } = component as SelectComponentInterface;
 
-      if (Reflect.has(query, property)) {
+      if (this.isExecutable(query, property)) {
         const method = 'compile' + utils.titleCase(name);
 
         sql[name] = (this as any)[method](query, (query as any)[property]);
@@ -130,6 +130,17 @@ export class Grammar extends BaseGrammar {
    */
   protected compileFrom(query: Builder, table: string) {
     return 'from ' + this.wrapTable(table);
+  }
+
+  /**
+   * Compile the "group by" portions of the query.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  Array<any>  groups
+   * @return string
+   */
+  protected compileGroups(query: Builder, groups: Array<any>): string {
+    return 'group by ' + this.columnize(groups);
   }
 
   /**
@@ -373,7 +384,7 @@ export class Grammar extends BaseGrammar {
    */
   protected compileWheresToArray(query: Builder): Array<any> {
     return collect(query.wheres).map((where) => {
-      return where['boolean'] + ' ' + (this as any)[`where${where.type}`](query, where);
+      return where.boolean + ' ' + (this as any)[`where${where.type}`](query, where);
     }).all();
   }
 
@@ -423,6 +434,20 @@ export class Grammar extends BaseGrammar {
    */
   public getOperators(): Array<any> {
     return this.operators;
+  }
+
+  protected isExecutable(query: Builder, property: string): boolean {
+    const subject = Reflect.get(query, property);
+
+    if (!subject) {
+      return false;
+    }
+
+    if (Array.isArray(subject) && subject.length === 0) {
+      return false;
+    }
+
+    return true;
   }
 
   /**
@@ -619,6 +644,28 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile a "where not null" clause.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  WhereInterface  where
+   * @return string
+   */
+  protected whereNotNull(query: Builder, where: WhereInterface): string {
+    return this.wrap((where as any).column) + ' is not null';
+  }
+
+  /**
+   * Compile a "where null" clause.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  WhereInterface  where
+   * @return string
+   */
+  protected whereNull(query: Builder, where: WhereInterface): string {
+    return this.wrap((where as any).column) + ' is null';
+  }
+
+  /**
    * Compile a raw where clause.
    *
    * @param  \Illuminate\Database\Query\Builder  query
@@ -679,6 +726,35 @@ export class Grammar extends BaseGrammar {
     }
 
     return this.wrapSegments(String(value).split('.'));
+  }
+
+  /**
+   * Split the given JSON selector into the field and the optional path and wrap them separately.
+   *
+   * @param  string  column
+   * @return array
+   */
+  protected wrapJsonFieldAndPath(column: string): Array<string> {
+    const parts = column.split('->', 2);
+
+    const field = this.wrap(parts[0]);
+
+    const path = parts.length > 1 ? ', ' + this.wrapJsonPath(parts[1], '->') : '';
+
+    return [field, path];
+  }
+
+  /**
+   * Wrap the given JSON path.
+   *
+   * @param  string  value
+   * @param  string  delimiter
+   * @return string
+   */
+  protected wrapJsonPath(value: string, delimiter: string = '->'): string {
+    value = value.replace(/([\\\\]+)?\\'/, `''`);
+
+    return '\'$."' + value.replace(delimiter, '"."') + '"\'';
   }
 
   /**

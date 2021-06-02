@@ -12,6 +12,7 @@ import {
 import { MySqlProcessor, Processor } from '../../src/Illuminate/Database/Query/Processors';
 import { Connection } from '../../src/Illuminate/Database';
 import { Expression as Raw } from '../../src/Illuminate/Database/Query';
+import { autoVerify, createMock } from './tools/auto-verify';
 
 const getConnection = () => {
   // const connection = sinon.mock(new Connection());
@@ -63,11 +64,12 @@ const getSQLiteBuilder = () => {
   return new Builder(getConnection(), grammar, processor);
 };
 
-const sandbox: sinon.SinonSandbox = sinon.createSandbox()
+// const sandbox: sinon.SinonSandbox = sinon.createSandbox()
 
 test.afterEach(t => {
-  sandbox.verify();
-  sandbox.restore();
+  // sandbox.verify();
+  // sandbox.restore();
+  // autoVerify();
 });
 
 test('testBasicSelect', t => {
@@ -80,8 +82,8 @@ test('testBasicSelect', t => {
 test('testBasicSelectWithGetColumns', t => {
   const builder = getBuilder();
 
-  const processorMock = sandbox.mock(builder.getProcessor())
-  const connectionMock = sandbox.mock(builder.getConnection())
+  const processorMock = createMock(builder.getProcessor());
+  const connectionMock = createMock(builder.getConnection());
 
   processorMock.expects('processSelect').thrice();
 
@@ -100,12 +102,14 @@ test('testBasicSelectWithGetColumns', t => {
 
   t.is(builder.toSql(), 'select * from "users"');
   t.deepEqual(builder.columns, []);
+
+  autoVerify();
 });
 
 test('testBasicMySqlSelect', t => {
   let builder = getMySqlBuilderWithProcessor();
 
-  let connectionMock = sandbox.mock(builder.getConnection());
+  let connectionMock = createMock(builder.getConnection());
 
   connectionMock.expects('select').once()
     .withArgs('select * from `users`', []);
@@ -113,7 +117,7 @@ test('testBasicMySqlSelect', t => {
   builder.select('*').from('users').get();
 
   builder = getMySqlBuilderWithProcessor();
-  connectionMock = sandbox.mock(builder.getConnection());
+  connectionMock = createMock(builder.getConnection());
 
   connectionMock.expects('select').once()
     .withArgs('select * from `users`', []);
@@ -121,6 +125,8 @@ test('testBasicMySqlSelect', t => {
   builder.select('*').from('users').get();
 
   t.is('select * from `users`', builder.toSql());
+
+  autoVerify();
 });
 
 test('testBasicTableWrappingProtectsQuotationMarks', t => {
@@ -959,13 +965,322 @@ test('testUnionWithJoin', t => {
   t.deepEqual([1], builder.getBindings());
 });
 
-test('test_name', t => {
+test('testMySqlUnionOrderBys', t => {
   const builder = getMySqlBuilder();
   builder.select('*').from('users').where('id', '=', 1);
   builder.union(getMySqlBuilder().select('*').from('users').where('id', '=', 2));
   builder.orderBy('id', 'desc');
   t.is('(select * from `users` where `id` = ?) union (select * from `users` where `id` = ?) order by `id` desc', builder.toSql());
   t.deepEqual([1, 2], builder.getBindings());
+});
+
+test('testMySqlUnionLimitsAndOffsets', t => {
+  const builder = getMySqlBuilder();
+  builder.select('*').from('users');
+  builder.union(getMySqlBuilder().select('*').from('dogs'));
+  builder.skip(5).take(10);
+  t.is('(select * from `users`) union (select * from `dogs`) limit 10 offset 5', builder.toSql());
+});
+
+test('testUnionAggregate', t => {
+  let expected = 'select count(*) as aggregate from ((select * from `posts`) union (select * from `videos`)) as `temp_table`';
+  let builder = getMySqlBuilder();
+  let processorMock = createMock(builder.getProcessor());
+  let connectionMock = createMock(builder.getConnection());
+  connectionMock.expects('select').once().withArgs(expected, []);
+  processorMock.expects('processSelect').once();
+  builder.from('posts').union(getMySqlBuilder().from('videos')).count();
+
+  expected = 'select count(*) as aggregate from ((select `id` from `posts`) union (select `id` from `videos`)) as `temp_table`';
+  builder = getMySqlBuilder();
+  processorMock = createMock(builder.getProcessor());
+  connectionMock = createMock(builder.getConnection());
+  connectionMock.expects('select').once().withArgs(expected, []);
+  processorMock.expects('processSelect').once();
+  builder.from('posts').select('id').union(getMySqlBuilder().from('videos').select('id')).count();
+
+  expected = 'select count(*) as aggregate from ((select * from "posts") union (select * from "videos")) as "temp_table"';
+  builder = getPostgresBuilder();
+  processorMock = createMock(builder.getProcessor());
+  connectionMock = createMock(builder.getConnection());
+  connectionMock.expects('select').once().withArgs(expected, []);
+  processorMock.expects('processSelect').once();
+  builder.from('posts').union(getPostgresBuilder().from('videos')).count();
+
+  expected = 'select count(*) as aggregate from (select * from (select * from "posts") union select * from (select * from "videos")) as "temp_table"';
+  builder = getSQLiteBuilder();
+  processorMock = createMock(builder.getProcessor());
+  connectionMock = createMock(builder.getConnection());
+  connectionMock.expects('select').once().withArgs(expected, []);
+  processorMock.expects('processSelect').once();
+  builder.from('posts').union(getSQLiteBuilder().from('videos')).count();
+
+  expected = 'select count(*) as aggregate from (select * from (select * from [posts]) as [temp_table] union select * from (select * from [videos]) as [temp_table]) as [temp_table]';
+  builder = getSqlServerBuilder();
+  processorMock = createMock(builder.getProcessor());
+  connectionMock = createMock(builder.getConnection());
+  connectionMock.expects('select').once().withArgs(expected, []);
+  processorMock.expects('processSelect').once();
+  builder.from('posts').union(getSqlServerBuilder().from('videos')).count();
+
+  autoVerify();
+  t.pass();
+});
+
+test('testHavingAggregate', t => {
+  const expected = 'select count(*) as aggregate from (select (select `count(*)` from `videos` where `posts`.`id` = `videos`.`post_id`) as `videos_count` from `posts` having `videos_count` > ?) as `temp_table`';
+  const results = [1];
+  const builder = getMySqlBuilder();
+  let processorMock = createMock(builder.getProcessor());
+  let connectionMock = createMock(builder.getConnection());
+  connectionMock.expects('getDatabaseName').twice();
+  connectionMock.expects('select').once().withArgs(expected, [1]).returns([{ 'aggregate': 1 }]);
+  processorMock.expects('processSelect').once().returns(results);
+
+  builder.from('posts').selectSub((query: Builder) => {
+    query.from('videos').select('count(*)').whereColumn('posts.id', '=', 'videos.post_id');
+  }, 'videos_count').having('videos_count', '>', 1);
+  builder.count();
+
+  autoVerify();
+  t.pass();
+});
+
+test('testSubSelectWhereIns', t => {
+  let builder = getBuilder();
+  builder.select('*').from('users').whereIn('id', (query: Builder) => {
+    query.select('id').from('users').where('age', '>', 25).take(3);
+  });
+  t.is('select * from "users" where "id" in (select "id" from "users" where "age" > ? limit 3)', builder.toSql());
+  t.deepEqual([25], builder.getBindings());
+
+  builder = getBuilder();
+  builder.select('*').from('users').whereNotIn('id', (query: Builder) => {
+    query.select('id').from('users').where('age', '>', 25).take(3);
+  });
+  t.is('select * from "users" where "id" not in (select "id" from "users" where "age" > ? limit 3)', builder.toSql());
+  t.deepEqual([25], builder.getBindings());
+});
+
+test('testBasicWhereNulls', t => {
+  let builder = getBuilder();
+  builder.select('*').from('users').whereNull('id');
+  t.is('select * from "users" where "id" is null', builder.toSql());
+  t.deepEqual([], builder.getBindings());
+
+  builder = getBuilder();
+  builder.select('*').from('users').where('id', '=', 1).orWhereNull('id');
+  t.is('select * from "users" where "id" = ? or "id" is null', builder.toSql());
+  t.deepEqual([1], builder.getBindings());
+});
+
+test('testJsonWhereNullMysql', t => {
+  const builder = getMySqlBuilder();
+  builder.select('*').from('users').whereNull('items->id');
+  t.is('select * from `users` where (json_extract(`items`, \'$."id"\') is null OR json_type(json_extract(`items`, \'$."id"\')) = \'NULL\')', builder.toSql());
+});
+
+test('testJsonWhereNotNullMysql', t => {
+  const builder = getMySqlBuilder();
+  builder.select('*').from('users').whereNotNull('items->id');
+  t.is('select * from `users` where (json_extract(`items`, \'$."id"\') is not null AND json_type(json_extract(`items`, \'$."id"\')) != \'NULL\')', builder.toSql());
+});
+
+test('testArrayWhereNulls', t => {
+  let builder = getBuilder();
+  builder.select('*').from('users').whereNull(['id', 'expires_at']);
+  t.is('select * from "users" where "id" is null and "expires_at" is null', builder.toSql());
+  t.deepEqual([], builder.getBindings());
+
+  builder = getBuilder();
+  builder.select('*').from('users').where('id', '=', 1).orWhereNull(['id', 'expires_at']);
+  t.is('select * from "users" where "id" = ? or "id" is null or "expires_at" is null', builder.toSql());
+  t.deepEqual([1], builder.getBindings());
+});
+
+test('testBasicWhereNotNulls', t => {
+  let builder = getBuilder();
+  builder.select('*').from('users').whereNotNull('id');
+  t.is('select * from "users" where "id" is not null', builder.toSql());
+  t.deepEqual([], builder.getBindings());
+
+  builder = getBuilder();
+  builder.select('*').from('users').where('id', '>', 1).orWhereNotNull('id');
+  t.is('select * from "users" where "id" > ? or "id" is not null', builder.toSql());
+  t.deepEqual([1], builder.getBindings());
+});
+
+test('testArrayWhereNotNulls', t => {
+  let builder = getBuilder();
+  builder.select('*').from('users').whereNotNull(['id', 'expires_at']);
+  t.is('select * from "users" where "id" is not null and "expires_at" is not null', builder.toSql());
+  t.deepEqual([], builder.getBindings());
+
+  builder = getBuilder();
+  builder.select('*').from('users').where('id', '>', 1).orWhereNotNull(['id', 'expires_at']);
+  t.is('select * from "users" where "id" > ? or "id" is not null or "expires_at" is not null', builder.toSql());
+  t.deepEqual([1], builder.getBindings());
+});
+
+test('testGroupBys', t => {
+  let builder = getBuilder();
+  builder.select('*').from('users').groupBy('email');
+  t.is('select * from "users" group by "email"', builder.toSql());
+
+  builder = getBuilder();
+  builder.select('*').from('users').groupBy('id', 'email');
+  t.is('select * from "users" group by "id", "email"', builder.toSql());
+
+  builder = getBuilder();
+  builder.select('*').from('users').groupBy(['id', 'email']);
+  t.is('select * from "users" group by "id", "email"', builder.toSql());
+
+  builder = getBuilder();
+  builder.select('*').from('users').groupBy(new Raw('DATE(created_at)'));
+  t.is('select * from "users" group by DATE(created_at)', builder.toSql());
+
+  builder = getBuilder();
+  builder.select('*').from('users').groupByRaw('DATE(created_at), ? DESC', ['foo']);
+  t.is('select * from "users" group by DATE(created_at), ? DESC', builder.toSql());
+  t.deepEqual(['foo'], builder.getBindings());
+
+  builder = getBuilder();
+  builder.havingRaw('?', ['havingRawBinding']).groupByRaw('?', ['groupByRawBinding']).whereRaw('?', ['whereRawBinding']);
+  t.deepEqual(['whereRawBinding', 'groupByRawBinding', 'havingRawBinding'], builder.getBindings());
+});
+
+test('testOrderBys', t => {
+  let builder = getBuilder();
+  builder.select('*').from('users').orderBy('email').orderBy('age', 'desc');
+  t.is('select * from "users" order by "email" asc, "age" desc', builder.toSql());
+
+  builder.orders = [];
+  t.is('select * from "users"', builder.toSql());
+
+  builder.orders = [];
+  t.is('select * from "users"', builder.toSql());
+
+  builder = getBuilder();
+  builder.select('*').from('users').orderBy('email').orderByRaw('"age" ? desc', ['foo']);
+  t.is('select * from "users" order by "email" asc, "age" ? desc', builder.toSql());
+  t.deepEqual(['foo'], builder.getBindings());
+
+  builder = getBuilder();
+  builder.select('*').from('users').orderByDesc('name');
+  t.is('select * from "users" order by "name" desc', builder.toSql());
+
+  builder = getBuilder();
+  builder.select('*').from('posts').where('public', 1)
+    .unionAll(getBuilder().select('*').from('videos').where('public', 1))
+    .orderByRaw('field(category, ?, ?) asc', ['news', 'opinion']);
+  t.is('(select * from "posts" where "public" = ?) union all (select * from "videos" where "public" = ?) order by field(category, ?, ?) asc', builder.toSql());
+  t.deepEqual([1, 1, 'news', 'opinion'], builder.getBindings());
+});
+
+test('testReorder', t => {
+  let builder = getBuilder();
+  builder.select('*').from('users').orderBy('name');
+  t.is('select * from "users" order by "name" asc', builder.toSql());
+  builder.reorder();
+  t.is('select * from "users"', builder.toSql());
+
+  builder = getBuilder();
+  builder.select('*').from('users').orderBy('name');
+  t.is('select * from "users" order by "name" asc', builder.toSql());
+  builder.reorder('email', 'desc');
+  t.is('select * from "users" order by "email" desc', builder.toSql());
+
+  builder = getBuilder();
+  builder.select('*').from('first');
+  builder.union(getBuilder().select('*').from('second'));
+  builder.orderBy('name');
+  t.is('(select * from "first") union (select * from "second") order by "name" asc', builder.toSql());
+  builder.reorder();
+  t.is('(select * from "first") union (select * from "second")', builder.toSql());
+
+  builder = getBuilder();
+  builder.select('*').from('users').orderByRaw('?', [true]);
+  t.deepEqual([ true ], builder.getBindings());
+  builder.reorder();
+  t.deepEqual([], builder.getBindings());
+});
+
+test('testOrderBySubQueries', t => {
+  const expected = 'select * from "users" order by (select "created_at" from "logins" where "user_id" = "users"."id" limit 1)';
+  const subQuery = (query: Builder) => {
+    return query.select('created_at').from('logins').whereColumn('user_id', 'users.id').limit(1);
+  };
+
+  let builder = getBuilder().select('*').from('users').orderBy(subQuery);
+  t.is(`${expected} asc`, builder.toSql());
+
+  builder = getBuilder().select('*').from('users').orderBy(subQuery, 'desc');
+  t.is(`${expected} desc`, builder.toSql());
+
+  builder = getBuilder().select('*').from('users').orderByDesc(subQuery);
+  t.is(`${expected} desc`, builder.toSql());
+
+  builder = getBuilder();
+  builder.select('*').from('posts').where('public', 1)
+    .unionAll(getBuilder().select('*').from('videos').where('public', 1))
+    .orderBy(getBuilder().selectRaw('field(category, ?, ?)', ['news', 'opinion']));
+  t.is('(select * from "posts" where "public" = ?) union all (select * from "videos" where "public" = ?) order by (select field(category, ?, ?)) asc', builder.toSql());
+  t.deepEqual([1, 1, 'news', 'opinion'], builder.getBindings());
+});
+
+test('testOrderByInvalidDirectionParam', t => {
+  const error = t.throws(() => {
+    const builder = getBuilder();
+    builder.select('*').from('users').orderBy('age', 'asec');
+  }, { instanceOf: TypeError });
+
+  t.true(error.message.includes('InvalidArgumentException'));
+});
+
+test('testHavings', t => {
+  let builder = getBuilder();
+  builder.select('*').from('users').having('email', '>', 1);
+  t.is('select * from "users" having "email" > ?', builder.toSql());
+
+  builder = getBuilder();
+  builder.select('*').from('users')
+    .orHaving('email', '=', 'test@example.com')
+    .orHaving('email', '=', 'test2@example.com');
+  t.is('select * from "users" having "email" = ? or "email" = ?', builder.toSql());
+
+  builder = getBuilder();
+  builder.select('*').from('users').groupBy('email').having('email', '>', 1);
+  t.is('select * from "users" group by "email" having "email" > ?', builder.toSql());
+
+  builder = getBuilder();
+  builder.select('email as foo_email').from('users').having('foo_email', '>', 1);
+  t.is('select "email" as "foo_email" from "users" having "foo_email" > ?', builder.toSql());
+
+  builder = getBuilder();
+  builder.select(['category', new Raw('count(*) as "total"')]).from('item').where('department', '=', 'popular').groupBy('category').having('total', '>', new Raw('3'));
+  t.is('select "category", count(*) as "total" from "item" where "department" = ? group by "category" having "total" > 3', builder.toSql());
+
+  builder = getBuilder();
+  builder.select(['category', new Raw('count(*) as "total"')]).from('item').where('department', '=', 'popular').groupBy('category').having('total', '>', 3);
+  t.is('select "category", count(*) as "total" from "item" where "department" = ? group by "category" having "total" > ?', builder.toSql());
+});
+
+test('testHavingBetweens', t => {
+  let builder = getBuilder();
+  builder.select('*').from('users').havingBetween('id', [1, 2, 3]);
+  t.is('select * from "users" having "id" between ? and ?', builder.toSql());
+  t.deepEqual([1, 2], builder.getBindings());
+
+  builder = getBuilder();
+  builder.select('*').from('users').havingBetween('id', [[1, 2], [3, 4]]);
+  t.is('select * from "users" having "id" between ? and ?', builder.toSql());
+  t.deepEqual([1, 2], builder.getBindings());
+});
+
+test('testHavingShortcut', t => {
+  const builder = getBuilder();
+  builder.select('*').from('users').having('email', 1).orHaving('email', 2);
+  t.is('select * from "users" having "email" = ? or "email" = ?', builder.toSql());
 });
 
 // test('test_name', t => {
