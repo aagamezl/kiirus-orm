@@ -2,7 +2,7 @@ import * as sinon from 'sinon';
 
 const mocks: Array<any> = [];
 
-export const createMock = (target: any) => {
+export const createMock = (target: any): sinon.SinonMock => {
   mocks.push(sinon.mock(target));
 
   return mocks[mocks.length - 1];

@@ -39,6 +39,7 @@
   "homepage": "https://github.com/aagamezl/kiirus-orm#readme",
   "devDependencies": {
     "@ava/typescript": "^1.1.1",
+    "@types/lodash": "^4.14.170",
     "@types/node": "^15.6.1",
     "@types/sinon": "^10.0.0",
     "ava": "^3.15.0",
@@ -49,6 +50,7 @@
     "typescript": "^4.2.4"
   },
   "dependencies": {
-    "@devnetic/utils": "^1.2.1"
+    "@devnetic/utils": "^1.2.1",
+    "lodash": "^4.17.21"
   }
 }

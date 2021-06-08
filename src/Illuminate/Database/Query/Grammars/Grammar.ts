@@ -1,4 +1,4 @@
-import * as utils from '@devnetic/utils';
+import { capitalize } from 'lodash';
 import { collect, end, head, last, reset } from '../../../Collections/Helpers';
 
 import {
@@ -8,7 +8,7 @@ import {
   WhereInterface
 } from '../Builder';
 import { Expression } from '../Expression';
-import { JoinClause, TJoinClause } from '../JoinClause';
+import { JoinClause } from '../JoinClause';
 import { Grammar as BaseGrammar } from './../../';
 
 interface SelectComponentInterface {
@@ -112,7 +112,7 @@ export class Grammar extends BaseGrammar {
       const { name, property } = component as SelectComponentInterface;
 
       if (this.isExecutable(query, property)) {
-        const method = 'compile' + utils.titleCase(name);
+        const method = 'compile' + capitalize(name);
 
         sql[name] = (this as any)[method](query, (query as any)[property]);
       }
@@ -201,14 +201,15 @@ export class Grammar extends BaseGrammar {
    * @return string
    */
   protected compileJoins(query: Builder, joins: Array<any>) {
-    return collect(joins).map((join: TJoinClause) => {
+    return collect(joins).map((join: JoinClause) => {
       const table = this.wrapTable(join.table);
 
       const nestedJoins: string = join.joins.length === 0 ? '' : ' ' + this.compileJoins(query, join.joins);
 
       const tableAndNestedJoins = join.joins.length === 0 ? table : '(' + table + nestedJoins + ')';
 
-      return `${join.type} join ${tableAndNestedJoins} ${this.compileWheres(join as unknown as Builder)}`.trim();
+      // return `${join.type} join ${tableAndNestedJoins} ${this.compileWheres(join as unknown as Builder)}`.trim();
+      return `${join.type} join ${tableAndNestedJoins} ${this.compileWheres(join)}`.trim();
     }).implode(' ');
   }
 
@@ -356,7 +357,7 @@ export class Grammar extends BaseGrammar {
    * @param  \Illuminate\Database\Query\Builder  query
    * @return string
    */
-  public compileWheres(query: Builder) {
+  public compileWheres(query: Builder | JoinClause) {
     // Each type of where clauses has its own compiler function which is responsible
     // for actually creating the where clauses SQL. This helps keep the code nice
     // and maintainable since each clause has a very small method that it uses.
@@ -382,7 +383,7 @@ export class Grammar extends BaseGrammar {
    * @param  \Illuminate\Database\Query\Builder  query
    * @return array
    */
-  protected compileWheresToArray(query: Builder): Array<any> {
+  protected compileWheresToArray(query: Builder | JoinClause): Array<any> {
     return collect(query.wheres).map((where) => {
       return where.boolean + ' ' + (this as any)[`where${where.type}`](query, where);
     }).all();
@@ -395,8 +396,9 @@ export class Grammar extends BaseGrammar {
    * @return string
    */
   protected concatenate(segments: Record<string, any>): string {
-    return Object.values(segments).filter((value) => {
-      return String(value) !== '';
+    return Object.values(segments).filter((value: any) => {
+      // return value !== '';
+      return value;
     }).join(' ');
   }
 
@@ -407,7 +409,7 @@ export class Grammar extends BaseGrammar {
    * @param  array  sql
    * @return string
    */
-  protected concatenateWhereClauses(query: Builder, sql: Array<any>): string {
+  protected concatenateWhereClauses(query: Builder | JoinClause, sql: Array<any>): string {
     const conjunction = query instanceof JoinClause ? 'on' : 'where';
 
     return conjunction + ' ' + this.removeLeadingBoolean(sql.join(' '));
@@ -439,7 +441,7 @@ export class Grammar extends BaseGrammar {
   protected isExecutable(query: Builder, property: string): boolean {
     const subject = Reflect.get(query, property);
 
-    if (!subject) {
+    if (subject === undefined || subject === '') {
       return false;
     }
 
@@ -526,7 +528,7 @@ export class Grammar extends BaseGrammar {
    * @param  array  where
    * @return string
    */
-  protected whereColumn(query: Builder, where: WhereInterface): string {
+  protected whereColumn(query: Builder | JoinClause, where: WhereInterface): string {
     return this.wrap((where as any)['first']) + ' ' + where['operator'] + ' ' + this.wrap((where as any)['second']);
   }
 
@@ -550,6 +552,17 @@ export class Grammar extends BaseGrammar {
    */
   protected whereDay(query: Builder, where: WhereInterface): string {
     return this.dateBasedWhere('day', query, where);
+  }
+
+  /**
+   * Compile a where exists clause.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  WhereInterface  where
+   * @return string
+   */
+  protected whereExists(query: Builder, where: WhereInterface): string {
+    return 'exists (' + this.compileSelect((where as any).query) + ')';
   }
 
   /**
@@ -602,13 +615,24 @@ export class Grammar extends BaseGrammar {
    * @param  WhereInterface  where
    * @return string
    */
-  protected whereNested(query: Builder, where: WhereInterface) {
+  protected whereNested(query: Builder | JoinClause, where: WhereInterface) {
     // Here we will calculate what portion of the string we need to remove. If this
     // is a join clause query, we need to remove the "on" portion of the SQL and
     // if it is a normal query we need to take the leading "where" of queries.
     const offset = query instanceof JoinClause ? 3 : 6;
 
     return '(' + this.compileWheres((where as any).query).substr(offset) + ')';
+  }
+
+  /**
+   * Compile a where exists clause.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  WhereInterface  where
+   * @return string
+   */
+  protected whereNotExists(query: Builder, where: WhereInterface): string {
+    return 'not exists (' + this.compileSelect((where as any).query) + ')';
   }
 
   /**
@@ -674,6 +698,19 @@ export class Grammar extends BaseGrammar {
    */
   protected whereRaw(query: Builder, where: WhereInterface): string {
     return String(where.sql);
+  }
+
+  /**
+   * Compile a where condition with a sub-select.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  WhereInterface  where
+   * @return string
+   */
+  protected whereSub(query: Builder, where: WhereInterface): string {
+    const select = this.compileSelect((where as any).query);
+
+    return this.wrap((where as any).column) + ' ' + (where as any).operator  + ` (${select})`;
   }
 
   /**

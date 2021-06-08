@@ -24,4 +24,13 @@ export class Expression {
   public getValue(): any {
     return this.value;
   }
+
+  /**
+   * Get the value of the expression.
+   *
+   * @return string
+   */
+  public toString(): string {
+    return this.getValue();
+  }
 }

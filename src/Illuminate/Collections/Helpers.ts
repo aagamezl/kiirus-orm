@@ -2,7 +2,7 @@ import * as utils from '@devnetic/utils'
 
 import { Collection } from './Collection';
 
-export const collect = (items: any): Collection => {
+export const collect = (items?: any): Collection => {
   return new Collection(items)
 }
 
@@ -74,8 +74,8 @@ export const end = (array: Array<any>) => {
  * @param  array  array
  * @return any
  */
-export const head = (array: Array<any>) => {
-  return array[0];
+export const head = (array: any) => {
+  return Array.isArray(array) ? array[0] : Array.from(Object.values(array))[0];
 }
 
 /**
@@ -94,6 +94,6 @@ export const last = (array: Array<any>) => {
  * @param  array  array
  * @return any
  */
-export const reset = (array: Array<any>) => {
+export const reset = (array: any) => {
   return head(array);
 }
