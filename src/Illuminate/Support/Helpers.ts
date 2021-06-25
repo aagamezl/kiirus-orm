@@ -37,3 +37,9 @@ export const changeKeyCase = (value: Array<any>, changeCase: string = 'CASE_LOWE
     return result;
   }
 }
+
+export const ksort = (value: any) => Object.keys(value).sort().reduce((result: any, key: string) => {
+  result[key] = value[key];
+
+  return result;
+}, {});

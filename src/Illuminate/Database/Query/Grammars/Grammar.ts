@@ -1,4 +1,5 @@
-import { capitalize } from 'lodash';
+import { capitalize, merge, reject } from 'lodash';
+import { Arr } from '../../../Collections';
 import { collect, end, head, last, reset } from '../../../Collections/Helpers';
 
 import {
@@ -122,6 +123,18 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile an exists statement into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @return string
+   */
+  public compileExists(query: Builder): string {
+    const select = this.compileSelect(query);
+
+    return `select exists(${select}) as ${this.wrap('exists')}`;
+  }
+
+  /**
    * Compile the "from" portion of the query.
    *
    * @param  \Illuminate\Database\Query\Builder  query
@@ -191,6 +204,84 @@ export class Grammar extends BaseGrammar {
     const sql = havings.map(having => this.compileHaving(having)).join(' ');
 
     return sql ? 'having ' + this.removeLeadingBoolean(sql) : '';
+  }
+
+  /**
+   * Compile an insert statement into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  Array<any>  values
+   * @return string
+   */
+  public compileInsert(query: Builder, values: Array<any> | any): string {
+    // Essentially we will force every insert to be treated as a batch insert which
+    // simply makes creating the SQL easier for us since we can utilize the same
+    // basic routine regardless of an amount of records given to us to insert.
+    const table = this.wrapTable(query.fromProperty);
+
+    // const records: Array<object> = (Array.isArray(values) ? values : [values]);
+
+    // if (records.length === 0) {
+    //   return `insert into ${table} default values`;
+    // }
+
+    values = (Array.isArray(values) ? values : [values]);
+
+    if (values.length === 0) {
+      return `insert into ${table} default values`;
+    }
+
+    // if (!Array.isArray(values)) {
+    //   values = [values];
+    // }
+
+    const columns = this.columnize(Object.keys(values[0]));
+
+    // We need to build a list of parameter place-holders of values that are bound
+    // to the query. Each insert should have the exact same amount of parameter
+    // bindings so we will loop through the record and parameterize them all.
+    const parameters = collect(values).map((record: Array<any>) => {
+      return '(' + this.parameterize(record) + ')';
+    }).implode(', ');
+
+    return `insert into ${table} (${columns}) values ${parameters}`;
+  }
+
+  /**
+   * Compile an insert and get ID statement into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  array  values
+   * @param  [string]  sequence
+   * @return string
+   */
+  public compileInsertGetId(query: Builder, values: Array<any> | any, sequence?: string): string {
+    return this.compileInsert(query, values);
+  }
+
+  /**
+   * Compile an insert ignore statement into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  Array<Object>  values
+   * @return string
+   *
+   * @throws \RuntimeException
+   */
+  public compileInsertOrIgnore(query: Builder, values: Array<Object>): string {
+    throw new Error('RuntimeException: This database engine does not support inserting while ignoring errors.');
+  }
+
+  /**
+   * Compile an insert statement using a subquery into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  Array<string>  columns
+   * @param  string  sql
+   * @return string
+   */
+  public compileInsertUsing(query: Builder, columns: Array<string>, sql: string): string {
+    return `insert into ${this.wrapTable(query.fromProperty)} (${this.columnize(columns)}) ${sql}`;
   }
 
   /**
@@ -352,6 +443,85 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile an update statement into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  Array<any> | any  values
+   * @return string
+   */
+  public compileUpdate(query: Builder, values: Array<any> | any): string {
+    const table = this.wrapTable(query.fromProperty);
+
+    values = (Array.isArray(values) ? values : [values]);
+
+    const columns = this.compileUpdateColumns(query, Object.entries(values[0]));
+
+    const where = this.compileWheres(query);
+
+    return (
+      query.joins.length > 0
+        ? this.compileUpdateWithJoins(query, table, columns, where)
+        : this.compileUpdateWithoutJoins(query, table, columns, where)
+    ).trim();
+  }
+
+  /**
+   * Compile the columns for an update statement.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  Array<any> | any  values
+   * @return string
+   */
+  protected compileUpdateColumns(query: Builder, values: Array<any> | any) {
+    return collect(values).map(([key, value]) => {
+      return this.wrap(key) + ' = ' + this.parameter(value);
+    }).join(', ');
+  }
+
+  /**
+   * Compile an update statement with joins into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  string  table
+   * @param  string  columns
+   * @param  string  where
+   * @return string
+   */
+  protected compileUpdateWithJoins(query: Builder, table: string, columns: string, where: string): string {
+    const joins = this.compileJoins(query, query.joins);
+
+    return `update ${table} ${joins} set ${columns} ${where}`;
+  }
+
+  /**
+   * Compile an update statement without joins into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder  $query
+   * @param  string  table
+   * @param  string  columns
+   * @param  string  where
+   * @return string
+   */
+  protected compileUpdateWithoutJoins(query: Builder, table: string, columns: string, where: string): string {
+    return `update ${table} set ${columns} ${where}`;
+  }
+
+  /**
+   * Compile an "upsert" statement into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder query
+   * @param  Array<any>  values
+   * @param  Array<any>  uniqueBy
+   * @param  Array<any>  update
+   * @return string
+   *
+   * @throws \RuntimeException
+   */
+  public compileUpsert(query: Builder, values: Array<any>, uniqueBy: Array<any>, update: Array<any>): string {
+    throw new Error('RuntimeException: This database engine does not support upserts.');
+  }
+
+  /**
    * Compile the "where" portions of the query.
    *
    * @param  \Illuminate\Database\Query\Builder  query
@@ -460,6 +630,23 @@ export class Grammar extends BaseGrammar {
    */
   protected isJsonSelector(value: string): boolean {
     return value.includes('->');
+  }
+
+  /**
+   * Prepare the bindings for an update statement.
+   *
+   * @param  array  bindings
+   * @param  array  values
+   * @return array
+   */
+  public prepareBindingsForUpdate(bindings: Array<any> | any, values: Array<any> | any) {
+    // const cleanBindings = Arr.except(bindings, ['select', 'join']);
+    const cleanBindings = reject(bindings, ['select', 'join']);
+
+    return Object.values(
+      // merge(bindings['join'], Object.values(values), Arr.flatten(cleanBindings))
+      [...bindings['join'], ...Object.values(values), ...Arr.flatten(cleanBindings)]
+    );
   }
 
   /**

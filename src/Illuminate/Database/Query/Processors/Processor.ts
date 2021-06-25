@@ -1,3 +1,5 @@
+import { isNumeric } from '@devnetic/utils';
+
 import { Builder } from '../Builder';
 
 export class Processor {
@@ -21,13 +23,9 @@ export class Processor {
    * @param  string|null  sequence
    * @return int
    */
-  // public processInsertGetId(query: Builder, sql: string, values: Array<any>, sequence?: string): number {
-  //   query.getConnection().insert(sql, values);
-
-  //   const id = query.getConnection().lastInsertId(sequence);
-
-  //   return is_numeric(id) ? (int) id: id;
-  // }
+  public async processInsertGetId(query: Builder, sql: string, values: Array<any>, sequence?: string): Promise<number> {
+    throw new Error('RuntimeException: This database engine does not support get last insert id.');
+  }
 
   /**
    * Process the results of a column listing query.

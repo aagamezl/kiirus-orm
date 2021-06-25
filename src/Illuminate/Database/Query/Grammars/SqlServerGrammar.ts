@@ -1,3 +1,7 @@
+import { isNumeric } from '@devnetic/utils';
+import { clone, reject } from 'lodash';
+
+import { Arr, collect, reset } from '../../../Collections';
 import { Builder, WhereInterface } from '../Builder';
 import { Expression } from '../Expression';
 import { Grammar } from './Grammar';
@@ -45,6 +49,47 @@ export class SqlServerGrammar extends Grammar {
   }
 
   /**
+   * Compile the "select *" portion of the query.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  Array<any>  columns
+   * @return string|undefined
+   */
+  protected compileColumns(query: Builder, columns: Array<any>): string | undefined {
+    if (query.aggregateProperty) {
+      return;
+    }
+
+    let select = query.distinctProperty ? 'select distinct ' : 'select ';
+
+    const limit = Number(query.limitProperty ?? 0);
+    const offset = Number(query.offsetProperty ?? 0);
+
+    // If there is a limit on the query, but not an offset, we will add the top
+    // clause to the query, which serves as a "limit" type clause within the
+    // SQL Server system similar to the limit keywords available in MySQL.
+    if (isNumeric(query.limitProperty) && limit > 0 && offset <= 0) {
+      select += `top ${limit} `;
+    }
+
+    return select + this.columnize(columns);
+  }
+
+  /**
+   * Compile an exists statement into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @return string
+   */
+  public compileExists(query: Builder): string {
+    const existsQuery = clone(query);
+
+    existsQuery.columns = [];
+
+    return this.compileSelect(existsQuery.selectRaw('1 [exists]').limit(1));
+  }
+
+  /**
    * Compile the "limit" portions of the query.
    *
    * @param  \Illuminate\Database\Query\Builder  query
@@ -74,6 +119,47 @@ export class SqlServerGrammar extends Grammar {
    */
   protected compileOver(orderings: string): string {
     return `, row_number() over (${orderings}) as row_num`;
+  }
+
+  /**
+   * Compile an "upsert" statement into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  Array<any>  values
+   * @param  Array<any>  uniqueBy
+   * @param  Array<any>  update
+   * @return string
+   */
+  public compileUpsert(query: Builder, values: Array<any>, uniqueBy: Array<any>, update: Array<any>): string {
+    const columns = this.columnize(Object.keys(reset(values)));
+
+    let sql = 'merge ' + this.wrapTable(query.fromProperty) + ' ';
+
+    const parameters = collect(values).map((record) => {
+      return '(' + this.parameterize(record) + ')';
+    }).implode(', ');
+
+    sql += 'using (values ' + parameters + ') ' + this.wrapTable('laravel_source') + ' (' + columns + ') ';
+
+    const on = collect(uniqueBy).map((column) => {
+      return this.wrap('laravel_source.' + column) + ' = ' + this.wrap(query.fromProperty + '.' + column);
+    }).implode(' and ');
+
+    sql += 'on ' + on + ' ';
+
+    if (update.length > 0) {
+      const updateSql = collect(update).map((value, key) => {
+        return isNumeric(key)
+          ? this.wrap(value) + ' = ' + this.wrap('laravel_source.' + value)
+          : this.wrap(key) + ' = ' + this.parameter(value);
+      }).implode(', ');
+
+      sql += 'when matched then update set ' + updateSql + ' ';
+    }
+
+    sql += 'when not matched then insert (' + columns + ') values (' + columns + ');';
+
+    return sql;
   }
 
   /**
@@ -127,6 +213,21 @@ export class SqlServerGrammar extends Grammar {
 
     return this.compileAnsiOffset(
       query, this.compileComponents(query)
+    );
+  }
+
+  /**
+   * Prepare the bindings for an update statement.
+   *
+   * @param  Array<any>  bindings
+   * @param  Array<any>  values
+   * @return Array<any>
+   */
+  public prepareBindingsForUpdate(bindings: Array<any> | any, values: Array<any>): Array<any> {
+    const cleanBindings = reject(bindings, 'select');
+
+    return Object.values(
+      [...values, ...Arr.flatten(cleanBindings)]
     );
   }
 

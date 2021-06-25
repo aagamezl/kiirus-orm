@@ -3,6 +3,7 @@ import {
   isBoolean,
   isInteger,
   isObjectLike,
+  isPlainObject,
   isString,
   merge
 } from 'lodash';
@@ -17,7 +18,7 @@ import { Arr } from '../../Collections/Arr';
 import { collect, head, last, reset } from '../../Collections/Helpers';
 import { JoinClause } from './internal';
 import { Collection } from '../../Collections/Collection';
-import { changeKeyCase, tap } from '../../Support';
+import { changeKeyCase, ksort, tap } from '../../Support';
 import { Model } from '../Eloquent/Model';
 
 export interface UnionInterface {
@@ -235,6 +236,10 @@ export class Builder {
     this.processor = processor ?? connection.getPostProcessor();
   }
 
+  // get(t: any, p: PropertyKey, r: any): any {
+
+  // }
+
   /**
    * Add an array of where clauses to the query.
    *
@@ -367,10 +372,16 @@ export class Builder {
    * @return any
    */
   public aggregate(functionName: string, columns: Array<any> = ['*']): any {
+    // We need to save the original bindings, because the cloneWithoutBindings
+    // method delete them from the builder object
+    const bindings = Object.assign({}, this.bindings)
+
     const results = this.cloneWithout(this.unions.length > 0 || this.havings.length > 0 ? [] : ['columns'])
       .cloneWithoutBindings(this.unions.length > 0 || this.havings.length > 0 ? [] : ['select'])
       .setAggregate(functionName, columns)
       .get(columns);
+
+    this.bindings = bindings;
 
     if (!results.isEmpty()) {
       // return array_change_key_case(results[0])['aggregate'];
@@ -555,6 +566,59 @@ export class Builder {
   }
 
   /**
+   * Determine if no rows exist for the current query.
+   *
+   * @return boolean
+   */
+  public doesntExist(): boolean {
+    return !this.exists();
+  }
+
+  /**
+   * Execute the given callback if rows exist for the current query.
+   *
+   * @param  Function  callback
+   * @return any
+   */
+  public doesntExistOr(callback: Function): any {
+    return this.doesntExist() ? true : callback();
+  }
+
+  /**
+   * Determine if any rows exist for the current query.
+   *
+   * @return bool
+   */
+  public exists(): boolean {
+    this.applyBeforeQueryCallbacks();
+
+    let results = this.connection.select(
+      this.grammar.compileExists(this), this.getBindings()
+    );
+
+    // If the results has rows, we will get the row and see if the exists column is a
+    // boolean true. If there is no results for this query we will return false as
+    // there are no rows for this query at all and we can return that info here.
+    if (results[0]) {
+      results = results[0];
+
+      return !!(results as any)['exists'];
+    }
+
+    return false;
+  }
+
+  /**
+   * Execute the given callback if no rows exist for the current query.
+   *
+   * @param  Function  callback
+   * @return any
+   */
+  public existsOr(callback: Function): any {
+    return this.exists() ? true : callback();
+  }
+
+  /**
    * Execute a query for a single record by ID.
    *
    * @param  number|string  id
@@ -706,10 +770,10 @@ export class Builder {
     if (!results[0]) {
       return 0;
     } else if (isObjectLike(results[0])) {
-      return parseInt((results[0] as any)?.aggregateProperty, 10);
+      return parseInt((results[0] as any)?.aggregate, 10);
     }
 
-    return parseInt(changeKeyCase(results[0] as Array<any>)['aggregateProperty'], 10);
+    return parseInt(changeKeyCase(results[0] as Array<any>)['aggregate'], 10);
   }
 
   /**
@@ -852,6 +916,106 @@ export class Builder {
    */
   public implode(column: string, glue: string = ''): string {
     return this.pluck(column).implode(glue);
+  }
+
+  /**
+   * Insert new records into the database.
+   *
+   * @param  Array<any> | any  values
+   * @return boolean
+   */
+  public insert(values: Array<any> | any): boolean {
+    // Since every insert gets treated like a batch insert, we will make sure the
+    // bindings are structured in a way that is convenient when building these
+    // inserts statements by verifying these elements are actually an array.
+    if (Object.keys(values).length === 0 || (values as Array<Object>).length === 0) {
+      return true;
+    }
+
+    if (!Array.isArray(reset(values)) && !isPlainObject(reset(values))) {
+      values = [values];
+    }
+
+    // Here, we will sort the insert keys for every record so that each insert is
+    // in the same order for the record. We need to make sure this is the case
+    // so there are not any errors or problems when inserting these records.
+    // else {
+    //   for (const [key, value] of Object.entries(values)) {
+    //     values[key] = value.sort();
+    //   }
+    // }
+
+    this.applyBeforeQueryCallbacks();
+
+    // Finally, we will run this query against the database connection and return
+    // the results. We will need to also flatten these bindings before running
+    // the query so they are all in one huge, flattened array for execution.
+    return this.connection.insert(
+      this.grammar.compileInsert(this, values),
+      this.cleanBindings(Arr.flatten(values, 1))
+    );
+  }
+
+  /**
+   * Insert a new record and get the value of the primary key.
+   *
+   * @param  Array<any> | any  values
+   * @param  [string]  sequence
+   * @return number
+   */
+  public insertGetId(values: Array<any> | any, sequence?: string): Promise<number> {
+    this.applyBeforeQueryCallbacks();
+
+    if (!Array.isArray(reset(values)) && !isObjectLike(values)) {
+      values = [values];
+    }
+
+    const sql = this.grammar.compileInsertGetId(this, values, sequence);
+
+    values = this.cleanBindings(Arr.flatten(values, 1));
+
+    return this.processor.processInsertGetId(this, sql, values, sequence);
+  }
+
+  /**
+   * Insert new records into the database while ignoring errors.
+   *
+   * @param  Array<any> | any  values
+   * @return number
+   */
+  public insertOrIgnore(values: Array<any> | any): number {
+    if (Object.keys(values).length === 0 || (values as Array<Object>).length === 0) {
+      return 0;
+    }
+
+    if (!Array.isArray(reset(values)) && !isObjectLike(values)) {
+      values = [values];
+    }
+
+    this.applyBeforeQueryCallbacks();
+
+    return this.connection.affectingStatement(
+      this.grammar.compileInsertOrIgnore(this, values as Array<Object>),
+      this.cleanBindings(Arr.flatten(values, 1))
+    );
+  }
+
+  /**
+   * Insert new records into the table using a subquery.
+   *
+   * @param  array  columns
+   * @param  Function|\Illuminate\Database\Query\Builder|string  query
+   * @return number
+   */
+  public insertUsing(columns: Array<string>, query: Function | Builder): number {
+    this.applyBeforeQueryCallbacks();
+
+    const [sql, bindings] = this.createSub(query);
+
+    return this.connection.affectingStatement(
+      this.grammar.compileInsertUsing(this, columns, sql),
+      this.cleanBindings(bindings)
+    );
   }
 
   /**
@@ -1035,6 +1199,26 @@ export class Builder {
   }
 
   /**
+   * Retrieve the maximum value of a given column.
+   *
+   * @param  string  column
+   * @return any
+   */
+  public max(column: string): any {
+    return this.aggregate('max', [column]);
+  }
+
+  /**
+   * Retrieve the minimum value of a given column.
+   *
+   * @param  string  column
+   * @return any
+   */
+  public min(column: string): any {
+    return this.aggregate('min', [column]);
+  }
+
+  /**
    * Merge an array of bindings into our bindings.
    *
    * @param  Illuminate\Database\Query\Builder  query
@@ -1155,7 +1339,7 @@ export class Builder {
    * @param  array  bindings
    * @return Builder
    */
-  public orderByRaw(sql: string, bindings: Array<any> = []): Builder {
+  public orderByRaw(sql: string, bindings: Array<any> | unknown = []): Builder {
     const type = 'Raw';
 
     (this as any)[this.unions.length > 0 ? 'unionOrders' : 'orders'].push({ type, sql });
@@ -1726,6 +1910,18 @@ export class Builder {
   }
 
   /**
+   * Retrieve the sum of the values of a given column.
+   *
+   * @param  string  column
+   * @return any
+   */
+  public sum(column: string): any {
+    const result = this.aggregate('sum', [column]);
+
+    return result ?? 0;
+  }
+
+  /**
    * Alias to set the "limit" value of the query.
    *
    * @param  number  value
@@ -1804,6 +2000,77 @@ export class Builder {
     }
 
     return this;
+  }
+
+  /**
+   * Update records in the database.
+   *
+   * @param  Array<any> | any  values
+   * @return number
+   */
+  public update(values: Array<any> | any): number {
+    this.applyBeforeQueryCallbacks();
+
+    const sql = this.grammar.compileUpdate(this, values);
+
+    return this.connection.update(sql, this.cleanBindings(
+      this.grammar.prepareBindingsForUpdate(this.bindings, values)
+    ));
+  }
+
+  /**
+   * Insert new records or update the existing ones.
+   *
+   * @param  Array<any>  values
+   * @param  Array<any> | string  uniqueBy
+   * @param  [Array<any>]  update
+   * @return Promise<number>
+   */
+  public upsert(values: Array<any> | any, uniqueBy: Array<any> | string, update?: Array<any> | any): number {
+    // if (empty(values)) {
+    if (Object.keys(values).length === 0 || (values as Array<Object>).length === 0) {
+      return 0;
+    } else if (update === []) {
+      return Number(this.insert(values));
+    }
+
+    // if (!Array.isArray(reset(values))) {
+    //   values = [values];
+    // }
+    if (!Array.isArray(reset(values)) && !isPlainObject(reset(values))) {
+      values = [values];
+    } else {
+      for (let [key, value] of Object.entries(values)) {
+        value = ksort(value);
+
+        values[key] = value;
+      }
+    }
+
+    if (!update || update?.length === 0) {
+      update = Object.keys(reset(values));
+    }
+
+    this.applyBeforeQueryCallbacks();
+
+    // console.log(Arr.flatten(values, 1));
+    // console.log(collect(update).reject((value: any, key: any) => {
+    //   return isInteger(key);
+    // }).all());
+
+    const bindings = this.cleanBindings([
+      ...Arr.flatten(values, 1),
+      ...collect(update).reject((value: any, key: any) => {
+        return isInteger(key);
+      }).all()
+    ]);
+
+    uniqueBy = !Array.isArray(uniqueBy) ? [uniqueBy] : uniqueBy;
+
+    return this.connection.affectingStatement(
+      this.grammar.compileUpsert(this, values, uniqueBy, update),
+      bindings
+    );
   }
 
   /**
@@ -1939,7 +2206,8 @@ export class Builder {
 
     this.wheres.push({ type, column, values, boolean, not });
 
-    this.addBinding(this.cleanBindings(Arr.flatten(values)).slice(0, 2), 'where');
+    const flatten = Arr.flatten(values);
+    this.addBinding(this.cleanBindings(flatten).slice(0, 2), 'where');
 
     return this;
   }

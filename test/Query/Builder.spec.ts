@@ -21,7 +21,7 @@ const getConnection = () => {
   // connection.expects('getDatabaseName').returns('database');
 
   // return connection as unknown as Connection;
-  return new Connection();
+  return new Connection({});
 };
 
 const getBuilder = () => {
@@ -68,20 +68,20 @@ const getSQLiteBuilder = () => {
 
 // const sandbox: sinon.SinonSandbox = sinon.createSandbox()
 
-test.afterEach(t => {
+test.afterEach((t) => {
   // sandbox.verify();
   // sandbox.restore();
   // autoVerify();
 });
 
-test('testBasicSelect', t => {
+test('testBasicSelect', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users');
 
   t.is('select * from "users"', builder.toSql());
 });
 
-test('testBasicSelectWithGetColumns', t => {
+test('testBasicSelectWithGetColumns', (t) => {
   const builder = getBuilder();
 
   const processorMock = createMock(builder.getProcessor());
@@ -108,7 +108,7 @@ test('testBasicSelectWithGetColumns', t => {
   autoVerify();
 });
 
-test('testBasicMySqlSelect', t => {
+test('testBasicMySqlSelect', (t) => {
   let builder = getMySqlBuilderWithProcessor();
 
   let connectionMock = createMock(builder.getConnection());
@@ -131,35 +131,35 @@ test('testBasicMySqlSelect', t => {
   autoVerify();
 });
 
-test('testBasicTableWrappingProtectsQuotationMarks', t => {
+test('testBasicTableWrappingProtectsQuotationMarks', (t) => {
   const builder = getBuilder();
   builder.select('*').from('some"table');
 
   t.is('select * from "some""table"', builder.toSql());
 });
 
-test('testAliasWrappingAsWholeConstant', t => {
+test('testAliasWrappingAsWholeConstant', (t) => {
   const builder = getBuilder();
 
   builder.select('x.y as foo.bar').from('baz');
   t.is('select "x"."y" as "foo.bar" from "baz"', builder.toSql());
 });
 
-test('testAliasWrappingWithSpacesInDatabaseName', t => {
+test('testAliasWrappingWithSpacesInDatabaseName', (t) => {
   const builder = getBuilder();
 
   builder.select('w x.y.z as foo.bar').from('baz');
   t.is('select "w x"."y"."z" as "foo.bar" from "baz"', builder.toSql());
 });
 
-test('testAddingSelects', t => {
+test('testAddingSelects', (t) => {
   const builder = getBuilder();
 
   builder.select('foo').addSelect('bar').addSelect(['baz', 'boom']).from('users');
   t.is('select "foo", "bar", "baz", "boom" from "users"', builder.toSql());
 });
 
-test('testBasicSelectWithPrefix', t => {
+test('testBasicSelectWithPrefix', (t) => {
   const builder = getBuilder();
 
   builder.getGrammar().setTablePrefix('prefix_');
@@ -167,14 +167,14 @@ test('testBasicSelectWithPrefix', t => {
   t.is('select * from "prefix_users"', builder.toSql());
 });
 
-test('testBasicSelectDistinct', t => {
+test('testBasicSelectDistinct', (t) => {
   const builder = getBuilder();
 
   builder.distinct().select('foo', 'bar').from('users');
   t.is('select distinct "foo", "bar" from "users"', builder.toSql());
 });
 
-test('testBasicSelectDistinctOnColumns', t => {
+test('testBasicSelectDistinctOnColumns', (t) => {
   let builder = getBuilder();
   builder.distinct('foo').select('foo', 'bar').from('users');
   t.is('select distinct "foo", "bar" from "users"', builder.toSql());
@@ -184,14 +184,14 @@ test('testBasicSelectDistinctOnColumns', t => {
   t.is('select distinct on ("foo") "foo", "bar" from "users"', builder.toSql());
 });
 
-test('testBasicAlias', t => {
+test('testBasicAlias', (t) => {
   const builder = getBuilder();
 
   builder.select('foo as bar').from('users');
   t.is('select "foo" as "bar" from "users"', builder.toSql());
 });
 
-test('testAliasWithPrefix', t => {
+test('testAliasWithPrefix', (t) => {
   const builder = getBuilder();
 
   builder.getGrammar().setTablePrefix('prefix_');
@@ -199,7 +199,7 @@ test('testAliasWithPrefix', t => {
   t.is('select * from "prefix_users" as "prefix_people"', builder.toSql());
 });
 
-test('testJoinAliasesWithPrefix', t => {
+test('testJoinAliasesWithPrefix', (t) => {
   const builder = getBuilder();
 
   builder.getGrammar().setTablePrefix('prefix_');
@@ -207,14 +207,14 @@ test('testJoinAliasesWithPrefix', t => {
   t.is('select * from "prefix_services" inner join "prefix_translations" as "prefix_t" on "prefix_t"."item_id" = "prefix_services"."id"', builder.toSql());
 });
 
-test('testBasicTableWrapping', t => {
+test('testBasicTableWrapping', (t) => {
   const builder = getBuilder();
 
   builder.select('*').from('public.users');
   t.is('select * from "public"."users"', builder.toSql());
 });
 
-test('testWhenCallback', t => {
+test('testWhenCallback', (t) => {
   const callback = (query: Builder, condition: boolean) => {
     t.true(condition);
 
@@ -230,7 +230,7 @@ test('testWhenCallback', t => {
   t.is('select * from "users" where "email" = ?', builder.toSql());
 });
 
-test('testWhenCallbackWithReturn', t => {
+test('testWhenCallbackWithReturn', (t) => {
   const callback = (query: Builder, condition: boolean) => {
     t.true(condition);
 
@@ -246,7 +246,7 @@ test('testWhenCallbackWithReturn', t => {
   t.is('select * from "users" where "email" = ?', builder.toSql());
 });
 
-test('testWhenCallbackWithDefault', t => {
+test('testWhenCallbackWithDefault', (t) => {
   const callback = (query: Builder, condition: string) => {
     t.is('truthy', condition);
 
@@ -270,7 +270,7 @@ test('testWhenCallbackWithDefault', t => {
   t.deepEqual([2, 'foo'], builder.getBindings());
 });
 
-test('testUnlessCallback', t => {
+test('testUnlessCallback', (t) => {
   const callback = (query: Builder, condition: boolean) => {
     t.false(condition);
 
@@ -286,7 +286,7 @@ test('testUnlessCallback', t => {
   t.is('select * from "users" where "email" = ?', builder.toSql());
 });
 
-test('testUnlessCallbackWithReturn', t => {
+test('testUnlessCallbackWithReturn', (t) => {
   const callback = (query: Builder, condition: boolean) => {
     t.false(condition);
 
@@ -302,7 +302,7 @@ test('testUnlessCallbackWithReturn', t => {
   t.is('select * from "users" where "email" = ?', builder.toSql());
 });
 
-test('testUnlessCallbackWithDefault', t => {
+test('testUnlessCallbackWithDefault', (t) => {
   const callback = (query: Builder, condition: number) => {
     t.is(0, condition);
 
@@ -326,7 +326,7 @@ test('testUnlessCallbackWithDefault', t => {
   t.deepEqual([2, 'foo'], builder.getBindings());
 });
 
-test('testTapCallback', t => {
+test('testTapCallback', (t) => {
   const callback = (query: Builder) => {
     return query.where('id', '=', 1);
   };
@@ -336,14 +336,14 @@ test('testTapCallback', t => {
   t.is('select * from "users" where "id" = ? and "email" = ?', builder.toSql());
 });
 
-test('testBasicWheres', t => {
+test('testBasicWheres', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users').where('id', '=', 1);
   t.is('select * from "users" where "id" = ?', builder.toSql());
   t.deepEqual([1], builder.getBindings());
 });
 
-test('testWheresWithArrayValue', t => {
+test('testWheresWithArrayValue', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').where('id', [12]);
   t.is('select * from "users" where "id" = ?', builder.toSql());
@@ -370,13 +370,13 @@ test('testWheresWithArrayValue', t => {
   t.deepEqual([12], builder.getBindings());
 });
 
-test('testMySqlWrappingProtectsQuotationMarks', t => {
+test('testMySqlWrappingProtectsQuotationMarks', (t) => {
   const builder = getMySqlBuilder();
   builder.select('*').from('some`table');
   t.is('select * from `some``table`', builder.toSql());
 });
 
-test('testDateBasedWheresAcceptsTwoArguments', t => {
+test('testDateBasedWheresAcceptsTwoArguments', (t) => {
   let builder = getMySqlBuilder();
   builder.select('*').from('users').whereDate('created_at', 1);
   t.is('select * from `users` where date(`created_at`) = ?', builder.toSql());
@@ -394,7 +394,7 @@ test('testDateBasedWheresAcceptsTwoArguments', t => {
   t.is('select * from `users` where year(`created_at`) = ?', builder.toSql());
 });
 
-test('testDateBasedOrWheresAcceptsTwoArguments', t => {
+test('testDateBasedOrWheresAcceptsTwoArguments', (t) => {
   let builder = getMySqlBuilder();
   builder.select('*').from('users').where('id', 1).orWhereDate('created_at', 1);
   t.is('select * from `users` where `id` = ? or date(`created_at`) = ?', builder.toSql());
@@ -412,7 +412,7 @@ test('testDateBasedOrWheresAcceptsTwoArguments', t => {
   t.is('select * from `users` where `id` = ? or year(`created_at`) = ?', builder.toSql());
 });
 
-test('testDateBasedWheresExpressionIsNotBound', t => {
+test('testDateBasedWheresExpressionIsNotBound', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').whereDate('created_at', new Raw('NOW()')).where('admin', true);
   t.deepEqual([true], builder.getBindings());
@@ -430,7 +430,7 @@ test('testDateBasedWheresExpressionIsNotBound', t => {
   t.deepEqual([], builder.getBindings());
 });
 
-test('testWhereDateMySql', t => {
+test('testWhereDateMySql', (t) => {
   let builder = getMySqlBuilder();
   builder.select('*').from('users').whereDate('created_at', '=', '2015-12-21');
   t.is('select * from `users` where date(`created_at`) = ?', builder.toSql());
@@ -441,70 +441,70 @@ test('testWhereDateMySql', t => {
   t.is('select * from `users` where date(`created_at`) = NOW()', builder.toSql());
 });
 
-test('testWhereDayMySql', t => {
+test('testWhereDayMySql', (t) => {
   const builder = getMySqlBuilder();
   builder.select('*').from('users').whereDay('created_at', '=', 1);
   t.is('select * from `users` where day(`created_at`) = ?', builder.toSql());
   t.deepEqual([1], builder.getBindings());
 });
 
-test('testOrWhereDayMySql', t => {
+test('testOrWhereDayMySql', (t) => {
   const builder = getMySqlBuilder();
   builder.select('*').from('users').whereDay('created_at', '=', 1).orWhereDay('created_at', '=', 2);
   t.is('select * from `users` where day(`created_at`) = ? or day(`created_at`) = ?', builder.toSql());
   t.deepEqual([1, 2], builder.getBindings());
 });
 
-test('testWhereMonthMySql', t => {
+test('testWhereMonthMySql', (t) => {
   const builder = getMySqlBuilder();
   builder.select('*').from('users').whereMonth('created_at', '=', 5);
   t.is('select * from `users` where month(`created_at`) = ?', builder.toSql());
   t.deepEqual([5], builder.getBindings());
 });
 
-test('testOrWhereMonthMySql', t => {
+test('testOrWhereMonthMySql', (t) => {
   const builder = getMySqlBuilder();
   builder.select('*').from('users').whereMonth('created_at', '=', 5).orWhereMonth('created_at', '=', 6);
   t.is('select * from `users` where month(`created_at`) = ? or month(`created_at`) = ?', builder.toSql());
   t.deepEqual([5, 6], builder.getBindings());
 });
 
-test('testWhereYearMySql', t => {
+test('testWhereYearMySql', (t) => {
   const builder = getMySqlBuilder();
   builder.select('*').from('users').whereYear('created_at', '=', 2014);
   t.is('select * from `users` where year(`created_at`) = ?', builder.toSql());
   t.deepEqual([2014], builder.getBindings());
 });
 
-test('testOrWhereYearMySql', t => {
+test('testOrWhereYearMySql', (t) => {
   const builder = getMySqlBuilder();
   builder.select('*').from('users').whereYear('created_at', '=', 2014).orWhereYear('created_at', '=', 2015);
   t.is('select * from `users` where year(`created_at`) = ? or year(`created_at`) = ?', builder.toSql());
   t.deepEqual([2014, 2015], builder.getBindings());
 });
 
-test('testWhereTimeMySql', t => {
+test('testWhereTimeMySql', (t) => {
   const builder = getMySqlBuilder();
   builder.select('*').from('users').whereTime('created_at', '>=', '22:00');
   t.is('select * from `users` where time(`created_at`) >= ?', builder.toSql());
   t.deepEqual(['22:00'], builder.getBindings());
 });
 
-test('testWhereTimeOperatorOptionalMySql', t => {
+test('testWhereTimeOperatorOptionalMySql', (t) => {
   const builder = getMySqlBuilder();
   builder.select('*').from('users').whereTime('created_at', '22:00');
   t.is('select * from `users` where time(`created_at`) = ?', builder.toSql());
   t.deepEqual(['22:00'], builder.getBindings());
 });
 
-test('testWhereTimeOperatorOptionalPostgres', t => {
+test('testWhereTimeOperatorOptionalPostgres', (t) => {
   const builder = getPostgresBuilder();
   builder.select('*').from('users').whereTime('created_at', '22:00');
   t.is('select * from "users" where "created_at"::time = ?', builder.toSql());
   t.deepEqual(['22:00'], builder.getBindings());
 });
 
-test('testWhereDatePostgres', t => {
+test('testWhereDatePostgres', (t) => {
   let builder = getPostgresBuilder();
   builder.select('*').from('users').whereDate('created_at', '=', '2015-12-21');
   t.is('select * from "users" where "created_at"::date = ?', builder.toSql());
@@ -515,35 +515,35 @@ test('testWhereDatePostgres', t => {
   t.is('select * from "users" where "created_at"::date = NOW()', builder.toSql());
 });
 
-test('testWhereDayPostgres', t => {
+test('testWhereDayPostgres', (t) => {
   const builder = getPostgresBuilder();
   builder.select('*').from('users').whereDay('created_at', '=', 1);
   t.is('select * from "users" where extract(day from "created_at") = ?', builder.toSql());
   t.deepEqual([1], builder.getBindings());
 });
 
-test('testWhereMonthPostgres', t => {
+test('testWhereMonthPostgres', (t) => {
   const builder = getPostgresBuilder();
   builder.select('*').from('users').whereMonth('created_at', '=', 5);
   t.is('select * from "users" where extract(month from "created_at") = ?', builder.toSql());
   t.deepEqual([5], builder.getBindings());
 });
 
-test('testWhereYearPostgres', t => {
+test('testWhereYearPostgres', (t) => {
   const builder = getPostgresBuilder();
   builder.select('*').from('users').whereYear('created_at', '=', 2014);
   t.is('select * from "users" where extract(year from "created_at") = ?', builder.toSql());
   t.deepEqual([2014], builder.getBindings());
 });
 
-test('testWhereTimePostgres', t => {
+test('testWhereTimePostgres', (t) => {
   const builder = getPostgresBuilder();
   builder.select('*').from('users').whereTime('created_at', '>=', '22:00');
   t.is('select * from "users" where "created_at"::time >= ?', builder.toSql());
   t.deepEqual(['22:00'], builder.getBindings());
 });
 
-test('testWhereLikePostgres', t => {
+test('testWhereLikePostgres', (t) => {
   let builder = getPostgresBuilder();
   builder.select('*').from('users').where('id', 'like', '1');
   t.is('select * from "users" where "id"::text like ?', builder.toSql());
@@ -570,7 +570,7 @@ test('testWhereLikePostgres', t => {
   t.deepEqual(['1'], builder.getBindings());
 });
 
-test('testWhereDateSqlite', t => {
+test('testWhereDateSqlite', (t) => {
   let builder = getSQLiteBuilder();
   builder.select('*').from('users').whereDate('created_at', '=', '2015-12-21');
   t.is('select * from "users" where strftime(\'%Y-%m-%d\', "created_at") = cast(? as text)', builder.toSql());
@@ -581,42 +581,42 @@ test('testWhereDateSqlite', t => {
   t.is('select * from "users" where strftime(\'%Y-%m-%d\', "created_at") = cast(NOW() as text)', builder.toSql());
 });
 
-test('testWhereDaySqlite', t => {
+test('testWhereDaySqlite', (t) => {
   const builder = getSQLiteBuilder();
   builder.select('*').from('users').whereDay('created_at', '=', 1);
   t.is('select * from "users" where strftime(\'%d\', "created_at") = cast(? as text)', builder.toSql());
   t.deepEqual([1], builder.getBindings());
 });
 
-test('testWhereMonthSqlite', t => {
+test('testWhereMonthSqlite', (t) => {
   const builder = getSQLiteBuilder();
   builder.select('*').from('users').whereMonth('created_at', '=', 5);
   t.is('select * from "users" where strftime(\'%m\', "created_at") = cast(? as text)', builder.toSql());
   t.deepEqual([5], builder.getBindings());
 });
 
-test('testWhereYearSqlite', t => {
+test('testWhereYearSqlite', (t) => {
   const builder = getSQLiteBuilder();
   builder.select('*').from('users').whereYear('created_at', '=', 2014);
   t.is('select * from "users" where strftime(\'%Y\', "created_at") = cast(? as text)', builder.toSql());
   t.deepEqual([2014], builder.getBindings());
 });
 
-test('testWhereTimeSqlite', t => {
+test('testWhereTimeSqlite', (t) => {
   const builder = getSQLiteBuilder();
   builder.select('*').from('users').whereTime('created_at', '>=', '22:00');
   t.is('select * from "users" where strftime(\'%H:%M:%S\', "created_at") >= cast(? as text)', builder.toSql());
   t.deepEqual(['22:00'], builder.getBindings());
 });
 
-test('testWhereTimeOperatorOptionalSqlite', t => {
+test('testWhereTimeOperatorOptionalSqlite', (t) => {
   const builder = getSQLiteBuilder();
   builder.select('*').from('users').whereTime('created_at', '22:00');
   t.is('select * from "users" where strftime(\'%H:%M:%S\', "created_at") = cast(? as text)', builder.toSql());
   t.deepEqual(['22:00'], builder.getBindings());
 });
 
-test('testWhereTimeSqlServer', t => {
+test('testWhereTimeSqlServer', (t) => {
   let builder = getSqlServerBuilder();
   builder.select('*').from('users').whereTime('created_at', '22:00');
   t.is('select * from [users] where cast([created_at] as time) = ?', builder.toSql());
@@ -628,7 +628,7 @@ test('testWhereTimeSqlServer', t => {
   t.deepEqual([], builder.getBindings());
 });
 
-test('testWhereDateSqlServer', t => {
+test('testWhereDateSqlServer', (t) => {
   let builder = getSqlServerBuilder();
   builder.select('*').from('users').whereDate('created_at', '=', '2015-12-21');
   t.is('select * from [users] where cast([created_at] as date) = ?', builder.toSql());
@@ -639,28 +639,28 @@ test('testWhereDateSqlServer', t => {
   t.is('select * from [users] where cast([created_at] as date) = NOW()', builder.toSql());
 });
 
-test('testWhereDaySqlServer', t => {
+test('testWhereDaySqlServer', (t) => {
   const builder = getSqlServerBuilder();
   builder.select('*').from('users').whereDay('created_at', '=', 1);
   t.is('select * from [users] where day([created_at]) = ?', builder.toSql());
   t.deepEqual([1], builder.getBindings());
 });
 
-test('testWhereMonthSqlServer', t => {
+test('testWhereMonthSqlServer', (t) => {
   const builder = getSqlServerBuilder();
   builder.select('*').from('users').whereMonth('created_at', '=', 5);
   t.is('select * from [users] where month([created_at]) = ?', builder.toSql());
   t.deepEqual([5], builder.getBindings());
 });
 
-test('testWhereYearSqlServer', t => {
+test('testWhereYearSqlServer', (t) => {
   const builder = getSqlServerBuilder();
   builder.select('*').from('users').whereYear('created_at', '=', 2014);
   t.is('select * from [users] where year([created_at]) = ?', builder.toSql());
   t.deepEqual([2014], builder.getBindings());
 });
 
-test('testWhereBetweens', t => {
+test('testWhereBetweens', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').whereBetween('id', [1, 2]);
   t.is('select * from "users" where "id" between ? and ?', builder.toSql());
@@ -687,7 +687,7 @@ test('testWhereBetweens', t => {
   t.deepEqual([], builder.getBindings());
 });
 
-test('testWhereBetweenColumns', t => {
+test('testWhereBetweenColumns', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').whereBetweenColumns('id', ['users.created_at', 'users.updated_at']);
   t.is('select * from "users" where "id" between "users"."created_at" and "users"."updated_at"', builder.toSql());
@@ -704,28 +704,28 @@ test('testWhereBetweenColumns', t => {
   t.deepEqual([], builder.getBindings());
 });
 
-test('testBasicOrWheres', t => {
+test('testBasicOrWheres', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users').where('id', '=', 1).orWhere('email', '=', 'foo');
   t.is('select * from "users" where "id" = ? or "email" = ?', builder.toSql());
   t.deepEqual([1, 'foo'], builder.getBindings());
 });
 
-test('testRawWheres', t => {
+test('testRawWheres', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users').whereRaw('id = ? or email = ?', [1, 'foo']);
   t.is('select * from "users" where id = ? or email = ?', builder.toSql());
   t.deepEqual([1, 'foo'], builder.getBindings());
 });
 
-test('testRawOrWheres', t => {
+test('testRawOrWheres', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users').where('id', '=', 1).orWhereRaw('email = ?', ['foo']);
   t.is('select * from "users" where "id" = ? or email = ?', builder.toSql());
   t.deepEqual([1, 'foo'], builder.getBindings());
 });
 
-test('testBasicWhereIns', t => {
+test('testBasicWhereIns', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').whereIn('id', [1, 2, 3]);
   t.is('select * from "users" where "id" in (?, ?, ?)', builder.toSql());
@@ -737,7 +737,7 @@ test('testBasicWhereIns', t => {
   t.deepEqual([1, 1, 2, 3], builder.getBindings());
 });
 
-test('testBasicWhereNotIns', t => {
+test('testBasicWhereNotIns', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').whereNotIn('id', [1, 2, 3]);
   t.is('select * from "users" where "id" not in (?, ?, ?)', builder.toSql());
@@ -749,7 +749,7 @@ test('testBasicWhereNotIns', t => {
   t.deepEqual([1, 1, 2, 3], builder.getBindings());
 });
 
-test('testRawWhereIns', t => {
+test('testRawWhereIns', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').whereIn('id', [new Raw(1)]);
   t.is('select * from "users" where "id" in (1)', builder.toSql());
@@ -760,7 +760,7 @@ test('testRawWhereIns', t => {
   t.deepEqual([1], builder.getBindings());
 });
 
-test('testEmptyWhereIns', t => {
+test('testEmptyWhereIns', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').whereIn('id', []);
   t.is('select * from "users" where 0 = 1', builder.toSql());
@@ -772,7 +772,7 @@ test('testEmptyWhereIns', t => {
   t.deepEqual([1], builder.getBindings());
 });
 
-test('testEmptyWhereNotIns', t => {
+test('testEmptyWhereNotIns', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').whereNotIn('id', []);
   t.is('select * from "users" where 1 = 1', builder.toSql());
@@ -784,49 +784,49 @@ test('testEmptyWhereNotIns', t => {
   t.deepEqual([1], builder.getBindings());
 });
 
-test('testWhereIntegerInRaw', t => {
+test('testWhereIntegerInRaw', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users').whereIntegerInRaw('id', ['1a', 2]);
   t.is('select * from "users" where "id" in (1, 2)', builder.toSql());
   t.deepEqual([], builder.getBindings());
 });
 
-test('testOrWhereIntegerInRaw', t => {
+test('testOrWhereIntegerInRaw', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users').where('id', '=', 1).orWhereIntegerInRaw('id', ['1a', 2]);
   t.is('select * from "users" where "id" = ? or "id" in (1, 2)', builder.toSql());
   t.deepEqual([1], builder.getBindings());
 });
 
-test('testWhereIntegerNotInRaw', t => {
+test('testWhereIntegerNotInRaw', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users').whereIntegerNotInRaw('id', ['1a', 2]);
   t.is('select * from "users" where "id" not in (1, 2)', builder.toSql());
   t.deepEqual([], builder.getBindings());
 });
 
-test('testOrWhereIntegerNotInRaw', t => {
+test('testOrWhereIntegerNotInRaw', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users').where('id', '=', 1).orWhereIntegerNotInRaw('id', ['1a', 2]);
   t.is('select * from "users" where "id" = ? or "id" not in (1, 2)', builder.toSql());
   t.deepEqual([1], builder.getBindings());
 });
 
-test('testEmptyWhereIntegerInRaw', t => {
+test('testEmptyWhereIntegerInRaw', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users').whereIntegerInRaw('id', []);
   t.is('select * from "users" where 0 = 1', builder.toSql());
   t.deepEqual([], builder.getBindings());
 });
 
-test('testEmptyWhereIntegerNotInRaw', t => {
+test('testEmptyWhereIntegerNotInRaw', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users').whereIntegerNotInRaw('id', []);
   t.is('select * from "users" where 1 = 1', builder.toSql());
   t.deepEqual([], builder.getBindings());
 });
 
-test('testBasicWhereColumn', t => {
+test('testBasicWhereColumn', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').whereColumn('first_name', 'last_name').orWhereColumn('first_name', 'middle_name');
   t.is('select * from "users" where "first_name" = "last_name" or "first_name" = "middle_name"', builder.toSql());
@@ -838,7 +838,7 @@ test('testBasicWhereColumn', t => {
   t.deepEqual([], builder.getBindings());
 });
 
-test('testArrayWhereColumn', t => {
+test('testArrayWhereColumn', (t) => {
   const conditions = [
     ['first_name', 'last_name'],
     ['updated_at', '>', 'created_at'],
@@ -850,7 +850,7 @@ test('testArrayWhereColumn', t => {
   t.deepEqual([], builder.getBindings());
 });
 
-test('testUnions', t => {
+test('testUnions', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').where('id', '=', 1);
   builder.union(getBuilder().select('*').from('users').where('id', '=', 2));
@@ -892,7 +892,7 @@ test('testUnions', t => {
   t.deepEqual([1, 2], builder.getBindings());
 });
 
-test('testUnionAlls', t => {
+test('testUnionAlls', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').where('id', '=', 1);
   builder.unionAll(getBuilder().select('*').from('users').where('id', '=', 2));
@@ -907,7 +907,7 @@ test('testUnionAlls', t => {
   t.deepEqual([1, 2], builder.getBindings());
 });
 
-test('testMultipleUnions', t => {
+test('testMultipleUnions', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users').where('id', '=', 1);
   builder.union(getBuilder().select('*').from('users').where('id', '=', 2));
@@ -916,7 +916,7 @@ test('testMultipleUnions', t => {
   t.deepEqual([1, 2, 3], builder.getBindings());
 });
 
-test('testMultipleUnionAlls', t => {
+test('testMultipleUnionAlls', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users').where('id', '=', 1);
   builder.unionAll(getBuilder().select('*').from('users').where('id', '=', 2));
@@ -925,7 +925,7 @@ test('testMultipleUnionAlls', t => {
   t.deepEqual([1, 2, 3], builder.getBindings());
 });
 
-test('testUnionOrderBys', t => {
+test('testUnionOrderBys', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users').where('id', '=', 1);
   builder.union(getBuilder().select('*').from('users').where('id', '=', 2));
@@ -934,7 +934,7 @@ test('testUnionOrderBys', t => {
   t.deepEqual([1, 2], builder.getBindings());
 });
 
-test('testUnionLimitsAndOffsets', t => {
+test('testUnionLimitsAndOffsets', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users');
   builder.union(getBuilder().select('*').from('dogs'));
@@ -956,7 +956,7 @@ test('testUnionLimitsAndOffsets', t => {
   t.is(expectedSql, builder.toSql());
 });
 
-test('testUnionWithJoin', t => {
+test('testUnionWithJoin', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users');
   builder.union(getBuilder().select('*').from('dogs').join('breeds', (join: JoinClause) => {
@@ -967,7 +967,7 @@ test('testUnionWithJoin', t => {
   t.deepEqual([1], builder.getBindings());
 });
 
-test('testMySqlUnionOrderBys', t => {
+test('testMySqlUnionOrderBys', (t) => {
   const builder = getMySqlBuilder();
   builder.select('*').from('users').where('id', '=', 1);
   builder.union(getMySqlBuilder().select('*').from('users').where('id', '=', 2));
@@ -976,7 +976,7 @@ test('testMySqlUnionOrderBys', t => {
   t.deepEqual([1, 2], builder.getBindings());
 });
 
-test('testMySqlUnionLimitsAndOffsets', t => {
+test('testMySqlUnionLimitsAndOffsets', (t) => {
   const builder = getMySqlBuilder();
   builder.select('*').from('users');
   builder.union(getMySqlBuilder().select('*').from('dogs'));
@@ -984,7 +984,7 @@ test('testMySqlUnionLimitsAndOffsets', t => {
   t.is('(select * from `users`) union (select * from `dogs`) limit 10 offset 5', builder.toSql());
 });
 
-test('testUnionAggregate', t => {
+test('testUnionAggregate', (t) => {
   let expected = 'select count(*) as aggregate from ((select * from `posts`) union (select * from `videos`)) as `temp_table`';
   let builder = getMySqlBuilder();
   let processorMock = createMock(builder.getProcessor());
@@ -1029,7 +1029,7 @@ test('testUnionAggregate', t => {
   t.pass();
 });
 
-test('testHavingAggregate', t => {
+test('testHavingAggregate', (t) => {
   const expected = 'select count(*) as aggregate from (select (select `count(*)` from `videos` where `posts`.`id` = `videos`.`post_id`) as `videos_count` from `posts` having `videos_count` > ?) as `temp_table`';
   const builder = getMySqlBuilder();
   let processorMock = createMock(builder.getProcessor());
@@ -1049,7 +1049,7 @@ test('testHavingAggregate', t => {
   t.pass();
 });
 
-test('testSubSelectWhereIns', t => {
+test('testSubSelectWhereIns', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').whereIn('id', (query: Builder) => {
     query.select('id').from('users').where('age', '>', 25).take(3);
@@ -1065,7 +1065,7 @@ test('testSubSelectWhereIns', t => {
   t.deepEqual([25], builder.getBindings());
 });
 
-test('testBasicWhereNulls', t => {
+test('testBasicWhereNulls', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').whereNull('id');
   t.is('select * from "users" where "id" is null', builder.toSql());
@@ -1077,19 +1077,19 @@ test('testBasicWhereNulls', t => {
   t.deepEqual([1], builder.getBindings());
 });
 
-test('testJsonWhereNullMysql', t => {
+test('testJsonWhereNullMysql', (t) => {
   const builder = getMySqlBuilder();
   builder.select('*').from('users').whereNull('items->id');
   t.is('select * from `users` where (json_extract(`items`, \'$."id"\') is null OR json_type(json_extract(`items`, \'$."id"\')) = \'NULL\')', builder.toSql());
 });
 
-test('testJsonWhereNotNullMysql', t => {
+test('testJsonWhereNotNullMysql', (t) => {
   const builder = getMySqlBuilder();
   builder.select('*').from('users').whereNotNull('items->id');
   t.is('select * from `users` where (json_extract(`items`, \'$."id"\') is not null AND json_type(json_extract(`items`, \'$."id"\')) != \'NULL\')', builder.toSql());
 });
 
-test('testArrayWhereNulls', t => {
+test('testArrayWhereNulls', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').whereNull(['id', 'expires_at']);
   t.is('select * from "users" where "id" is null and "expires_at" is null', builder.toSql());
@@ -1101,7 +1101,7 @@ test('testArrayWhereNulls', t => {
   t.deepEqual([1], builder.getBindings());
 });
 
-test('testBasicWhereNotNulls', t => {
+test('testBasicWhereNotNulls', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').whereNotNull('id');
   t.is('select * from "users" where "id" is not null', builder.toSql());
@@ -1113,7 +1113,7 @@ test('testBasicWhereNotNulls', t => {
   t.deepEqual([1], builder.getBindings());
 });
 
-test('testArrayWhereNotNulls', t => {
+test('testArrayWhereNotNulls', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').whereNotNull(['id', 'expires_at']);
   t.is('select * from "users" where "id" is not null and "expires_at" is not null', builder.toSql());
@@ -1125,7 +1125,7 @@ test('testArrayWhereNotNulls', t => {
   t.deepEqual([1], builder.getBindings());
 });
 
-test('testGroupBys', t => {
+test('testGroupBys', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').groupBy('email');
   t.is('select * from "users" group by "email"', builder.toSql());
@@ -1152,7 +1152,7 @@ test('testGroupBys', t => {
   t.deepEqual(['whereRawBinding', 'groupByRawBinding', 'havingRawBinding'], builder.getBindings());
 });
 
-test('testOrderBys', t => {
+test('testOrderBys', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').orderBy('email').orderBy('age', 'desc');
   t.is('select * from "users" order by "email" asc, "age" desc', builder.toSql());
@@ -1180,7 +1180,7 @@ test('testOrderBys', t => {
   t.deepEqual([1, 1, 'news', 'opinion'], builder.getBindings());
 });
 
-test('testReorder', t => {
+test('testReorder', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').orderBy('name');
   t.is('select * from "users" order by "name" asc', builder.toSql());
@@ -1208,7 +1208,7 @@ test('testReorder', t => {
   t.deepEqual([], builder.getBindings());
 });
 
-test('testOrderBySubQueries', t => {
+test('testOrderBySubQueries', (t) => {
   const expected = 'select * from "users" order by (select "created_at" from "logins" where "user_id" = "users"."id" limit 1)';
   const subQuery = (query: Builder) => {
     return query.select('created_at').from('logins').whereColumn('user_id', 'users.id').limit(1);
@@ -1231,7 +1231,7 @@ test('testOrderBySubQueries', t => {
   t.deepEqual([1, 1, 'news', 'opinion'], builder.getBindings());
 });
 
-test('testOrderByInvalidDirectionParam', t => {
+test('testOrderByInvalidDirectionParam', (t) => {
   const error = t.throws(() => {
     const builder = getBuilder();
     builder.select('*').from('users').orderBy('age', 'asec');
@@ -1240,7 +1240,7 @@ test('testOrderByInvalidDirectionParam', t => {
   t.true(error.message.includes('InvalidArgumentException'));
 });
 
-test('testHavings', t => {
+test('testHavings', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').having('email', '>', 1);
   t.is('select * from "users" having "email" > ?', builder.toSql());
@@ -1268,7 +1268,7 @@ test('testHavings', t => {
   t.is('select "category", count(*) as "total" from "item" where "department" = ? group by "category" having "total" > ?', builder.toSql());
 });
 
-test('testHavingBetweens', t => {
+test('testHavingBetweens', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').havingBetween('id', [1, 2, 3]);
   t.is('select * from "users" having "id" between ? and ?', builder.toSql());
@@ -1280,13 +1280,13 @@ test('testHavingBetweens', t => {
   t.deepEqual([1, 2], builder.getBindings());
 });
 
-test('testHavingShortcut', t => {
+test('testHavingShortcut', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users').having('email', 1).orHaving('email', 2);
   t.is('select * from "users" having "email" = ? or "email" = ?', builder.toSql());
 });
 
-test('testHavingFollowedBySelectGet', t => {
+test('testHavingFollowedBySelectGet', (t) => {
   let builder = getBuilder();
   let query = 'select "category", count(*) as "total" from "item" where "department" = ? group by "category" having "total" > ?';
   let connectionMock = createMock(builder.getConnection());
@@ -1315,7 +1315,7 @@ test('testHavingFollowedBySelectGet', t => {
   autoVerify();
 });
 
-test('testRawHavings', t => {
+test('testRawHavings', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').havingRaw('user_foo < user_bar');
   t.is('select * from "users" having user_foo < user_bar', builder.toSql());
@@ -1329,7 +1329,7 @@ test('testRawHavings', t => {
   t.is('select * from "users" having "last_login_date" between ? and ? or user_foo < user_bar', builder.toSql());
 });
 
-test('testLimitsAndOffsets', t => {
+test('testLimitsAndOffsets', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').offset(5).limit(10);
   t.is('select * from "users" limit 10 offset 5', builder.toSql());
@@ -1347,7 +1347,7 @@ test('testLimitsAndOffsets', t => {
   t.is('select * from "users" offset 0', builder.toSql());
 });
 
-test('testForPage', t => {
+test('testForPage', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').forPage(2, 15);
   t.is('select * from "users" limit 15 offset 15', builder.toSql());
@@ -1373,13 +1373,13 @@ test('testForPage', t => {
   t.is('select * from "users" limit 0 offset 0', builder.toSql());
 });
 
-test('testGetCountForPaginationWithBindings', t => {
+test('testGetCountForPaginationWithBindings', (t) => {
   let builder = getBuilder();
   builder.from('users').selectSub((query: Builder) => {
     query.select('body').from('posts').where('id', 4);
   }, 'post');
 
-  createMock(builder.getConnection()).expects('select').once().withArgs('select count(*) as aggregate from "users"', []).returns([{ aggregateProperty: 1 }]);
+  createMock(builder.getConnection()).expects('select').once().withArgs('select count(*) as aggregate from "users"', []).returns([{ aggregate: 1 }]);
   createMock(builder.getProcessor()).expects('processSelect').once().callsFake((builder: Builder, results: Array<any>) => {
     return results;
   });
@@ -1391,12 +1391,12 @@ test('testGetCountForPaginationWithBindings', t => {
   autoVerify();
 });
 
-test('testGetCountForPaginationWithColumnAliases', t => {
+test('testGetCountForPaginationWithColumnAliases', (t) => {
   const builder = getBuilder();
   const columns = ['body as post_body', 'teaser', 'posts.created as published'];
   builder.from('posts').select(columns);
 
-  createMock(builder.getConnection()).expects('select').once().withArgs('select count("body", "teaser", "posts"."created") as aggregate from "posts"', []).returns([{ aggregateProperty: 1 }]);
+  createMock(builder.getConnection()).expects('select').once().withArgs('select count("body", "teaser", "posts"."created") as aggregate from "posts"', []).returns([{ aggregate: 1 }]);
   createMock(builder.getProcessor()).expects('processSelect').once().callsFake((builder: Builder, results: Array<any>) => {
     return results;
   });
@@ -1407,11 +1407,11 @@ test('testGetCountForPaginationWithColumnAliases', t => {
   autoVerify();
 });
 
-test('testGetCountForPaginationWithUnion', t => {
+test('testGetCountForPaginationWithUnion', (t) => {
   const builder = getBuilder();
   builder.from('posts').select('id').union(getBuilder().from('videos').select('id'));
 
-  createMock(builder.getConnection()).expects('select').once().withArgs('select count(*) as aggregate from ((select "id" from "posts") union (select "id" from "videos")) as "temp_table"', []).returns([{ aggregateProperty: 1 }]);
+  createMock(builder.getConnection()).expects('select').once().withArgs('select count(*) as aggregate from ((select "id" from "posts") union (select "id" from "videos")) as "temp_table"', []).returns([{ aggregate: 1 }]);
   createMock(builder.getProcessor()).expects('processSelect').once().callsFake((builder: Builder, results: Array<any>) => {
     return results;
   });
@@ -1422,14 +1422,14 @@ test('testGetCountForPaginationWithUnion', t => {
   autoVerify();
 });
 
-test('testWhereShortcut', t => {
+test('testWhereShortcut', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users').where('id', 1).orWhere('name', 'foo');
   t.is('select * from "users" where "id" = ? or "name" = ?', builder.toSql());
   t.deepEqual([1, 'foo'], builder.getBindings());
 });
 
-test('testWhereWithArrayConditions', t => {
+test('testWhereWithArrayConditions', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').where([['foo', 1], ['bar', 2]]);
   t.is('select * from "users" where ("foo" = ? and "bar" = ?)', builder.toSql());
@@ -1446,7 +1446,7 @@ test('testWhereWithArrayConditions', t => {
   t.deepEqual([1, 2], builder.getBindings());
 });
 
-test('testNestedWheres', t => {
+test('testNestedWheres', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users').where('email', '=', 'foo').orWhere((query: Builder) => {
     query.where('name', '=', 'bar').where('age', '=', 25);
@@ -1455,7 +1455,7 @@ test('testNestedWheres', t => {
   t.deepEqual(['foo', 'bar', 25], builder.getBindings());
 });
 
-test('testNestedWhereBindings', t => {
+test('testNestedWhereBindings', (t) => {
   const builder = getBuilder();
   builder.where('email', '=', 'foo').where((query: Builder) => {
     query.selectRaw('?', ['ignore']).where('name', '=', 'bar');
@@ -1463,7 +1463,7 @@ test('testNestedWhereBindings', t => {
   t.deepEqual(['foo', 'bar'], builder.getBindings());
 });
 
-test('testFullSubSelects', t => {
+test('testFullSubSelects', (t) => {
   const builder = getBuilder();
   builder.select('*').from('users').where('email', '=', 'foo').orWhere('id', '=', (query: Builder) => {
     query.select(new Raw('max(id)')).from('users').where('email', '=', 'bar');
@@ -1473,7 +1473,7 @@ test('testFullSubSelects', t => {
   t.deepEqual(['foo', 'bar'], builder.getBindings());
 });
 
-test('testWhereExists', t => {
+test('testWhereExists', (t) => {
   let builder = getBuilder();
   builder.select('*').from('orders').whereExists((query: Builder) => {
     query.select('*').from('products').where('products.id', '=', new Raw('"orders"."id"'));
@@ -1499,7 +1499,7 @@ test('testWhereExists', t => {
   t.is('select * from "orders" where "id" = ? or not exists (select * from "products" where "products"."id" = "orders"."id")', builder.toSql());
 });
 
-test('testBasicJoins', t => {
+test('testBasicJoins', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').join('contacts', 'users.id', 'contacts.id');
   t.is('select * from "users" inner join "contacts" on "users"."id" = "contacts"."id"', builder.toSql());
@@ -1514,7 +1514,7 @@ test('testBasicJoins', t => {
   t.deepEqual(['bar', 'foo'], builder.getBindings());
 });
 
-test('testCrossJoins', t => {
+test('testCrossJoins', (t) => {
   let builder = getBuilder();
   builder.select('*').from('sizes').crossJoin('colors');
   t.is('select * from "sizes" cross join "colors"', builder.toSql());
@@ -1528,13 +1528,13 @@ test('testCrossJoins', t => {
   t.is('select * from "tableB" cross join "tableA" on "tableA"."column1" = "tableB"."column2"', builder.toSql());
 });
 
-test('testCrossJoinSubs', t => {
+test('testCrossJoinSubs', (t) => {
   const builder = getBuilder();
   builder.selectRaw('(sale / overall.sales) * 100 AS percent_of_total').from('sales').crossJoinSub(getBuilder().selectRaw('SUM(sale) AS sales').from('sales'), 'overall');
   t.is('select (sale / overall.sales) * 100 AS percent_of_total from "sales" cross join (select SUM(sale) AS sales from "sales") as "overall"', builder.toSql());
 });
 
-test('testComplexJoin', t => {
+test('testComplexJoin', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').join('contacts', (join: JoinClause) => {
     join.on('users.id', '=', 'contacts.id').orOn('users.name', '=', 'contacts.name');
@@ -1553,7 +1553,7 @@ test('testComplexJoin', t => {
   t.deepEqual(['foo', 'bar'], builder.getBindings());
 });
 
-test('testJoinWhereNull', t => {
+test('testJoinWhereNull', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').join('contacts', (join: JoinClause) => {
     join.on('users.id', '=', 'contacts.id').whereNull('contacts.deleted_at');
@@ -1567,7 +1567,7 @@ test('testJoinWhereNull', t => {
   t.is('select * from "users" inner join "contacts" on "users"."id" = "contacts"."id" or "contacts"."deleted_at" is null', builder.toSql());
 });
 
-test('testJoinWhereNotNull', t => {
+test('testJoinWhereNotNull', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').join('contacts', (join: JoinClause) => {
     join.on('users.id', '=', 'contacts.id').whereNotNull('contacts.deleted_at');
@@ -1581,7 +1581,7 @@ test('testJoinWhereNotNull', t => {
   t.is('select * from "users" inner join "contacts" on "users"."id" = "contacts"."id" or "contacts"."deleted_at" is not null', builder.toSql());
 });
 
-test('testJoinWhereIn', t => {
+test('testJoinWhereIn', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').join('contacts', (join: JoinClause) => {
     join.on('users.id', '=', 'contacts.id').whereIn('contacts.name', [48, 'baz', null]);
@@ -1597,7 +1597,7 @@ test('testJoinWhereIn', t => {
   t.deepEqual([48, 'baz', null], builder.getBindings());
 });
 
-test('testJoinWhereInSubquery', t => {
+test('testJoinWhereInSubquery', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').join('contacts', (join: JoinClause) => {
     const query = getBuilder();
@@ -1617,7 +1617,7 @@ test('testJoinWhereInSubquery', t => {
   t.deepEqual(['baz'], builder.getBindings());
 });
 
-test('testJoinWhereNotIn', t => {
+test('testJoinWhereNotIn', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').join('contacts', (join: JoinClause) => {
     join.on('users.id', '=', 'contacts.id').whereNotIn('contacts.name', [48, 'baz', null]);
@@ -1633,7 +1633,7 @@ test('testJoinWhereNotIn', t => {
   t.deepEqual([48, 'baz', null], builder.getBindings());
 });
 
-test('testJoinsWithNestedConditions', t => {
+test('testJoinsWithNestedConditions', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').leftJoin('contacts', (join: JoinClause) => {
     join.on('users.id', '=', 'contacts.id').where((join: JoinClause) => {
@@ -1657,10 +1657,10 @@ test('testJoinsWithNestedConditions', t => {
   t.deepEqual([1, 'UK', 'US'], builder.getBindings());
 });
 
-test('testJoinsWithAdvancedConditions', t => {
+test('testJoinsWithAdvancedConditions', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').leftJoin('contacts', (join: JoinClause) => {
-    join.on('users.id', 'contacts.id').where((join: any) => {
+    join.on('users.id', 'contacts.id').where((join: Builder) => {
       join.orWhereNull('contacts.disabled')
         .orWhereRaw('year(contacts.created_at) = 2016');
     });
@@ -1669,7 +1669,7 @@ test('testJoinsWithAdvancedConditions', t => {
   t.deepEqual([], builder.getBindings());
 });
 
-test('testJoinsWithSubqueryCondition', t => {
+test('testJoinsWithSubqueryCondition', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').leftJoin('contacts', (join: JoinClause) => {
     join.on('users.id', 'contacts.id').whereIn('contact_type_id', (query: Builder) => {
@@ -1694,7 +1694,7 @@ test('testJoinsWithSubqueryCondition', t => {
   t.deepEqual(['1'], builder.getBindings());
 });
 
-test('testJoinsWithAdvancedSubqueryCondition', t => {
+test('testJoinsWithAdvancedSubqueryCondition', (t) => {
   let builder = getBuilder();
   builder.select('*').from('users').leftJoin('contacts', (join: JoinClause) => {
     join.on('users.id', 'contacts.id').whereExists((query: Builder) => {
@@ -1712,7 +1712,7 @@ test('testJoinsWithAdvancedSubqueryCondition', t => {
   t.deepEqual(['1', true], builder.getBindings());
 });
 
-test('testJoinsWithNestedJoins', t => {
+test('testJoinsWithNestedJoins', (t) => {
   const builder = getBuilder();
   builder.select('users.id', 'contacts.id', 'contact_types.id').from('users').leftJoin('contacts', (join: JoinClause) => {
     join.on('users.id', 'contacts.id').join('contact_types', 'contacts.contact_type_id', '=', 'contact_types.id');
@@ -1720,7 +1720,7 @@ test('testJoinsWithNestedJoins', t => {
   t.is('select "users"."id", "contacts"."id", "contact_types"."id" from "users" left join ("contacts" inner join "contact_types" on "contacts"."contact_type_id" = "contact_types"."id") on "users"."id" = "contacts"."id"', builder.toSql());
 });
 
-test('testJoinsWithMultipleNestedJoins', t => {
+test('testJoinsWithMultipleNestedJoins', (t) => {
   const builder = getBuilder();
   builder.select('users.id', 'contacts.id', 'contact_types.id', 'countrys.id', 'planets.id').from('users').leftJoin('contacts', (join: JoinClause) => {
     join.on('users.id', 'contacts.id')
@@ -1738,7 +1738,7 @@ test('testJoinsWithMultipleNestedJoins', t => {
   t.deepEqual([1, 10000], builder.getBindings());
 });
 
-test('testJoinsWithNestedJoinWithAdvancedSubqueryCondition', t => {
+test('testJoinsWithNestedJoinWithAdvancedSubqueryCondition', (t) => {
   const builder = getBuilder();
   builder.select('users.id', 'contacts.id', 'contact_types.id').from('users').leftJoin('contacts', (join: JoinClause) => {
     join.on('users.id', 'contacts.id')
@@ -1757,7 +1757,7 @@ test('testJoinsWithNestedJoinWithAdvancedSubqueryCondition', t => {
   t.deepEqual([1, 10000], builder.getBindings());
 });
 
-test('testJoinSub', t => {
+test('testJoinSub', (t) => {
   let builder = getBuilder();
   builder.from('users').joinSub('select * from "contacts"', 'sub', 'users.id', '=', 'sub.id');
   t.is('select * from "users" inner join (select * from "contacts") as "sub" on "users"."id" = "sub"."id"', builder.toSql());
@@ -1786,32 +1786,32 @@ test('testJoinSub', t => {
   t.deepEqual(['foo', 1, 'bar'], builder.getRawBindings()['join']);
 });
 
-test('testJoinSubWithPrefix', t => {
+test('testJoinSubWithPrefix', (t) => {
   const builder = getBuilder();
   builder.getGrammar().setTablePrefix('prefix_');
   builder.from('users').joinSub('select * from "contacts"', 'sub', 'users.id', '=', 'sub.id');
   t.is('select * from "prefix_users" inner join (select * from "contacts") as "prefix_sub" on "prefix_users"."id" = "prefix_sub"."id"', builder.toSql());
 });
 
-test('testLeftJoinSub', t => {
+test('testLeftJoinSub', (t) => {
   const builder = getBuilder();
   builder.from('users').leftJoinSub(getBuilder().from('contacts'), 'sub', 'users.id', '=', 'sub.id');
   t.is('select * from "users" left join (select * from "contacts") as "sub" on "users"."id" = "sub"."id"', builder.toSql());
 });
 
-test('testRightJoinSub', t => {
+test('testRightJoinSub', (t) => {
   const builder = getBuilder();
   builder.from('users').rightJoinSub(getBuilder().from('contacts'), 'sub', 'users.id', '=', 'sub.id');
   t.is('select * from "users" right join (select * from "contacts") as "sub" on "users"."id" = "sub"."id"', builder.toSql());
 });
 
-test('testRawExpressionsInSelect', t => {
+test('testRawExpressionsInSelect', (t) => {
   const builder = getBuilder();
   builder.select(new Raw('substr(foo, 6)')).from('users');
   t.is('select substr(foo, 6) from "users"', builder.toSql());
 });
 
-test('testFindReturnsFirstResultByID', t => {
+test('testFindReturnsFirstResultByID', (t) => {
   const builder = getBuilder();
   createMock(builder.getConnection()).expects('select').once().withArgs('select * from "users" where "id" = ? limit 1', [1]).returns([{ foo: 'bar' }]);
   createMock(builder.getProcessor()).expects('processSelect').once().withArgs(builder, [{ foo: 'bar' }]).callsFake((query: Builder, results: Array<any>) => {
@@ -1823,7 +1823,7 @@ test('testFindReturnsFirstResultByID', t => {
   autoVerify();
 });
 
-test('testFirstMethodReturnsFirstResult', t => {
+test('testFirstMethodReturnsFirstResult', (t) => {
   const builder = getBuilder();
   createMock(builder.getConnection()).expects('select').once().withArgs('select * from "users" where "id" = ? limit 1', [1]).returns([{ foo: 'bar' }]);
   createMock(builder.getProcessor()).expects('processSelect').once().withArgs(builder, [{ foo: 'bar' }]).callsFake((query: Builder, results: Array<any>) => {
@@ -1835,7 +1835,7 @@ test('testFirstMethodReturnsFirstResult', t => {
   autoVerify();
 });
 
-test('testPluckMethodGetsCollectionOfColumnValues', t => {
+test('testPluckMethodGetsCollectionOfColumnValues', (t) => {
   let builder = getBuilder();
   createMock(builder.getConnection()).expects('select').once().returns([{ foo: 'bar' }, { foo: 'baz' }]);
   createMock(builder.getProcessor()).expects('processSelect').once().withArgs(builder, [{ foo: 'bar' }, { foo: 'baz' }]).callsFake((query: Builder, results: Array<any>) => {
@@ -1855,7 +1855,7 @@ test('testPluckMethodGetsCollectionOfColumnValues', t => {
   autoVerify();
 });
 
-test('testImplode', t => {
+test('testImplode', (t) => {
   // Test without glue.
   let builder = getBuilder();
   createMock(builder.getConnection()).expects('select').once().returns([{ foo: 'bar' }, { foo: 'baz' }]);
@@ -1877,14 +1877,385 @@ test('testImplode', t => {
   autoVerify();
 });
 
-test('testValueMethodReturnsSingleColumn', t => {
+test('testValueMethodReturnsSingleColumn', (t) => {
   const builder = getBuilder();
   createMock(builder.getConnection()).expects('select').once().withArgs('select "foo" from "users" where "id" = ? limit 1', [1]).returns([{ foo: 'bar' }]);
   createMock(builder.getProcessor()).expects('processSelect').once().withArgs(builder, [{ foo: 'bar' }]).returns([{ foo: 'bar' }]);
   const results = builder.from('users').where('id', '=', 1).value('foo');
   t.deepEqual('bar', results);
+
+  autoVerify();
 });
 
-// test('test_name', t => {
+test('testAggregateFunctions', (t) => {
+  let builder = getBuilder();
+  createMock(builder.getConnection()).expects('select').once().withArgs('select count(*) as aggregate from "users"', []).returns([{ aggregate: 1 }]);
+  createMock(builder.getProcessor()).expects('processSelect').once().callsFake((builder: Builder, results: Array<any>) => {
+    return results;
+  });
+  let results = builder.from('users').count();
+  t.is(1, results);
+
+  builder = getBuilder();
+  createMock(builder.getConnection()).expects('select').once().withArgs('select exists(select * from "users") as "exists"', []).returns([{ exists: 1 }]);
+  results = builder.from('users').exists();
+  t.true(results);
+
+  builder = getBuilder();
+  createMock(builder.getConnection()).expects('select').once().withArgs('select exists(select * from "users") as "exists"', []).returns([{ exists: 0 }]);
+  results = builder.from('users').doesntExist();
+  t.true(results);
+
+  builder = getBuilder();
+  createMock(builder.getConnection()).expects('select').once().withArgs('select max("id") as aggregate from "users"', []).returns([{ aggregate: 1 }]);
+  createMock(builder.getProcessor()).expects('processSelect').once().callsFake((builder: Builder, results: Array<any>) => {
+    return results;
+  });
+  results = builder.from('users').max('id');
+  t.is(1, results);
+
+  builder = getBuilder();
+  createMock(builder.getConnection()).expects('select').once().withArgs('select min("id") as aggregate from "users"', []).returns([{ aggregate: 1 }]);
+  createMock(builder.getProcessor()).expects('processSelect').once().callsFake((builder: Builder, results: Array<any>) => {
+    return results;
+  });
+  results = builder.from('users').min('id');
+  t.is(1, results);
+
+  builder = getBuilder();
+  createMock(builder.getConnection()).expects('select').once().withArgs('select sum("id") as aggregate from "users"', []).returns([{ aggregate: 1 }]);
+  createMock(builder.getProcessor()).expects('processSelect').once().callsFake((builder: Builder, results: Array<any>) => {
+    return results;
+  });
+  results = builder.from('users').sum('id');
+  t.is(1, results);
+
+  autoVerify();
+});
+
+test('testSqlServerExists', (t) => {
+  const builder = getSqlServerBuilder();
+  createMock(builder.getConnection()).expects('select').once().withArgs('select top 1 1 [exists] from [users]', []).returns([{ exists: 1 }]);
+  const results = builder.from('users').exists();
+  t.true(results);
+
+  autoVerify();
+});
+
+test('testDoesntExistsOr', (t) => {
+  let builder = getBuilder();
+  createMock(builder.getConnection()).expects('select').returns([{ exists: 1 }]);
+  let results = builder.from('users').doesntExistOr(() => {
+    return 123;
+  });
+  t.is(123, results);
+
+  builder = getBuilder();
+  createMock(builder.getConnection()).expects('select').returns([{ exists: 0 }]);
+  results = builder.from('users').doesntExistOr(() => {
+    throw new Error('RuntimeException');
+  });
+  t.true(results);
+
+  autoVerify();
+});
+
+test('testExistsOr', (t) => {
+  let builder = getBuilder();
+  createMock(builder.getConnection()).expects('select').returns([{ exists: 0 }]);
+  let results = builder.from('users').existsOr(() => {
+    return 123;
+  });
+  t.is(123, results);
+
+  builder = getBuilder();
+  createMock(builder.getConnection()).expects('select').returns([{ exists: 1 }]);
+  results = builder.from('users').existsOr(() => {
+    throw new Error('RuntimeException');
+  });
+  t.true(results);
+
+  autoVerify();
+});
+
+test('testAggregateResetFollowedByGet', (t) => {
+  let builder = getBuilder();
+  const connectionMock = createMock(builder.getConnection());
+  connectionMock.expects('select').once().withArgs('select count(*) as aggregate from "users"', []).returns([{ aggregate: 1 }]);
+  connectionMock.expects('select').once().withArgs('select sum("id") as aggregate from "users"', []).returns([{ aggregate: 2 }]);
+  connectionMock.expects('select').once().withArgs('select "column1", "column2" from "users"', []).returns([{ column1: 'foo', column2: 'bar' }]);
+  createMock(builder.getProcessor()).expects('processSelect').thrice().callsFake((builder: Builder, results: Array<any>) => {
+    return results;
+  });
+  builder.from('users').select('column1', 'column2');
+  const count = builder.count();
+  t.is(1, count);
+  const sum = builder.sum('id');
+  t.is(2, sum);
+  const result = builder.get();
+  t.deepEqual([{ column1: 'foo', column2: 'bar' }], result.all());
+
+  autoVerify();
+});
+
+test('testAggregateResetFollowedBySelectGet', (t) => {
+  let builder = getBuilder();
+  const connectionMock = createMock(builder.getConnection());
+  connectionMock.expects('select').once().withArgs('select count("column1") as aggregate from "users"', []).returns([{ aggregate: 1 }]);
+  connectionMock.expects('select').once().withArgs('select "column2", "column3" from "users"', []).returns([{ column2: 'foo', column3: 'bar' }]);
+  createMock(builder.getProcessor()).expects('processSelect').twice().callsFake((builder: Builder, results: Array<any>) => {
+    return results;
+  });
+  builder.from('users');
+  const count = builder.count('column1');
+  t.is(1, count);
+  const result = builder.select('column2', 'column3').get();
+  t.deepEqual([{ column2: 'foo', column3: 'bar' }], result.all());
+
+  autoVerify();
+});
+
+test('testAggregateResetFollowedByGetWithColumns', (t) => {
+  let builder = getBuilder();
+  const connectionMock = createMock(builder.getConnection());
+  connectionMock.expects('select').once().withArgs('select count("column1") as aggregate from "users"', []).returns([{ aggregate: 1 }]);
+  connectionMock.expects('select').once().withArgs('select "column2", "column3" from "users"', []).returns([{ column2: 'foo', column3: 'bar' }]);
+  createMock(builder.getProcessor()).expects('processSelect').twice().callsFake((builder: Builder, results: Array<any>) => {
+    return results;
+  });
+  builder.from('users');
+  const count = builder.count('column1');
+  t.is(1, count);
+  const result = builder.get(['column2', 'column3']);
+  t.deepEqual([{ column2: 'foo', column3: 'bar' }], result.all());
+
+  autoVerify();
+});
+
+test('testAggregateWithSubSelect', (t) => {
+  const builder = getBuilder();
+  createMock(builder.getConnection()).expects('select').once().withArgs('select count(*) as aggregate from "users"', []).returns([{ aggregate: 1 }]);
+  createMock(builder.getProcessor()).expects('processSelect').once().callsFake((builder: Builder, results: Array<any>) => {
+    return results;
+  });
+  builder.from('users').selectSub((query: Builder) => {
+    query.from('posts').select('foo', 'bar').where('title', 'foo');
+  }, 'post');
+  const count = builder.count();
+  t.is(1, count);
+  t.is('(select "foo", "bar" from "posts" where "title" = ?) as "post"', builder.columns[0].getValue());
+  t.deepEqual(['foo'], builder.getBindings());
+
+  autoVerify();
+});
+
+test('testSubqueriesBindings', (t) => {
+  let builder = getBuilder();
+  const second = getBuilder().select('*').from('users').orderByRaw('id = ?', 2);
+  const third = getBuilder().select('*').from('users').where('id', 3).groupBy('id').having('id', '!=', 4);
+  builder.groupBy('a').having('a', '=', 1).union(second).union(third);
+  t.deepEqual([1, 2, 3, 4], builder.getBindings());
+
+  builder = getBuilder().select('*').from('users').where('email', '=', (query: Builder) => {
+    query.select(new Raw('max(id)'))
+      .from('users').where('email', '=', 'bar')
+      .orderByRaw('email like ?', '%.com')
+      .groupBy('id').having('id', '=', 4);
+  }).orWhere('id', '=', 'foo').groupBy('id').having('id', '=', 5);
+
+  t.deepEqual(['bar', 4, '%.com', 'foo', 5], builder.getBindings());
+});
+
+test('testInsertMethod', (t) => {
+  const builder = getBuilder();
+  createMock(builder.getConnection()).expects('insert').once().withArgs('insert into "users" ("email") values (?)', ['foo']).returns(true);
+  const result = builder.from('users').insert({ email: 'foo' });
+  t.true(result);
+
+  autoVerify();
+});
+
+test('testInsertUsingMethod', (t) => {
+  const builder = getBuilder();
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into "table1" ("foo") select "bar" from "table2" where "foreign_id" = ?', [5]).returns(1);
+
+  const result = builder.from('table1').insertUsing(
+    ['foo'],
+    (query: Builder) => {
+      query.select(['bar']).from('table2').where('foreign_id', '=', 5);
+    }
+  );
+
+  t.is(1, result);
+
+  autoVerify();
+});
+
+test('testInsertOrIgnoreMethod', (t) => {
+  const error = t.throws(() => {
+    const builder = getBuilder();
+    builder.from('users').insertOrIgnore({ 'email': 'foo' });
+  }, { instanceOf: Error });
+
+  t.true(error.message.includes('RuntimeException'));
+  t.true(error.message.includes('does not support'));
+});
+
+test('testMySqlInsertOrIgnoreMethod', (t) => {
+  const builder = getMySqlBuilder();
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert ignore into `users` (`email`) values (?)', ['foo']).returns(1);
+  const result = builder.from('users').insertOrIgnore({ email: 'foo' });
+  t.is(1, result);
+
+  autoVerify();
+});
+
+test('testPostgresInsertOrIgnoreMethod', (t) => {
+  const builder = getPostgresBuilder();
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into "users" ("email") values (?) on conflict do nothing', ['foo']).returns(1);
+  const result = builder.from('users').insertOrIgnore({ email: 'foo' });
+  t.is(1, result);
+
+  autoVerify();
+});
+
+test('testSQLiteInsertOrIgnoreMethod', async (t) => {
+  const builder = getSQLiteBuilder();
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert or ignore into "users" ("email") values (?)', ['foo']).resolves(1);
+  const result = await builder.from('users').insertOrIgnore({ email: 'foo' });
+  t.is(1, result);
+
+  autoVerify();
+});
+
+test('testSqlServerInsertOrIgnoreMethod', (t) => {
+  const error = t.throws(() => {
+    const builder = getSqlServerBuilder();
+    builder.from('users').insertOrIgnore({ 'email': 'foo' });
+  }, { instanceOf: Error });
+
+  t.true(error.message.includes('RuntimeException'));
+  t.true(error.message.includes('does not support'));
+});
+
+test('testInsertGetIdMethod', async (t) => {
+  const builder = getBuilder();
+  createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into "users" ("email") values (?)', ['foo'], 'id').resolves(1);
+  const result = await builder.from('users').insertGetId({ email: 'foo' }, 'id');
+  t.is(1, result);
+
+  autoVerify();
+});
+
+test('testInsertGetIdMethodRemovesExpressions', async (t) => {
+  const builder = getBuilder();
+  createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into "users" ("email", "bar") values (?, bar)', ['foo'], 'id').resolves(1);
+  const result = await builder.from('users').insertGetId({ email: 'foo', bar: new Raw('bar') }, 'id');
+  t.is(1, result);
+
+  autoVerify();
+});
+
+test('testInsertGetIdWithEmptyValues', (t) => {
+  let builder = getMySqlBuilder();
+  createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into `users` () values ()', [], undefined);
+  builder.from('users').insertGetId([]);
+
+  builder = getPostgresBuilder();
+  createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into "users" default values returning "id"', [], undefined);
+  builder.from('users').insertGetId([]);
+
+  builder = getSQLiteBuilder();
+  createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into "users" default values', [], undefined);
+  builder.from('users').insertGetId([]);
+
+  builder = getSqlServerBuilder();
+  createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into [users] default values', [], undefined);
+  builder.from('users').insertGetId([]);
+
+  t.pass();
+
+  autoVerify();
+});
+
+test('testInsertMethodRespectsRawBindings', async (t) => {
+  const builder = getBuilder();
+  createMock(builder.getConnection()).expects('insert').once().withArgs('insert into "users" ("email") values (CURRENT TIMESTAMP)', []).resolves(true);
+  const result = await builder.from('users').insert({ 'email': new Raw('CURRENT TIMESTAMP') });
+  t.true(result);
+
+  autoVerify();
+});
+
+test('testMultipleInsertsWithExpressionValues', async (t) => {
+  const builder = getBuilder();
+  createMock(builder.getConnection()).expects('insert').once().withArgs('insert into "users" ("email") values (UPPER(\'Foo\')), (LOWER(\'Foo\'))', []).resolves(true);
+  const result = await builder.from('users').insert([{ 'email': new Raw("UPPER('Foo')") }, { 'email': new Raw("LOWER('Foo')") }]);
+  t.true(result);
+
+  autoVerify();
+});
+
+test('testUpdateMethod', async (t) => {
+  let builder = getBuilder();
+  createMock(builder.getConnection()).expects('update').once().withArgs('update "users" set "email" = ?, "name" = ? where "id" = ?', ['foo', 'bar', 1]).resolves(1);
+  let result = await builder.from('users').where('id', '=', 1).update({ email: 'foo', name: 'bar' });
+  t.is(1, result);
+
+  builder = getMySqlBuilder();
+  createMock(builder.getConnection()).expects('update').once().withArgs('update `users` set `email` = ?, `name` = ? where `id` = ? order by `foo` desc limit 5', ['foo', 'bar', 1]).resolves(1);
+  result = await builder.from('users').where('id', '=', 1).orderBy('foo', 'desc').limit(5).update({ email: 'foo', name: 'bar' });
+  t.is(1, result);
+
+  autoVerify();
+});
+
+test('testUpsertMethod', async (t) => {
+  let builder = getMySqlBuilder();
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into `users` (`email`, `name`) values (?, ?), (?, ?) on duplicate key update `email` = values(`email`), `name` = values(`name`)', ['foo', 'bar', 'foo2', 'bar2']).resolves(2);
+  let result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email');
+  t.is(2, result);
+
+  builder = getPostgresBuilder();
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into "users" ("email", "name") values (?, ?), (?, ?) on conflict ("email") do update set "email" = "excluded"."email", "name" = "excluded"."name"', ['foo', 'bar', 'foo2', 'bar2']).resolves(2);
+  result = await builder.from('users').upsert([{ email: 'foo', 'name': 'bar' }, { 'name': 'bar2', 'email': 'foo2' }], 'email');
+  t.is(2, result);
+
+  builder = getSQLiteBuilder();
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into "users" ("email", "name") values (?, ?), (?, ?) on conflict ("email") do update set "email" = "excluded"."email", "name" = "excluded"."name"', ['foo', 'bar', 'foo2', 'bar2']).resolves(2);
+  result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', 'email': 'foo2' }], 'email');
+  t.is(2, result);
+
+  builder = getSqlServerBuilder();
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('merge [users] using (values (?, ?), (?, ?)) [laravel_source] ([email], [name]) on [laravel_source].[email] = [users].[email] when matched then update set [email] = [laravel_source].[email], [name] = [laravel_source].[name] when not matched then insert ([email], [name]) values ([email], [name]);', ['foo', 'bar', 'foo2', 'bar2']).resolves(2);
+  result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email');
+  t.is(2, result);
+
+  autoVerify();
+});
+
+test('testUpsertMethodWithUpdateColumns', async (t) => {
+  let builder = getMySqlBuilder();
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into `users` (`email`, `name`) values (?, ?), (?, ?) on duplicate key update `name` = values(`name`)', ['foo', 'bar', 'foo2', 'bar2']).resolves(2);
+  let result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email', ['name']);
+  t.is(2, result);
+
+  builder = getPostgresBuilder();
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into "users" ("email", "name") values (?, ?), (?, ?) on conflict ("email") do update set "name" = "excluded"."name"', ['foo', 'bar', 'foo2', 'bar2']).resolves(2);
+  result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email', ['name']);
+  t.is(2, result);
+
+  builder = getSQLiteBuilder();
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into "users" ("email", "name") values (?, ?), (?, ?) on conflict ("email") do update set "name" = "excluded"."name"', ['foo', 'bar', 'foo2', 'bar2']).resolves(2);
+  result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email', ['name']);
+  t.is(2, result);
+
+  builder = getSqlServerBuilder();
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('merge [users] using (values (?, ?), (?, ?)) [laravel_source] ([email], [name]) on [laravel_source].[email] = [users].[email] when matched then update set [name] = [laravel_source].[name] when not matched then insert ([email], [name]) values ([email], [name]);', ['foo', 'bar', 'foo2', 'bar2']).resolves(2);
+  result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email', ['name']);
+  t.is(2, result);
+});
+
+// test('test_name', (t) => {
 
 // });

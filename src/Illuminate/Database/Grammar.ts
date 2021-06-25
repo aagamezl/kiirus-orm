@@ -20,6 +20,15 @@ export abstract class Grammar {
   }
 
   /**
+   * Get the format for database stored dates.
+   *
+   * @return string
+   */
+  public getDateFormat(): string {
+    return 'Y-m-d H:i:s';
+  }
+
+  /**
    * Get the value of a raw expression.
    *
    * @param  \Illuminate\Database\Query\Expression  expression
@@ -55,8 +64,8 @@ export abstract class Grammar {
    * @param  Array<any>  values
    * @return string
    */
-  public parameterize(values: Array<any>): string {
-    return values.map((value) => this.parameter(value)).join(', ');
+  public parameterize(values: Array<any> | any): string {
+    return (Array.isArray(values) ? values : Object.values(values)).map((value) => this.parameter(value)).join(', ');
   }
 
   /**

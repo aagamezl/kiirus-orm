@@ -1,3 +1,1 @@
-import { Builder } from '../Database/Query';
-
-export type callbackFn = (value: any, index: number) => unknown;
+export type callbackFn = (value: any, index: any) => any;

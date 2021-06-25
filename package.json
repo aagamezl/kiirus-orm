@@ -8,9 +8,15 @@
   },
   "scripts": {
     "coverage": "nyc ava",
-    "lint": "ts-standard",
+    "lint": "gts lint",
     "test": "ava",
-    "test:watch": "ava --watch"
+    "test:watch": "ava --watch",
+    "clean": "gts clean",
+    "compile": "tsc",
+    "fix": "gts fix",
+    "prepare": "npm run compile",
+    "pretest": "npm run compile",
+    "posttest": "npm run lint"
   },
   "ava": {
     "files": [
@@ -47,7 +53,8 @@
     "sinon": "^11.0.0",
     "ts-node": "^10.0.0",
     "ts-standard": "^10.0.0",
-    "typescript": "^4.2.4"
+    "typescript": "^4.2.4",
+    "gts": "^3.1.0"
   },
   "dependencies": {
     "@devnetic/utils": "^1.2.1",

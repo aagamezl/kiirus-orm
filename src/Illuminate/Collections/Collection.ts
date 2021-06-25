@@ -68,6 +68,20 @@ export class Collection {
   }
 
   /**
+   * Run a filter over each of the items.
+   *
+   * @param  [callbackFn]  callback
+   * @return static
+   */
+  public filter(callback?: callbackFn) {
+    if (callback) {
+      return new (this.constructor as any)(Arr.where(this.items, callback));
+    }
+
+    return new (this.constructor as any)(this.items.filter(item => item));
+  }
+
+  /**
    * Get the first item from the collection passing the given truth test.
    *
    * @param  [callbackFn]  callback
@@ -238,6 +252,23 @@ export class Collection {
    */
   public pop() {
     return this.items.pop();
+  }
+
+  /**
+   * Create a collection of all elements that do not pass a given truth test.
+   *
+   * @param  callbackFn|any  callback
+   * @return static
+   */
+  public reject(callback: callbackFn | any = true) {
+    const useAsCallable = this.useAsCallable(callback);
+
+    return this.filter((value, key) => {
+    // return this.filter(([key, value]) => {
+      return useAsCallable
+        ? !callback(value, key)
+        : value != callback;
+    });
   }
 
   /**

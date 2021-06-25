@@ -1,4 +1,5 @@
 import * as utils from '@devnetic/utils';
+import { isPlainObject } from 'lodash';
 
 import { callbackFn } from '../Support/Types';
 import { Collection } from './Collection';
@@ -55,17 +56,17 @@ export class Arr {
    * @param  int  depth
    * @return array
    */
-  public static flatten(array: Array<any> | Object, depth: number = Number.MAX_SAFE_INTEGER) {
+  public static flatten(array: Array<any> | Object, depth: number = Number.POSITIVE_INFINITY) {
     const result = [];
 
-    for (let [key, item] of Object.entries(array)) {
+    for (let [, item] of Object.entries(array)) {
       item = item instanceof Collection ? item.all() : item;
 
-      if (!Array.isArray(item)) {
+      if (!Array.isArray(item) && !isPlainObject(item)) {
         result.push(item);
       } else {
         const values: Array<any> = depth === 1
-          ? item
+          ? Object.values(item)
           : this.flatten(item, depth - 1);
 
         for (const value of values) {
@@ -140,6 +141,26 @@ export class Arr {
     }
 
     return values
+  }
+
+  /**
+   * Filter the array using the given callback.
+   *
+   * @param  Array<any>  array
+   * @param  callbackFn  callback
+   * @return Array<any>
+   */
+  public static where(array: Array<any>, callback: callbackFn): Array<any> {
+    return array.filter((item: any, index: number) => {
+      if (!Array.isArray(item)) {
+        return callback(item, index);
+      }
+
+      // const [key, value] = Object.entries(item)[0];
+      const [key, value] = item;
+
+      return callback(value, key);
+    });
   }
 
   /**
