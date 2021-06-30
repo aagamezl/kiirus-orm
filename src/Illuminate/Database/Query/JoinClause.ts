@@ -1,13 +1,15 @@
 // import { Builder } from './Builder';
-import { Builder } from './internal';
-import { ConnectionInterface } from '../ConnectionInterface';
-import { Grammar } from './Grammars';
-import { Processor } from './Processors';
-import { Expression } from './Expression';
+import {Builder} from './internal';
+import {ConnectionInterface} from '../ConnectionInterface';
+import {Grammar} from './Grammars';
+import {Processor} from './Processors';
+import {Expression} from './Expression';
 
 export type JoinClassExtended = JoinClause & Builder;
 
-export type TJoinClause = { [P in keyof JoinClassExtended]: JoinClassExtended[P] };
+export type TJoinClause = {
+  [P in keyof JoinClassExtended]: JoinClassExtended[P];
+};
 
 export class JoinClause extends Builder {
   /**
@@ -60,8 +62,16 @@ export class JoinClause extends Builder {
    * @param  string  table | Expression
    * @return void
    */
-  public constructor(parentQuery: Builder, type: string, table: string | Expression) {
-    super(parentQuery.getConnection(), parentQuery.getGrammar(), parentQuery.getProcessor());
+  public constructor(
+    parentQuery: Builder,
+    type: string,
+    table: string | Expression
+  ) {
+    super(
+      parentQuery.getConnection(),
+      parentQuery.getGrammar(),
+      parentQuery.getProcessor()
+    );
 
     this.type = type;
     this.table = table;
@@ -88,7 +98,11 @@ export class JoinClause extends Builder {
   protected newParentQuery(): this {
     const constructor = this.parentClass;
 
-    return new (constructor as any)(this.parentConnection, this.parentGrammar, this.parentProcessor);
+    return new (constructor as any)(
+      this.parentConnection,
+      this.parentGrammar,
+      this.parentProcessor
+    );
   }
 
   /**
@@ -97,7 +111,11 @@ export class JoinClause extends Builder {
    * @return \Illuminate\Database\Query\JoinClause
    */
   public newQuery() {
-    return new (this.constructor as any)(this.newParentQuery(), this.type, this.table);
+    return new (this.constructor as any)(
+      this.newParentQuery(),
+      this.type,
+      this.table
+    );
   }
 
   /**
@@ -120,7 +138,12 @@ export class JoinClause extends Builder {
    *
    * @throws \InvalidArgumentException
    */
-  public on(first: Function | string, operator?: string, second?: Expression | string, boolean: string = 'and'): this {
+  public on(
+    first: Function | string,
+    operator?: string,
+    second?: Expression | string,
+    boolean = 'and'
+  ): this {
     if (first instanceof Function) {
       // return (this as any).whereNested(first, boolean);
       return this.whereNested(first, boolean);
@@ -138,7 +161,11 @@ export class JoinClause extends Builder {
    * @param  [string]  second
    * @return \Illuminate\Database\Query\JoinClause
    */
-  public orOn(first: Function | string, operator?: string, second?: string): this {
+  public orOn(
+    first: Function | string,
+    operator?: string,
+    second?: string
+  ): this {
     return this.on(first, operator, second, 'or');
   }
 }

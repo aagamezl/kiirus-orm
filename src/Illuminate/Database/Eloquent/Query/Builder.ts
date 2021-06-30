@@ -1,11 +1,11 @@
-import { clone, merge, values } from 'lodash';
+import {clone, merge, values} from 'lodash';
 
-import { collect } from '../../../Collections';
+import {collect} from '../../../Collections';
 
-import { Builder as QueryBuilder } from '../../Query';
-import { WhereInterface } from '../../Query/Builder';
-import { Model } from '../Model';
-import { Scope } from '../Scope';
+import {Builder as QueryBuilder} from '../../Query';
+import {WhereInterface} from '../../Query/Builder';
+import {Model} from '../Model';
+import {Scope} from '../Scope';
 export class Builder {
   /**
    * The model being queried.
@@ -56,18 +56,18 @@ export class Builder {
   protected scopes: Record<string, Scope> = {};
 
   /**
- * Create a new Eloquent query builder instance.
- *
- * @param  \Illuminate\Database\Query\Builder  $query
- * @return void
- */
+   * Create a new Eloquent query builder instance.
+   *
+   * @param  \Illuminate\Database\Query\Builder  $query
+   * @return void
+   */
   constructor(query: QueryBuilder) {
     this.query = query;
 
     return new Proxy(this, {
       get(target: Builder, property: string) {
         if (Reflect.has(target, property)) {
-          return Reflect.get(target, property)
+          return Reflect.get(target, property);
         } else {
           if (target.passthru.includes(property)) {
             return Reflect.get(target.toBase(), property);
@@ -76,10 +76,12 @@ export class Builder {
           try {
             return Reflect.get(query, property);
           } catch (error) {
-            throw Error(`BadMethodCallException: 'Call to undefined method ${target.constructor.name}.${property})`);
+            throw Error(
+              `BadMethodCallException: 'Call to undefined method ${target.constructor.name}.${property})`
+            );
           }
         }
-      }
+      },
     });
   }
 
@@ -90,7 +92,10 @@ export class Builder {
    * @param  Number  originalWhereCount
    * @return void
    */
-  protected addNewWheresWithinGroup(query: QueryBuilder, originalWhereCount: number) {
+  protected addNewWheresWithinGroup(
+    query: QueryBuilder,
+    originalWhereCount: number
+  ) {
     // Here, we totally remove all of the where clauses since we are going to
     // rebuild them as nested queries by slicing the groups of wheres into
     // their own sections. This is to prevent any confusing logic order.
@@ -98,13 +103,9 @@ export class Builder {
 
     query.wheres = [];
 
-    this.groupWhereSliceForScope(
-      query, allWheres.slice(0, originalWhereCount)
-    );
+    this.groupWhereSliceForScope(query, allWheres.slice(0, originalWhereCount));
 
-    this.groupWhereSliceForScope(
-      query, allWheres.slice(originalWhereCount)
-    );
+    this.groupWhereSliceForScope(query, allWheres.slice(originalWhereCount));
   }
 
   /**
@@ -159,8 +160,8 @@ export class Builder {
     // We will keep track of how many wheres are on the query before running the
     // scope so that we can properly group the added scope constraints in the
     // query as their own isolated nested where statement and avoid issues.
-    const originalWhereCount = query.wheres === undefined
-      ? 0 : query.wheres.length;
+    const originalWhereCount =
+      query.wheres === undefined ? 0 : query.wheres.length;
 
     const result = scope(...values(parameters)) ?? this;
 
@@ -178,12 +179,15 @@ export class Builder {
    * @param  string  boolean
    * @return WhereInterface
    */
-  protected createNestedWhere(whereSlice: Array<any>, boolean: string = 'and'): WhereInterface {
+  protected createNestedWhere(
+    whereSlice: Array<unknown>,
+    boolean = 'and'
+  ): WhereInterface {
     const whereGroup = this.getQuery().forNestedWhere();
 
     whereGroup.wheres = whereSlice;
 
-    return { type: 'Nested', query: whereGroup, boolean };
+    return {type: 'Nested', query: whereGroup, boolean};
   }
 
   /**
@@ -211,16 +215,19 @@ export class Builder {
    * @param  Array<any>  whereSlice
    * @return void
    */
-  protected groupWhereSliceForScope(query: QueryBuilder, whereSlice: Array<any>) {
+  protected groupWhereSliceForScope(
+    query: QueryBuilder,
+    whereSlice: Array<string>
+  ) {
     const whereBooleans = collect(whereSlice).pluck('boolean');
 
     // Here we'll check if the given subset of where clauses contains any "or"
     // booleans and in this case create a nested where expression. That way
     // we don't add any unnecessary nesting thus keeping the query clean.
     if (whereBooleans.contains('or')) {
-      query.wheres.push(this.createNestedWhere(
-        whereSlice, whereBooleans.first()
-      ));
+      query.wheres.push(
+        this.createNestedWhere(whereSlice, whereBooleans.first())
+      );
     } else {
       query.wheres = merge(query.wheres, whereSlice);
     }

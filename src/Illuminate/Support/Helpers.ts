@@ -1,21 +1,24 @@
-import { HigherOrderTapProxy } from "./HigherOrderTapProxy";
+import {HigherOrderTapProxy} from './HigherOrderTapProxy';
 
 /**
  * Call the given Closure with the given value then return the value.
  *
- * @param  any  value
- * @param  callable|null  callback
- * @return any
+ * @param  {object}  value
+ * @param  {Function}  [callback]
+ * @returns {object}
  */
-export const tap = (value: any, callback?: Function): any => {
+export const tap = <TargetType>(
+  value: object,
+  callback?: Function
+): TargetType => {
   if (!callback) {
-    return new HigherOrderTapProxy(value);
+    return new HigherOrderTapProxy(value) as unknown as TargetType;
   }
 
   callback(value);
 
-  return value;
-}
+  return value as unknown as TargetType;
+};
 
 /**
  * Returns an array with all keys from array lowercased or uppercased.
@@ -24,16 +27,35 @@ export const tap = (value: any, callback?: Function): any => {
  * @param {string} changeCase
  * @returns {object}
  */
-export const changeKeyCase = (value: Array<any>, changeCase: string = 'CASE_LOWER'): any => {
+export const changeKeyCase = (
+  value: object,
+  changeCase = 'CASE_LOWER'
+): Object => {
   const result = {};
 
   if (value && typeof value === 'object') {
-    const casefunction = (!changeCase || changeCase === 'CASE_LOWER') ? 'toLowerCase' : 'toUpperCase';
+    const casefunction =
+      !changeCase || changeCase === 'CASE_LOWER'
+        ? (key: string) => key.toLowerCase()
+        : (key: string) => key.toUpperCase();
 
-    for (let key in value) {
-      (result as any)[(key as any)[casefunction]()] = value[key];
+    for (const key in value) {
+      if (Reflect.has(value, key)) {
+        Reflect.set(result, casefunction(key), Reflect.get(value, key));
+      }
     }
 
     return result;
   }
-}
+
+  return value;
+};
+
+export const ksort = (value: object): object =>
+  Object.keys(value)
+    .sort()
+    .reduce((result: object, key: string) => {
+      Reflect.set(result, key, Reflect.get(value, key));
+
+      return result;
+    }, {});

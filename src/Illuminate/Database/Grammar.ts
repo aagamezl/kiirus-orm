@@ -1,5 +1,5 @@
-import { collect } from '../Collections/Helpers';
-import { Expression } from './Query/Expression';
+import {collect} from '../Collections/Helpers';
+import {Expression} from './Query/Expression';
 
 export abstract class Grammar {
   /**
@@ -7,7 +7,7 @@ export abstract class Grammar {
    *
    * @var string
    */
-  protected tablePrefix: string = '';
+  protected tablePrefix = '';
 
   /**
    * Convert an array of column names into a delimited string.
@@ -17,6 +17,15 @@ export abstract class Grammar {
    */
   public columnize(columns: Array<any>): string {
     return columns.map(column => this.wrap(column)).join(', ');
+  }
+
+  /**
+   * Get the format for database stored dates.
+   *
+   * @return string
+   */
+  public getDateFormat(): string {
+    return 'Y-m-d H:i:s';
   }
 
   /**
@@ -52,11 +61,13 @@ export abstract class Grammar {
   /**
    * Create query parameter place-holders for an array.
    *
-   * @param  Array<any>  values
-   * @return string
+   * @param  {Array}  values
+   * @returns {string}
    */
-  public parameterize(values: Array<any>): string {
-    return values.map((value) => this.parameter(value)).join(', ');
+  public parameterize(values: Array<unknown> | unknown): string {
+    return (Array.isArray(values) ? values : Object.values(values))
+      .map(value => this.parameter(value))
+      .join(', ');
   }
 
   /**
@@ -78,7 +89,7 @@ export abstract class Grammar {
    * @param  boolean  prefixAlias
    * @return string
    */
-  public wrap(value: Expression | string, prefixAlias: boolean = false): string {
+  public wrap(value: Expression | string, prefixAlias = false): string {
     if (this.isExpression(value)) {
       return this.getValue(value as Expression);
     }
@@ -100,7 +111,7 @@ export abstract class Grammar {
    * @param  boolean  prefixAlias
    * @return string
    */
-  protected wrapAliasedValue(value: string, prefixAlias: boolean = false): string {
+  protected wrapAliasedValue(value: string, prefixAlias = false): string {
     const segments = value.split(/\s+as\s+/i);
 
     // If we are wrapping a table we need to prefix the alias with the table prefix
@@ -120,11 +131,13 @@ export abstract class Grammar {
    * @return string
    */
   protected wrapSegments(segments: Array<string>): string {
-    return collect(segments).map((segment: Expression | string, key: number) => {
-      return key === 0 && segments.length > 1
-        ? this.wrapTable(segment)
-        : this.wrapValue(String(segment));
-    }).join('.');
+    return collect(segments)
+      .map((segment: Expression | string, key: number) => {
+        return key === 0 && segments.length > 1
+          ? this.wrapTable(segment)
+          : this.wrapValue(String(segment));
+      })
+      .join('.');
   }
 
   /**

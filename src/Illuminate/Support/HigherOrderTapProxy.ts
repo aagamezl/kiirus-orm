@@ -2,41 +2,38 @@ export class HigherOrderTapProxy {
   /**
    * The target being tapped.
    *
-   * @var any
+   * @member any
    */
-  public target: any;
+  public subject: object;
 
   /**
    * Create a new tap proxy instance.
    *
-   * @param  any  target
-   * @return void
+   * @param  {object}  subject
+   * @returns {void}
    */
-  public constructor(target: any) {
-    this.target = target;
+  public constructor(subject: object) {
+    this.subject = subject;
+
+    const handler = {
+      get: (target: object, method: PropertyKey) => {
+        const property = Reflect.get(target, method);
+
+        if (property instanceof Function) {
+          return (...parameters: Array<unknown>) => {
+            property(...parameters);
+
+            return target;
+          };
+        }
+
+        return property;
+      },
+    };
+
+    const proxy = new Proxy(subject, handler);
+
+    // It's necessary to return the new created proxy
+    return Object.setPrototypeOf(proxy, new.target.prototype); // eslint-disable-line
   }
-
-  /**
-   * Dynamically pass method calls to the target.
-   *
-   * @param  string  method
-   * @param  array  parameters
-   * @return any
-   */
-  public get(method: string, parameters: Array<any>): any {
-    return this.target[method](...parameters)
-  }
-
-  // /**
-  //  * Dynamically pass method calls to the target.
-  //  *
-  //  * @param  string  method
-  //  * @param  array  parameters
-  //  * @return any
-  //  */
-  // public function __call(method, parameters) {
-  //   this.target.{ method }(...parameters);
-
-  //   return this.target;
-  // }
 }

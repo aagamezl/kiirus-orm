@@ -6,11 +6,20 @@
   "directories": {
     "test": "test"
   },
+  "files": [
+    "build/**/*"
+  ],
   "scripts": {
     "coverage": "nyc ava",
-    "lint": "ts-standard",
+    "lint": "gts lint",
     "test": "ava",
-    "test:watch": "ava --watch"
+    "test:watch": "ava --watch",
+    "clean": "gts clean",
+    "compile": "tsc",
+    "fix": "gts fix",
+    "prepare": "npm run compile",
+    "pretest": "npm run compile",
+    "posttest": "npm run lint"
   },
   "ava": {
     "files": [
@@ -22,9 +31,6 @@
     "require": [
       "ts-node/register"
     ]
-  },
-  "ts-standard": {
-    "project": "./tsconfig.json"
   },
   "repository": {
     "type": "git",
@@ -39,10 +45,16 @@
   "homepage": "https://github.com/aagamezl/kiirus-orm#readme",
   "devDependencies": {
     "@ava/typescript": "^1.1.1",
+    "@sinonjs/eslint-config": "^4.0.3",
     "@types/lodash": "^4.14.170",
+    "@types/mysql2": "github:types/mysql2",
     "@types/node": "^15.6.1",
+    "@types/pg": "^8.6.0",
     "@types/sinon": "^10.0.0",
     "ava": "^3.15.0",
+    "eslint": "^7.29.0",
+    "eslint-plugin-ava": "^12.0.0",
+    "gts": "^3.1.0",
     "nyc": "^15.1.0",
     "sinon": "^11.0.0",
     "ts-node": "^10.0.0",

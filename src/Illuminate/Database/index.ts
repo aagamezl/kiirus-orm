@@ -1,3 +1,3 @@
-export * from './Connection'
-export * from './ConnectionInterface'
-export * from './Grammar'
+export * from './Connection';
+export * from './ConnectionInterface';
+export * from './Grammar';

@@ -1,8 +1,9 @@
 import * as utils from '@devnetic/utils';
+import {isPlainObject} from 'lodash';
 
-import { callbackFn } from '../Support/Types';
-import { Collection } from './Collection';
-import { dataGet, value } from './Helpers';
+import {callbackFn} from '../Support/Types';
+import {Collection} from './Collection';
+import {dataGet, value} from './Helpers';
 
 export class Arr {
   /**
@@ -12,35 +13,40 @@ export class Arr {
    * @param  {[string|Array<any>]}  key
    * @return {array}
    */
-  public static explodePluckParameters(value: string | Array<any>, key?: string | Array<any>) {
-    value = Array.isArray(value) ? value : value.split('.')
+  public static explodePluckParameters(
+    value: string | Array<any>,
+    key?: string | Array<any>
+  ) {
+    value = Array.isArray(value) ? value : value.split('.');
 
-    key = key === undefined || Array.isArray(key) ? key : key.split('.')
+    key = key === undefined || Array.isArray(key) ? key : key.split('.');
 
-    return [value, key]
+    return [value, key];
   }
 
   /**
    * Return the first element in an array passing a given truth test.
    *
-   * @param  Array<any>  array
-   * @param  [callbackFn]  callback
-   * @param  any  defaultValue
-   * @return any
+   * @param  {Array}  array
+   * @param  {callbackFn}  [callback]
+   * @param  {*}  [defaultValue]
+   * @returns {*}
    */
-  public static first(array: Array<any>, callback?: callbackFn, defaultValue?: any): any {
+  public static first(
+    array: Array<unknown>,
+    callback?: callbackFn,
+    defaultValue?: unknown
+  ): unknown {
     if (!callback) {
       if (array.length === 0) {
         return value(defaultValue);
       }
 
-      for (const item of array) {
-        return item;
-      }
+      return array[0];
     }
 
-    for (const [key, value] of array) {
-      if (callback && callback(value, key)) {
+    for (const [k, v] of array.entries()) {
+      if (callback && callback(v, k)) {
         return value;
       }
     }
@@ -55,18 +61,20 @@ export class Arr {
    * @param  int  depth
    * @return array
    */
-  public static flatten(array: Array<any> | Object, depth: number = Number.MAX_SAFE_INTEGER) {
+  public static flatten(
+    array: Array<any> | Object,
+    depth: number = Number.POSITIVE_INFINITY
+  ) {
     const result = [];
 
-    for (let [key, item] of Object.entries(array)) {
+    for (let [, item] of Object.entries(array)) {
       item = item instanceof Collection ? item.all() : item;
 
-      if (!Array.isArray(item)) {
+      if (!Array.isArray(item) && !isPlainObject(item)) {
         result.push(item);
       } else {
-        const values: Array<any> = depth === 1
-          ? item
-          : this.flatten(item, depth - 1);
+        const values: Array<any> =
+          depth === 1 ? Object.values(item) : this.flatten(item, depth - 1);
 
         for (const value of values) {
           result.push(value);
@@ -85,7 +93,11 @@ export class Arr {
    * @param  any  defaultValue
    * @return any
    */
-  public static last(array: Array<any>, callback?: callbackFn, defaultValue?: any): any {
+  public static last(
+    array: Array<any>,
+    callback?: callbackFn,
+    defaultValue?: any
+  ): any {
     if (!callback) {
       return array.length === 0 ? value(defaultValue) : array[array.length - 1];
     }
@@ -108,7 +120,10 @@ export class Arr {
   ): Array<any> {
     const results = [];
 
-    [value, key] = this.explodePluckParameters(value as Array<any>, key) as Array<any>;
+    [value, key] = this.explodePluckParameters(
+      value as Array<any>,
+      key
+    ) as Array<any>;
 
     for (const item of array) {
       const itemValue = dataGet(item, value);
@@ -121,7 +136,10 @@ export class Arr {
       } else {
         let itemKey = dataGet(item, key);
 
-        if (utils.getType(itemKey) === 'Object' && itemKey.toString !== undefined) {
+        if (
+          utils.getType(itemKey) === 'Object' &&
+          itemKey.toString !== undefined
+        ) {
           itemKey = itemKey.toString();
         }
 
@@ -139,7 +157,27 @@ export class Arr {
       values.push(value);
     }
 
-    return values
+    return values;
+  }
+
+  /**
+   * Filter the array using the given callback.
+   *
+   * @param  Array<any>  array
+   * @param  callbackFn  callback
+   * @return Array<any>
+   */
+  public static where(array: Array<any>, callback: callbackFn): Array<any> {
+    return array.filter((item: any, index: number) => {
+      if (!Array.isArray(item)) {
+        return callback(item, index);
+      }
+
+      // const [key, value] = Object.entries(item)[0];
+      const [key, value] = item;
+
+      return callback(value, key);
+    });
   }
 
   /**

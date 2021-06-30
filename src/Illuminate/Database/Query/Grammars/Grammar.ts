@@ -1,15 +1,16 @@
-import { capitalize } from 'lodash';
-import { collect, end, head, last, reset } from '../../../Collections/Helpers';
+import {capitalize, merge, reject} from 'lodash';
+import {Arr} from '../../../Collections';
+import {collect, end, head, last, reset} from '../../../Collections/Helpers';
 
 import {
   AggregateInterface,
   Builder,
   UnionInterface,
-  WhereInterface
+  WhereInterface,
 } from '../Builder';
-import { Expression } from '../Expression';
-import { JoinClause } from '../JoinClause';
-import { Grammar as BaseGrammar } from './../../';
+import {Expression} from '../Expression';
+import {JoinClause} from '../JoinClause';
+import {Grammar as BaseGrammar} from './../../';
 
 interface SelectComponentInterface {
   name: string;
@@ -30,17 +31,17 @@ export class Grammar extends BaseGrammar {
    * @var string[]
    */
   protected selectComponents: Array<string | SelectComponentInterface> = [
-    { name: 'aggregate', property: 'aggregateProperty' },
-    { name: 'columns', property: 'columns' },
-    { name: 'from', property: 'fromProperty' },
-    { name: 'joins', property: 'joins' },
-    { name: 'wheres', property: 'wheres' },
-    { name: 'groups', property: 'groups' },
-    { name: 'havings', property: 'havings' },
-    { name: 'orders', property: 'orders' },
-    { name: 'limit', property: 'limitProperty' },
-    { name: 'offset', property: 'offsetProperty' },
-    { name: 'lock', property: 'lockProperty' }
+    {name: 'aggregate', property: 'aggregateProperty'},
+    {name: 'columns', property: 'columns'},
+    {name: 'from', property: 'fromProperty'},
+    {name: 'joins', property: 'joins'},
+    {name: 'wheres', property: 'wheres'},
+    {name: 'groups', property: 'groups'},
+    {name: 'havings', property: 'havings'},
+    {name: 'orders', property: 'orders'},
+    {name: 'limit', property: 'limitProperty'},
+    {name: 'offset', property: 'offsetProperty'},
+    {name: 'lock', property: 'lockProperty'},
   ];
 
   /**
@@ -57,8 +58,9 @@ export class Grammar extends BaseGrammar {
     // we need to prepend "distinct" onto the column name so that the query takes
     // it into account when it performs the aggregating operations on the data.
     if (Array.isArray(query.distinctProperty)) {
-      column = 'distinct ' + this.columnize(query.distinctProperty as Array<any>);
-    } else if(query.distinctProperty && column !== '*') {
+      column =
+        'distinct ' + this.columnize(query.distinctProperty as Array<any>);
+    } else if (query.distinctProperty && column !== '*') {
       column = 'distinct ' + column;
     }
 
@@ -76,7 +78,9 @@ export class Grammar extends BaseGrammar {
 
     const parameter = this.parameter(having.value);
 
-    return having.boolean + ' ' + column + ' ' + having.operator + ' ' + parameter;
+    return (
+      having.boolean + ' ' + column + ' ' + having.operator + ' ' + parameter
+    );
   }
 
   /**
@@ -109,7 +113,7 @@ export class Grammar extends BaseGrammar {
     const sql: Record<string, any> = {};
 
     for (const component of this.selectComponents) {
-      const { name, property } = component as SelectComponentInterface;
+      const {name, property} = component as SelectComponentInterface;
 
       if (this.isExecutable(query, property)) {
         const method = 'compile' + capitalize(name);
@@ -119,6 +123,18 @@ export class Grammar extends BaseGrammar {
     }
 
     return sql;
+  }
+
+  /**
+   * Compile an exists statement into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @return string
+   */
+  public compileExists(query: Builder): string {
+    const select = this.compileSelect(query);
+
+    return `select exists(${select}) as ${this.wrap('exists')}`;
   }
 
   /**
@@ -155,7 +171,7 @@ export class Grammar extends BaseGrammar {
     // clause into SQL based on the components that make it up from builder.
     if (having.type === 'Raw') {
       return having.boolean + ' ' + having.sql;
-    } else if(having.type === 'between') {
+    } else if (having.type === 'between') {
       return this.compileHavingBetween(having);
     }
 
@@ -177,15 +193,17 @@ export class Grammar extends BaseGrammar {
 
     const max = this.parameter(last(having.values));
 
-    return having.boolean + ' ' + column + ' ' + between + ' ' + min + ' and ' + max;
+    return (
+      having.boolean + ' ' + column + ' ' + between + ' ' + min + ' and ' + max
+    );
   }
 
   /**
    * Compile the "having" portions of the query.
    *
-   * @param  \Illuminate\Database\Query\Builder  query
-   * @param  Array<any>  havings
-   * @return string
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  havings
+   * @returns {string}
    */
   protected compileHavings(query: Builder, havings: Array<any>): string {
     const sql = havings.map(having => this.compileHaving(having)).join(' ');
@@ -194,31 +212,128 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
-   * Compile the "join" portions of the query.
+   * Compile an insert statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  values
+   * @returns {string}
+   */
+  public compileInsert(query: Builder, values: Array<object> | object): string {
+    // Essentially we will force every insert to be treated as a batch insert which
+    // simply makes creating the SQL easier for us since we can utilize the same
+    // basic routine regardless of an amount of records given to us to insert.
+    const table = this.wrapTable(query.fromProperty);
+
+    // const records: Array<object> = (Array.isArray(values) ? values : [values]);
+
+    // if (records.length === 0) {
+    //   return `insert into ${table} default values`;
+    // }
+
+    const valuesToInsert = Array.isArray(values) ? values : [values];
+
+    if (valuesToInsert.length === 0) {
+      return `insert into ${table} default values`;
+    }
+
+    // if (!Array.isArray(values)) {
+    //   values = [values];
+    // }
+
+    const columns = this.columnize(Object.keys(valuesToInsert[0]));
+
+    // We need to build a list of parameter place-holders of values that are bound
+    // to the query. Each insert should have the exact same amount of parameter
+    // bindings so we will loop through the record and parameterize them all.
+    const parameters = collect(valuesToInsert)
+      .map(record => `(${this.parameterize(record)})`)
+      .implode(', ');
+
+    return `insert into ${table} (${columns}) values ${parameters}`;
+  }
+
+  /**
+   * Compile an insert and get ID statement into SQL.
    *
    * @param  \Illuminate\Database\Query\Builder  query
-   * @param  array  joins
+   * @param  array  values
+   * @param  [string]  sequence
    * @return string
    */
-  protected compileJoins(query: Builder, joins: Array<any>) {
-    return collect(joins).map((join: JoinClause) => {
-      const table = this.wrapTable(join.table);
+  public compileInsertGetId(
+    query: Builder,
+    values: Array<any> | any,
+    sequence?: string
+  ): string {
+    return this.compileInsert(query, values);
+  }
 
-      const nestedJoins: string = join.joins.length === 0 ? '' : ' ' + this.compileJoins(query, join.joins);
+  /**
+   * Compile an insert ignore statement into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  Array<Object>  values
+   * @return string
+   *
+   * @throws \RuntimeException
+   */
+  public compileInsertOrIgnore(query: Builder, values: Array<Object>): string {
+    throw new Error(
+      'RuntimeException: This database engine does not support inserting while ignoring errors.'
+    );
+  }
 
-      const tableAndNestedJoins = join.joins.length === 0 ? table : '(' + table + nestedJoins + ')';
+  /**
+   * Compile an insert statement using a subquery into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  Array<string>  columns
+   * @param  string  sql
+   * @return string
+   */
+  public compileInsertUsing(
+    query: Builder,
+    columns: Array<string>,
+    sql: string
+  ): string {
+    return `insert into ${this.wrapTable(query.fromProperty)} (${this.columnize(
+      columns
+    )}) ${sql}`;
+  }
 
-      // return `${join.type} join ${tableAndNestedJoins} ${this.compileWheres(join as unknown as Builder)}`.trim();
-      return `${join.type} join ${tableAndNestedJoins} ${this.compileWheres(join)}`.trim();
-    }).implode(' ');
+  /**
+   * Compile the "join" portions of the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  joins
+   * @returns {string}
+   */
+  protected compileJoins(query: Builder, joins: Array<JoinClause>) {
+    return collect(joins)
+      .map((join: JoinClause) => {
+        const table = this.wrapTable(join.table);
+
+        const nestedJoins: string =
+          join.joins.length === 0
+            ? ''
+            : `' ${this.compileJoins(query, join.joins)}`;
+
+        const tableAndNestedJoins =
+          join.joins.length === 0 ? table : `'(${table}${nestedJoins})`;
+
+        return `${join.type} join ${tableAndNestedJoins} ${this.compileWheres(
+          join
+        )}`.trim();
+      })
+      .implode(' ');
   }
 
   /**
    * Compile the "limit" portions of the query.
    *
-   * @param  \Illuminate\Database\Query\Builder  query
-   * @param  number  limit
-   * @return string
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {number}  limit
+   * @returns {string}
    */
   protected compileLimit(query: Builder, limit: number): string {
     return `limit ${limit}`;
@@ -257,9 +372,14 @@ export class Grammar extends BaseGrammar {
    * @param  array  orders
    * @return array
    */
-  protected compileOrdersToArray(query: Builder, orders: Array<any>): Array<any> {
-    return orders.map((order) => {
-      return order['sql'] ?? this.wrap(order['column']) + ' ' + order['direction'];
+  protected compileOrdersToArray(
+    query: Builder,
+    orders: Array<any>
+  ): Array<any> {
+    return orders.map(order => {
+      return (
+        order['sql'] ?? this.wrap(order['column']) + ' ' + order['direction']
+      );
     });
   }
 
@@ -270,7 +390,10 @@ export class Grammar extends BaseGrammar {
    * @return string
    */
   public compileSelect(query: Builder): string {
-    if ((query.unions.length > 0 || query.havings.length > 0) && query.aggregateProperty) {
+    if (
+      (query.unions.length > 0 || query.havings.length > 0) &&
+      query.aggregateProperty
+    ) {
       return this.compileUnionAggregate(query);
     }
 
@@ -316,11 +439,20 @@ export class Grammar extends BaseGrammar {
    * @return string
    */
   protected compileUnionAggregate(query: Builder) {
-    const sql = this.compileAggregate(query, query.aggregateProperty as AggregateInterface);
+    const sql = this.compileAggregate(
+      query,
+      query.aggregateProperty as AggregateInterface
+    );
 
     query.aggregateProperty = undefined;
 
-    return sql + ' from (' + this.compileSelect(query) + ') as ' + this.wrapTable('temp_table');
+    return (
+      sql +
+      ' from (' +
+      this.compileSelect(query) +
+      ') as ' +
+      this.wrapTable('temp_table')
+    );
   }
 
   /**
@@ -352,6 +484,108 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile an update statement into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  Array<any> | any  values
+   * @return string
+   */
+  public compileUpdate(query: Builder, values: Array<any> | any): string {
+    const table = this.wrapTable(query.fromProperty);
+
+    values = Array.isArray(values) ? values : [values];
+
+    const columns = this.compileUpdateColumns(query, Object.entries(values[0]));
+
+    const where = this.compileWheres(query);
+
+    return (
+      query.joins.length > 0
+        ? this.compileUpdateWithJoins(query, table, columns, where)
+        : this.compileUpdateWithoutJoins(query, table, columns, where)
+    ).trim();
+  }
+
+  /**
+   * Compile the columns for an update statement.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array|*}  values
+   * @returns {string}
+   */
+  protected compileUpdateColumns(
+    query: Builder,
+    values: Array<unknown> | unknown
+  ): string {
+    return collect(values)
+      .map(column => {
+        const [key, value] = Object.entries(column as object)[0];
+        return `${this.wrap(key)} = ${this.parameter(value)}`;
+      })
+      .join(', ');
+  }
+
+  /**
+   * Compile an update statement with joins into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  string  table
+   * @param  string  columns
+   * @param  string  where
+   * @return string
+   */
+  protected compileUpdateWithJoins(
+    query: Builder,
+    table: string,
+    columns: string,
+    where: string
+  ): string {
+    const joins = this.compileJoins(query, query.joins);
+
+    return `update ${table} ${joins} set ${columns} ${where}`;
+  }
+
+  /**
+   * Compile an update statement without joins into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder  $query
+   * @param  string  table
+   * @param  string  columns
+   * @param  string  where
+   * @return string
+   */
+  protected compileUpdateWithoutJoins(
+    query: Builder,
+    table: string,
+    columns: string,
+    where: string
+  ): string {
+    return `update ${table} set ${columns} ${where}`;
+  }
+
+  /**
+   * Compile an "upsert" statement into SQL.
+   *
+   * @param  \Illuminate\Database\Query\Builder query
+   * @param  Array<any>  values
+   * @param  Array<any>  uniqueBy
+   * @param  Array<any>  update
+   * @return string
+   *
+   * @throws \RuntimeException
+   */
+  public compileUpsert(
+    query: Builder,
+    values: Array<any>,
+    uniqueBy: Array<any>,
+    update: Array<any>
+  ): string {
+    throw new Error(
+      'RuntimeException: This database engine does not support upserts.'
+    );
+  }
+
+  /**
    * Compile the "where" portions of the query.
    *
    * @param  \Illuminate\Database\Query\Builder  query
@@ -380,13 +614,19 @@ export class Grammar extends BaseGrammar {
   /**
    * Get an array of all the where clauses for the query.
    *
-   * @param  \Illuminate\Database\Query\Builder  query
-   * @return array
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @returns {Array}
    */
-  protected compileWheresToArray(query: Builder | JoinClause): Array<any> {
-    return collect(query.wheres).map((where) => {
-      return where.boolean + ' ' + (this as any)[`where${where.type}`](query, where);
-    }).all();
+  protected compileWheresToArray(query: Builder | JoinClause): Array<unknown> {
+    return collect(query.wheres)
+      .map(where => {
+        return (
+          where.boolean +
+          ' ' +
+          (this as any)[`where${where.type}`](query, where)
+        );
+      })
+      .all();
   }
 
   /**
@@ -396,10 +636,12 @@ export class Grammar extends BaseGrammar {
    * @return string
    */
   protected concatenate(segments: Record<string, any>): string {
-    return Object.values(segments).filter((value: any) => {
-      // return value !== '';
-      return value;
-    }).join(' ');
+    return Object.values(segments)
+      .filter((value: any) => {
+        // return value !== '';
+        return value;
+      })
+      .join(' ');
   }
 
   /**
@@ -409,7 +651,10 @@ export class Grammar extends BaseGrammar {
    * @param  array  sql
    * @return string
    */
-  protected concatenateWhereClauses(query: Builder | JoinClause, sql: Array<any>): string {
+  protected concatenateWhereClauses(
+    query: Builder | JoinClause,
+    sql: Array<any>
+  ): string {
     const conjunction = query instanceof JoinClause ? 'on' : 'where';
 
     return conjunction + ' ' + this.removeLeadingBoolean(sql.join(' '));
@@ -423,10 +668,22 @@ export class Grammar extends BaseGrammar {
    * @param  array  where
    * @return string
    */
-  protected dateBasedWhere(type: string, query: Builder, where: WhereInterface): string {
+  protected dateBasedWhere(
+    type: string,
+    query: Builder,
+    where: WhereInterface
+  ): string {
     const value = this.parameter(where.value);
 
-    return type + '(' + this.wrap(where.column as Expression | string) + ') ' + where.operator + ' ' + value;
+    return (
+      type +
+      '(' +
+      this.wrap(where.column as Expression | string) +
+      ') ' +
+      where.operator +
+      ' ' +
+      value
+    );
   }
 
   /**
@@ -460,6 +717,30 @@ export class Grammar extends BaseGrammar {
    */
   protected isJsonSelector(value: string): boolean {
     return value.includes('->');
+  }
+
+  /**
+   * Prepare the bindings for an update statement.
+   *
+   * @param  array  bindings
+   * @param  array  values
+   * @return array
+   */
+  public prepareBindingsForUpdate(
+    bindings: Array<any> | any,
+    values: Array<any> | any
+  ) {
+    // const cleanBindings = Arr.except(bindings, ['select', 'join']);
+    const cleanBindings = reject(bindings, ['select', 'join']);
+
+    return Object.values(
+      // merge(bindings['join'], Object.values(values), Arr.flatten(cleanBindings))
+      [
+        ...bindings['join'],
+        ...Object.values(values),
+        ...Arr.flatten(cleanBindings),
+      ]
+    );
   }
 
   /**
@@ -501,7 +782,15 @@ export class Grammar extends BaseGrammar {
 
     const max = this.parameter(end((where as any).values));
 
-    return this.wrap((where as any).column) + ' ' + between + ' ' + min + ' and ' + max;
+    return (
+      this.wrap((where as any).column) +
+      ' ' +
+      between +
+      ' ' +
+      min +
+      ' and ' +
+      max
+    );
   }
 
   /**
@@ -518,7 +807,15 @@ export class Grammar extends BaseGrammar {
 
     const max = this.wrap(end((where as any).values));
 
-    return this.wrap((where as any).column) + ' ' + between + ' ' + min + ' and ' + max;
+    return (
+      this.wrap((where as any).column) +
+      ' ' +
+      between +
+      ' ' +
+      min +
+      ' and ' +
+      max
+    );
   }
 
   /**
@@ -528,8 +825,17 @@ export class Grammar extends BaseGrammar {
    * @param  array  where
    * @return string
    */
-  protected whereColumn(query: Builder | JoinClause, where: WhereInterface): string {
-    return this.wrap((where as any)['first']) + ' ' + where['operator'] + ' ' + this.wrap((where as any)['second']);
+  protected whereColumn(
+    query: Builder | JoinClause,
+    where: WhereInterface
+  ): string {
+    return (
+      this.wrap((where as any)['first']) +
+      ' ' +
+      where['operator'] +
+      ' ' +
+      this.wrap((where as any)['second'])
+    );
   }
 
   /**
@@ -574,7 +880,12 @@ export class Grammar extends BaseGrammar {
    */
   protected whereIn(query: Builder, where: WhereInterface): string {
     if ((where as any).values?.length > 0) {
-      return this.wrap((where as any).column) + ' in (' + this.parameterize((where as any).values) + ')';
+      return (
+        this.wrap((where as any).column) +
+        ' in (' +
+        this.parameterize((where as any).values) +
+        ')'
+      );
     }
 
     return '0 = 1';
@@ -591,7 +902,12 @@ export class Grammar extends BaseGrammar {
    */
   protected whereInRaw(query: Builder, where: WhereInterface): string {
     if ((where as any).values?.length > 0) {
-      return this.wrap((where as any).column) + ' in (' + (where as any).values.join(', ') + ')';
+      return (
+        this.wrap((where as any).column) +
+        ' in (' +
+        (where as any).values.join(', ') +
+        ')'
+      );
     }
 
     return '0 = 1';
@@ -644,7 +960,12 @@ export class Grammar extends BaseGrammar {
    */
   protected whereNotIn(query: Builder, where: WhereInterface): string {
     if ((where as any).values.length > 0) {
-      return this.wrap((where as any).column) + ' not in (' + this.parameterize((where as any).values) + ')';
+      return (
+        this.wrap((where as any).column) +
+        ' not in (' +
+        this.parameterize((where as any).values) +
+        ')'
+      );
     }
 
     return '1 = 1';
@@ -661,7 +982,12 @@ export class Grammar extends BaseGrammar {
    */
   protected whereNotInRaw(query: Builder, where: WhereInterface): string {
     if ((where as any).values?.length > 0) {
-      return this.wrap((where as any).column) + ' not in (' + (where as any).values.join(', ') + ')';
+      return (
+        this.wrap((where as any).column) +
+        ' not in (' +
+        (where as any).values.join(', ') +
+        ')'
+      );
     }
 
     return '1 = 1';
@@ -710,7 +1036,12 @@ export class Grammar extends BaseGrammar {
   protected whereSub(query: Builder, where: WhereInterface): string {
     const select = this.compileSelect((where as any).query);
 
-    return this.wrap((where as any).column) + ' ' + (where as any).operator  + ` (${select})`;
+    return (
+      this.wrap((where as any).column) +
+      ' ' +
+      (where as any).operator +
+      ` (${select})`
+    );
   }
 
   /**
@@ -742,7 +1073,7 @@ export class Grammar extends BaseGrammar {
    * @param  [boolean]  prefixAlias
    * @return string
    */
-  public wrap(value: Expression | string, prefixAlias: boolean = false): string {
+  public wrap(value: Expression | string, prefixAlias = false): string {
     if (this.isExpression(value)) {
       return this.getValue(value as Expression);
     }
@@ -776,7 +1107,8 @@ export class Grammar extends BaseGrammar {
 
     const field = this.wrap(parts[0]);
 
-    const path = parts.length > 1 ? ', ' + this.wrapJsonPath(parts[1], '->') : '';
+    const path =
+      parts.length > 1 ? ', ' + this.wrapJsonPath(parts[1], '->') : '';
 
     return [field, path];
   }
@@ -788,8 +1120,8 @@ export class Grammar extends BaseGrammar {
    * @param  string  delimiter
    * @return string
    */
-  protected wrapJsonPath(value: string, delimiter: string = '->'): string {
-    value = value.replace(/([\\\\]+)?\\'/, `''`);
+  protected wrapJsonPath(value: string, delimiter = '->'): string {
+    value = value.replace(/([\\\\]+)?\\'/, "''");
 
     return '\'$."' + value.replace(delimiter, '"."') + '"\'';
   }
@@ -803,7 +1135,9 @@ export class Grammar extends BaseGrammar {
    * @throws \RuntimeException
    */
   protected wrapJsonSelector(value: string): string {
-    throw new Error('RuntimeException: This database engine does not support JSON operations.');
+    throw new Error(
+      'RuntimeException: This database engine does not support JSON operations.'
+    );
   }
 
   /**

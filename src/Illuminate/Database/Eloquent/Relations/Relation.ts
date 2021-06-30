@@ -1,3 +1,1 @@
-export class Relation {
-
-}
+export class Relation {}

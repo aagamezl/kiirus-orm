@@ -1,5 +1,5 @@
-import { Model } from './Model';
-import { Builder } from './Query/Builder';
+import {Model} from './Model';
+import {Builder} from './Query/Builder';
 
 export abstract class Scope {
   /**
@@ -9,6 +9,5 @@ export abstract class Scope {
    * @param  \Illuminate\Database\Eloquent\Model  model
    * @return void
    */
-  public apply(builder: Builder, model: Model): void {
-  };
+  public apply(builder: Builder, model: Model): void {}
 }
