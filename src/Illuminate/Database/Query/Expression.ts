@@ -2,35 +2,35 @@ export class Expression {
   /**
    * The value of the expression.
    *
-   * @var any
+   * @member any
    */
   protected value;
 
   /**
    * Create a new raw query expression.
    *
-   * @param  any  value
-   * @return void
+   * @param  {*}  value
+   * @returns {void}
    */
-  constructor(value: any) {
+  constructor(value: unknown) {
     this.value = value;
   }
 
   /**
    * Get the value of the expression.
    *
-   * @return any
+   * @returns {*}
    */
-  public getValue(): any {
+  public getValue(): unknown {
     return this.value;
   }
 
   /**
    * Get the value of the expression.
    *
-   * @return string
+   * @return {string}
    */
   public toString(): string {
-    return this.getValue();
+    return String(this.getValue());
   }
 }

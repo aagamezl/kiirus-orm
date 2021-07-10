@@ -1,6 +1,11 @@
 {
   "extends": "./node_modules/gts/tsconfig-google.json",
   "compilerOptions": {
+    "lib": [
+      "ES2020",
+      "ES2020.string",
+      "ES2017.object"
+    ],
     "rootDir": ".",
     "outDir": "build"
   },

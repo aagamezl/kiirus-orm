@@ -1,4 +1,4 @@
-import * as utils from '@devnetic/utils';
+import {isObject} from 'lodash';
 
 import {Collection} from './Collection';
 
@@ -24,7 +24,7 @@ export const value = (target: unknown, ...args: Array<unknown>): unknown =>
  */
 export const dataGet = (
   target: unknown,
-  key?: string | Array<unknown> | number,
+  key?: string | Array<unknown> | number | unknown,
   defaultValue?: unknown
 ) => {
   if (key === undefined) {
@@ -33,69 +33,31 @@ export const dataGet = (
 
   key = Array.isArray(key) ? key : String(key).split('.');
 
-  for (const value of key) {
+  for (const currentValue of key) {
+    const targetValue = Reflect.get(target as object, String(currentValue));
+
     if (Array.isArray(target)) {
-      if (target[value] === undefined) {
+      if (targetValue === undefined) {
         return value(defaultValue);
       }
 
-      target = target[value];
+      target = targetValue;
     } else if (target instanceof Object) {
-      if (target[value] === undefined) {
+      if (targetValue === undefined) {
         return value(defaultValue);
       }
 
-      target = target[value];
-    } else if (utils.getType(target) === 'Object') {
-      if (target[value] === undefined) {
+      target = targetValue;
+    } else if (isObject(target)) {
+      if (targetValue === undefined) {
         return value(defaultValue);
       }
 
-      target = target[value];
+      target = targetValue;
     } else {
       return value(defaultValue);
     }
   }
 
   return target;
-};
-
-/**
- * Get the last element of an array. Useful for method chaining.
- *
- * @param  array  array
- * @return any
- */
-export const end = (array: Array<any>) => {
-  return array[array.length - 1];
-};
-
-/**
- * Get the first element of an array. Useful for method chaining.
- *
- * @param  array  array
- * @return any
- */
-export const head = (array: any) => {
-  return Array.isArray(array) ? array[0] : Array.from(Object.values(array))[0];
-};
-
-/**
- * Get the last element from an array.
- *
- * @param  array  array
- * @return any
- */
-export const last = (array: Array<any>) => {
-  return end(array);
-};
-
-/**
- * Get the first element of an array. Useful for method chaining.
- *
- * @param  array  array
- * @return any
- */
-export const reset = (array: any) => {
-  return head(array);
 };

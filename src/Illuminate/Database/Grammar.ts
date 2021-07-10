@@ -1,93 +1,40 @@
-import {collect} from '../Collections/Helpers';
-import {Expression} from './Query/Expression';
+import {collect} from '../Collections';
+import {Expression} from './Query';
 
 export abstract class Grammar {
   /**
    * The grammar table prefix.
    *
-   * @var string
+   * @member string
    */
   protected tablePrefix = '';
 
   /**
-   * Convert an array of column names into a delimited string.
-   *
-   * @param  array  columns
-   * @return string
-   */
-  public columnize(columns: Array<any>): string {
-    return columns.map(column => this.wrap(column)).join(', ');
-  }
-
-  /**
-   * Get the format for database stored dates.
-   *
-   * @return string
-   */
-  public getDateFormat(): string {
-    return 'Y-m-d H:i:s';
-  }
-
-  /**
    * Get the value of a raw expression.
    *
-   * @param  \Illuminate\Database\Query\Expression  expression
-   * @return string
+   * @param  {\Illuminate\Database\Query\Expression}  expression
+   * @returns {string}
    */
   public getValue(expression: Expression): string {
-    return expression.getValue();
+    return String(expression.getValue());
   }
 
   /**
    * Determine if the given value is a raw expression.
    *
    * @param  unknown  value
-   * @return bool
+   * @returns {boolean}
    */
   public isExpression(value: unknown): boolean {
     return value instanceof Expression;
   }
 
   /**
-   * Get the appropriate query parameter place-holder for a value.
-   *
-   * @param  any  value
-   * @return string
-   */
-  public parameter(value: any): string {
-    return this.isExpression(value) ? this.getValue(value) : '?';
-  }
-
-  /**
-   * Create query parameter place-holders for an array.
-   *
-   * @param  {Array}  values
-   * @returns {string}
-   */
-  public parameterize(values: Array<unknown> | unknown): string {
-    return (Array.isArray(values) ? values : Object.values(values))
-      .map(value => this.parameter(value))
-      .join(', ');
-  }
-
-  /**
-   * Set the grammar's table prefix.
-   *
-   * @param  string  prefix
-   * @return this
-   */
-  public setTablePrefix(prefix: string): this {
-    this.tablePrefix = prefix;
-
-    return this;
-  }
-
-  /**
    * Wrap a value in keyword identifiers.
    *
-   * @param  \Illuminate\Database\Query\Expression|string  value
-   * @param  boolean  prefixAlias
-   * @return string
+   * @param  {\Illuminate\Database\Query\Expression|string}  value
+   * @param  {boolean}  prefixAlias
+   * @returns {string}
    */
   public wrap(value: Expression | string, prefixAlias = false): string {
     if (this.isExpression(value)) {
@@ -127,12 +74,12 @@ export abstract class Grammar {
   /**
    * Wrap the given value segments.
    *
-   * @param  array  segments
-   * @return string
+   * @param  {Array}  segments
+   * @returns {string}
    */
   protected wrapSegments(segments: Array<string>): string {
     return collect(segments)
-      .map((segment: Expression | string, key: number) => {
+      .map((segment: Expression | string, key?: number) => {
         return key === 0 && segments.length > 1
           ? this.wrapTable(segment)
           : this.wrapValue(String(segment));
@@ -143,8 +90,8 @@ export abstract class Grammar {
   /**
    * Wrap a table in keyword identifiers.
    *
-   * @param  \Illuminate\Database\Query\Expression|string  table
-   * @return string
+   * @param  {\Illuminate\Database\Query\Expression|string}  table
+   * @returns {string}
    */
   public wrapTable(table: Expression | string): string {
     if (!this.isExpression(table)) {
@@ -158,7 +105,7 @@ export abstract class Grammar {
    * Wrap a single string in keyword identifiers.
    *
    * @param  string  value
-   * @return string
+   * @returns {string}
    */
   protected wrapValue(value: string): string {
     if (value !== '*') {

@@ -1,22 +1,19 @@
-import * as utils from '@devnetic/utils';
-import {isPlainObject} from 'lodash';
+import {isObject} from 'lodash';
 
-import {callbackFn} from '../Support/Types';
-import {Collection} from './Collection';
 import {dataGet, value} from './Helpers';
 
 export class Arr {
   /**
    * Explode the "value" and "key" arguments passed to "pluck".
    *
-   * @param  {string|array}  value
-   * @param  {[string|Array<any>]}  key
-   * @return {array}
+   * @param  {string|Array}  value
+   * @param  {string|Array|undefined}  [key]
+   * @return {Array}
    */
   public static explodePluckParameters(
-    value: string | Array<any>,
-    key?: string | Array<any>
-  ) {
+    value: string | Array<unknown> | number,
+    key?: string | Array<unknown>
+  ): Array<unknown> {
     value = Array.isArray(value) ? value : value.split('.');
 
     key = key === undefined || Array.isArray(key) ? key : key.split('.');
@@ -32,14 +29,14 @@ export class Arr {
    * @param  {*}  [defaultValue]
    * @returns {*}
    */
-  public static first(
-    array: Array<unknown>,
-    callback?: callbackFn,
+  public static first<T>(
+    array: Array<T>,
+    callback?: Function,
     defaultValue?: unknown
-  ): unknown {
+  ): T {
     if (!callback) {
       if (array.length === 0) {
-        return value(defaultValue);
+        return value(defaultValue) as T;
       }
 
       return array[0];
@@ -47,57 +44,26 @@ export class Arr {
 
     for (const [k, v] of array.entries()) {
       if (callback && callback(v, k)) {
-        return value;
+        return v;
       }
     }
 
-    return value(defaultValue);
-  }
-
-  /**
-   * Flatten a multi-dimensional array into a single level.
-   *
-   * @param  iterable  array
-   * @param  int  depth
-   * @return array
-   */
-  public static flatten(
-    array: Array<any> | Object,
-    depth: number = Number.POSITIVE_INFINITY
-  ) {
-    const result = [];
-
-    for (let [, item] of Object.entries(array)) {
-      item = item instanceof Collection ? item.all() : item;
-
-      if (!Array.isArray(item) && !isPlainObject(item)) {
-        result.push(item);
-      } else {
-        const values: Array<any> =
-          depth === 1 ? Object.values(item) : this.flatten(item, depth - 1);
-
-        for (const value of values) {
-          result.push(value);
-        }
-      }
-    }
-
-    return result;
+    return value(defaultValue) as T;
   }
 
   /**
    * Return the last element in an array passing a given truth test.
    *
-   * @param  array  array
-   * @param  callable|null  callback
-   * @param  any  defaultValue
-   * @return any
+   * @param  {Array}  array
+   * @param  {Function|undefined}  callback
+   * @param  {*}  defaultValue
+   * @return {*}
    */
   public static last(
-    array: Array<any>,
-    callback?: callbackFn,
-    defaultValue?: any
-  ): any {
+    array: Array<unknown>,
+    callback?: Function,
+    defaultValue?: unknown
+  ): unknown {
     if (!callback) {
       return array.length === 0 ? value(defaultValue) : array[array.length - 1];
     }
@@ -109,88 +75,38 @@ export class Arr {
    * Pluck an array of values from an array.
    *
    * @param  {array}   array
-   * @param  {string|array|number}  value
-   * @param  {string|array}  key
-   * @return {array}
+   * @param  {string|Array|number|undefined}  [value]
+   * @param  {string|Array|undefined}  [key]
+   * @return {Array}
    */
   public static pluck(
-    array: Array<any>,
-    value: string | Array<any> | number,
-    key?: string | Array<any>
-  ): Array<any> {
+    array: Array<unknown>,
+    value: string | Array<unknown> | number,
+    key?: string | Array<unknown>
+  ): Array<unknown> {
     const results = [];
 
-    [value, key] = this.explodePluckParameters(
-      value as Array<any>,
-      key
-    ) as Array<any>;
+    const [pluckValue, pluckKey] = this.explodePluckParameters(value, key);
 
     for (const item of array) {
-      const itemValue = dataGet(item, value);
+      const itemValue = dataGet(item, pluckValue);
 
       // If the key is "null", we will just append the value to the array and keep
       // looping. Otherwise we will key the array using the value of the key we
       // received from the developer. Then we'll return the final array form.
-      if (!key) {
+      if (!pluckKey) {
         results.push(itemValue);
       } else {
-        let itemKey = dataGet(item, key);
+        let itemKey = dataGet(item, pluckKey);
 
-        if (
-          utils.getType(itemKey) === 'Object' &&
-          itemKey.toString !== undefined
-        ) {
+        if (isObject(itemKey) && itemKey.toString !== undefined) {
           itemKey = itemKey.toString();
         }
 
-        results[itemKey] = itemValue;
+        Reflect.set(results, itemKey as string, itemValue);
       }
     }
 
     return results;
-  }
-
-  public static values(array: Array<any>): Array<any> {
-    const values: Array<any> = [];
-
-    for (const value of array.values()) {
-      values.push(value);
-    }
-
-    return values;
-  }
-
-  /**
-   * Filter the array using the given callback.
-   *
-   * @param  Array<any>  array
-   * @param  callbackFn  callback
-   * @return Array<any>
-   */
-  public static where(array: Array<any>, callback: callbackFn): Array<any> {
-    return array.filter((item: any, index: number) => {
-      if (!Array.isArray(item)) {
-        return callback(item, index);
-      }
-
-      // const [key, value] = Object.entries(item)[0];
-      const [key, value] = item;
-
-      return callback(value, key);
-    });
-  }
-
-  /**
-   * If the given value is not an array and not null, wrap it in one.
-   *
-   * @param  mixed  value
-   * @return array
-   */
-  public static wrap(value: any) {
-    if (!value) {
-      return [];
-    }
-
-    return Array.isArray(value) ? value : [value];
   }
 }
