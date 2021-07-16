@@ -1,17 +1,24 @@
-// const { capitalize } = require('lodash')
 import { capitalize } from 'lodash'
 
-// const { Grammar: BaseGrammar } = require('./../../index.js')
 import { Grammar as BaseGrammar } from './../../Grammar'
+import { JoinClause } from './../JoinClause'
+import { collect } from './../../../Collections/helpers'
 
 export class Grammar extends BaseGrammar {
   constructor () {
     super()
 
     /**
+     * The grammar specific operators.
+     *
+     * @type {Array}
+     */
+    this.operators = []
+
+    /**
      * The components that make up a select clause.
      *
-     * @member String[]
+     * @member {Array}
      */
     this.selectComponents = [
       { name: 'aggregate', property: 'aggregateProperty' },
@@ -58,7 +65,6 @@ export class Grammar extends BaseGrammar {
     const sql = []
 
     for (const { name, property } of this.selectComponents) {
-      // if (Reflect.has(query, property)) {
       if (this.isExecutable(query, property)) {
         const method = 'compile' + capitalize(name)
 
@@ -91,6 +97,25 @@ export class Grammar extends BaseGrammar {
     const sql = havings.map(having => this.compileHaving(having)).join(' ')
 
     return sql ? 'having ' + this.removeLeadingBoolean(sql) : ''
+  }
+
+  /**
+   * Compile the "join" portions of the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  joins
+   * @return {string}
+   */
+  compileJoins (query, joins) {
+    return collect(joins).map((join) => {
+      const table = this.wrapTable(join.table)
+
+      const nestedJoins = join.joins.length === 0 ? '' : ' ' + this.compileJoins(query, join.joins)
+
+      const tableAndNestedJoins = join.joins.length === 0 ? table : '(' + table + nestedJoins + ')'
+
+      return `${join.type} join ${tableAndNestedJoins} ${this.compileWheres(join)}`.trim()
+    }).implode(' ')
   }
 
   /**
@@ -128,6 +153,44 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile the "where" portions of the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @return {string}
+   */
+  compileWheres (query) {
+    // Each type of where clauses has its own compiler function which is responsible
+    // for actually creating the where clauses SQL. This helps keep the code nice
+    // and maintainable since each clause has a very small method that it uses.
+    if (query.wheres.length === 0) {
+      return ''
+    }
+
+    // If we actually have some where clauses, we will strip off the first boolean
+    // operator, which is added by the query builders for convenience so we can
+    // avoid checking for the first clauses in each of the compilers methods.
+    const sql = this.compileWheresToArray(query)
+
+    if (sql.length > 0) {
+      return this.concatenateWhereClauses(query, sql)
+    }
+
+    return ''
+  }
+
+  /**
+   * Get an array of all the where clauses for the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @return {Array}
+   */
+  compileWheresToArray (query) {
+    return collect(query.wheres).map((where) => {
+      return where.boolean + ' ' + this[`where${where.type}`](query, where)
+    }).all()
+  }
+
+  /**
    * Concatenate an array of segments, removing empties.
    *
    * @param  {Array}  segments
@@ -137,6 +200,28 @@ export class Grammar extends BaseGrammar {
     return Object.values(segments).filter((value) => {
       return String(value) !== ''
     }).join(' ')
+  }
+
+  /**
+   * Format the where clause statements into one string.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  sql
+   * @return {string}
+   */
+  concatenateWhereClauses (query, sql) {
+    const conjunction = query instanceof JoinClause ? 'on' : 'where'
+
+    return conjunction + ' ' + this.removeLeadingBoolean(sql.join(' '))
+  }
+
+  /**
+   * Get the grammar specific operators.
+   *
+   * @return {Array}
+   */
+  getOperators () {
+    return this.operators
   }
 
   isExecutable (query, property) {
@@ -161,6 +246,27 @@ export class Grammar extends BaseGrammar {
    */
   isJsonSelector (value) {
     return value.includes('->')
+  }
+
+  /**
+   * Remove the leading boolean from a statement.
+   *
+   * @param  {string}  value
+   * @return {string}
+   */
+  removeLeadingBoolean (value) {
+    return value.replace(/and |or /i, '')
+  }
+
+  /**
+   * Compile a where clause comparing two columns.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereColumn (query, where) {
+    return this.wrap(where.first) + ' ' + where.operator + ' ' + this.wrap(where.second)
   }
 
   /**
@@ -192,5 +298,3 @@ export class Grammar extends BaseGrammar {
     return this.wrapSegments(value.split('.'))
   }
 }
-
-// module.exports = Grammar

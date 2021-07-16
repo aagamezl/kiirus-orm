@@ -32,5 +32,3 @@ export class Expression {
     return this.getValue()
   }
 }
-
-// module.exports = Expression

@@ -1,7 +1,5 @@
-// const { isPlainObject } = require('lodash')
 import { isPlainObject } from 'lodash'
 
-// const { Arr } = require('./internal')
 import { Arr } from './Arr'
 
 export class Collection {
@@ -125,5 +123,3 @@ export class Collection {
     return new this.constructor(Arr.pluck(this.items, value, key))
   }
 }
-
-// module.exports = Collection

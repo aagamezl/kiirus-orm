@@ -1,7 +1,3 @@
-// const { isObject } = require('lodash')
-
-// const { Collection } = require('./internal')
-// console.log(Collection)
 import { isObject } from 'lodash'
 
 import { Collection } from './Collection'
@@ -62,9 +58,3 @@ export const dataGet = (target, key, defaultValue = undefined) => {
  * @return {*}
  */
 export const value = (target, ...args) => target instanceof Function ? target(...args) : value
-
-// module.exports = {
-//   collect,
-//   dataGet,
-//   value
-// }

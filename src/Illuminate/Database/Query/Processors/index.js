@@ -1,6 +1,2 @@
-// const Processor = require('./Processor')
-
-// module.exports = {
-//   Processor
-// }
+export * from './MySqlProcessor'
 export * from './Processor'

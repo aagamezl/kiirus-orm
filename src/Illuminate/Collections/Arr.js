@@ -1,9 +1,7 @@
-// const { isObject } = require('lodash')
-import { isObject } from 'lodash'
+import { isObject, isPlainObject } from 'lodash'
 
-// const { dataGet, value: getValue } = require('./helpers')
-// const { dataGet, value: getValue } = require('./internal')
-// import { Collection } from './Collection';
+import { Collection } from './Collection'
+
 import { dataGet, value as getValue } from './helpers'
 
 export class Arr {
@@ -49,6 +47,57 @@ export class Arr {
   }
 
   /**
+   * Flatten a multi-dimensional array into a single level.
+   *
+   * @param  {Array}  array
+   * @param  {number}  depth
+   * @return {Array}
+   */
+  static flatten (array, depth = Number.POSITIVE_INFINITY) {
+    const result = []
+
+    for (let [, item] of Object.entries(array)) {
+      item = item instanceof Collection ? item.all() : item
+
+      if (!Array.isArray(item) && !isPlainObject(item)) {
+        result.push(item)
+      } else {
+        const values = depth === 1
+          ? Object.values(item)
+          : this.flatten(item, depth - 1)
+
+        for (const value of values) {
+          result.push(value)
+        }
+      }
+    }
+
+    return result
+  }
+
+  /**
+   *
+   *
+   * @static
+   * @param {Array | object} value
+   * @returns Array
+   * @memberof Arr
+   */
+  static iterable (value) {
+    value = Array.isArray(value) ? value : [value]
+
+    return value.reduce((result, column, index) => {
+      if (isObject(column)) {
+        result.push(...Object.entries(column))
+      } else {
+        result.push([index, column])
+      }
+
+      return result
+    }, [])
+  }
+
+  /**
    * Pluck an array of values from an array.
    *
    * @param  {Array}   array
@@ -82,6 +131,18 @@ export class Arr {
 
     return results
   }
-}
 
-// module.exports = Arr
+  /**
+   * If the given value is not an array and not null, wrap it in one.
+   *
+   * @param  {*}  value
+   * @return {Array}
+   */
+  static wrap (value) {
+    if (!value) {
+      return []
+    }
+
+    return Array.isArray(value) ? value : [value]
+  }
+}

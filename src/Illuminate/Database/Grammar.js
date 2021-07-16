@@ -1,7 +1,4 @@
-// const { Expression } = require('./Query')
-
-// const { collect } = require('./../Collections/internal')
-import { Expression } from './Query'
+import { Expression } from './Query/Expression'
 
 import { collect } from './../Collections/helpers'
 
@@ -40,6 +37,18 @@ export class Grammar {
   }
 
   /**
+   * Set the grammar's table prefix.
+   *
+   * @param  {string}  prefix
+   * @return {this}
+   */
+  setTablePrefix (prefix) {
+    this.tablePrefix = prefix
+
+    return this
+  }
+
+  /**
    * Wrap a value in keyword identifiers.
    *
    * @param  {\Illuminate\Database\Query\Expression|string}  value
@@ -59,6 +68,26 @@ export class Grammar {
     }
 
     return this.wrapSegments(value.split('.'))
+  }
+
+  /**
+   * Wrap a value that has an alias.
+   *
+   * @param  {string}  value
+   * @param  {boolean}  prefixAlias
+   * @return {string}
+   */
+  wrapAliasedValue (value, prefixAlias = false) {
+    const segments = value.split(/\s+as\s+/i)
+
+    // If we are wrapping a table we need to prefix the alias with the table prefix
+    // as well in order to generate proper syntax. If this is a column of course
+    // no prefix is necessary. The condition will be true when from wrapTable.
+    if (prefixAlias) {
+      segments[1] = this.tablePrefix + segments[1]
+    }
+
+    return this.wrap(segments[0]) + ' as ' + this.wrapValue(segments[1])
   }
 
   /**
@@ -103,5 +132,3 @@ export class Grammar {
     return value
   }
 }
-
-// module.exports = Grammar
