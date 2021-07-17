@@ -2,7 +2,7 @@ import { capitalize } from 'lodash'
 
 import { Grammar as BaseGrammar } from './../../Grammar'
 import { JoinClause } from './../JoinClause'
-import { collect } from './../../../Collections/helpers'
+import { collect, end, reset } from './../../../Collections/helpers'
 
 export class Grammar extends BaseGrammar {
   constructor () {
@@ -119,6 +119,56 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile the "limit" portions of the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {number}  limit
+   * @return {string}
+   */
+  compileLimit (query, limit) {
+    return `limit ${limit}`
+  }
+
+  /**
+   * Compile the "offset" portions of the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {number}  offset
+   * @return {string}
+   */
+  compileOffset (query, offset) {
+    return `offset ${offset}`
+  }
+
+  /**
+   * Compile the "order by" portions of the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  orders
+   * @return {string}
+   */
+  compileOrders (query, orders) {
+    if (orders.length > 0) {
+      return 'order by ' + this.compileOrdersToArray(query, orders).join(', ')
+    }
+
+    return ''
+  }
+
+  /**
+   * Compile the query orders to an array.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  orders
+   * @return {Array}
+   */
+  compileOrdersToArray (query, orders) {
+    return orders.map((order) => {
+      return order.sql ?? this.wrap(order.column) + ' ' + order.direction
+    })
+  }
+
+  /**
    * Compile a select query into SQL.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -150,6 +200,60 @@ export class Grammar extends BaseGrammar {
     query.columns = original
 
     return sql
+  }
+
+  /**
+   * Compile a single union statement.
+   *
+   * @param  {Array}  union
+   * @return {string}
+   */
+  compileUnion (union) {
+    const conjunction = union.all ? ' union all ' : ' union '
+
+    return conjunction + this.wrapUnion(union.query.toSql())
+  }
+
+  /**
+   * Compile a union aggregate query into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @return {string}
+   */
+  compileUnionAggregate (query) {
+    const sql = this.compileAggregate(query, query.aggregateProperty)
+
+    query.aggregateProperty = undefined
+
+    return sql + ' from (' + this.compileSelect(query) + ') as ' + this.wrapTable('temp_table')
+  }
+
+  /**
+   * Compile the "union" queries attached to the main query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @return {string}
+   */
+  compileUnions (query) {
+    let sql = ''
+
+    for (const union of query.unions) {
+      sql += this.compileUnion(union)
+    }
+
+    if (query.unionOrders.length > 0) {
+      sql += ' ' + this.compileOrders(query, query.unionOrders)
+    }
+
+    if (query.unionLimit) {
+      sql += ' ' + this.compileLimit(query, query.unionLimit)
+    }
+
+    if (query.unionOffset) {
+      sql += ' ' + this.compileOffset(query, query.unionOffset)
+    }
+
+    return sql.trimLeft()
   }
 
   /**
@@ -216,6 +320,20 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile a date based where clause.
+   *
+   * @param  {string}  type
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  dateBasedWhere (type, query, where) {
+    const value = this.parameter(where.value)
+
+    return type + '(' + this.wrap(where.column) + ') ' + where.operator + ' ' + value
+  }
+
+  /**
    * Get the grammar specific operators.
    *
    * @return {Array}
@@ -259,6 +377,55 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile a basic where clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereBasic (query, where) {
+    const value = this.parameter(where.value)
+
+    const operator = where.operator.replace('?', '??')
+
+    return this.wrap(where.column) + ' ' + operator + ' ' + value
+  }
+
+  /**
+   * Compile a "between" where clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereBetween (query, where) {
+    const between = where.not ? 'not between' : 'between'
+
+    const min = this.parameter(reset(where.values))
+
+    const max = this.parameter(end(where.values))
+
+    return this.wrap(where.column) + ' ' + between + ' ' + min + ' and ' + max
+  }
+
+  /**
+   * Compile a "between" where clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereBetweenColumns (query, where) {
+    const between = where.not ? 'not between' : 'between'
+
+    const min = this.wrap(reset(where.values))
+
+    const max = this.wrap(end(where.values))
+
+    return this.wrap(where.column) + ' ' + between + ' ' + min + ' and ' + max
+  }
+
+  /**
    * Compile a where clause comparing two columns.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -267,6 +434,163 @@ export class Grammar extends BaseGrammar {
    */
   whereColumn (query, where) {
     return this.wrap(where.first) + ' ' + where.operator + ' ' + this.wrap(where.second)
+  }
+
+  /**
+   * Compile a "where date" clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereDate (query, where) {
+    return this.dateBasedWhere('date', query, where)
+  }
+
+  /**
+   * Compile a "where day" clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereDay (query, where) {
+    return this.dateBasedWhere('day', query, where)
+  }
+
+  /**
+   * Compile a where exists clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereExists (query, where) {
+    return 'exists (' + this.compileSelect(where.query) + ')'
+  }
+
+  /**
+   * Compile a "where in" clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereIn (query, where) {
+    if (where.values?.length > 0) {
+      return this.wrap(where.column) + ' in (' + this.parameterize(where.values) + ')'
+    }
+
+    return '0 = 1'
+  }
+
+  /**
+   * Compile a "where in raw" clause.
+   *
+   * For safety, whereIntegerInRaw ensures this method is only used with integer values.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereInRaw (query, where) {
+    if (where.values?.length > 0) {
+      return this.wrap(where.column) + ' in (' + where.values.join(', ') + ')'
+    }
+
+    return '0 = 1'
+  }
+
+  /**
+   * Compile a "where month" clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereMonth (query, where) {
+    return this.dateBasedWhere('month', query, where)
+  }
+
+  /**
+   * Compile a nested where clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereNested (query, where) {
+    // Here we will calculate what portion of the string we need to remove. If this
+    // is a join clause query, we need to remove the "on" portion of the SQL and
+    // if it is a normal query we need to take the leading "where" of queries.
+    const offset = query instanceof JoinClause ? 3 : 6
+
+    return '(' + this.compileWheres(where.query).substr(offset) + ')'
+  }
+
+  /**
+   * Compile a "where not in" clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereNotIn (query, where) {
+    if (where.values.length > 0) {
+      return this.wrap(where.column) + ' not in (' + this.parameterize(where.values) + ')'
+    }
+
+    return '1 = 1'
+  }
+
+  /**
+   * Compile a "where not in raw" clause.
+   *
+   * For safety, whereIntegerInRaw ensures this method is only used with integer values.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereNotInRaw (query, where) {
+    if (where.values?.length > 0) {
+      return this.wrap(where.column) + ' not in (' + where.values.join(', ') + ')'
+    }
+
+    return '1 = 1'
+  }
+
+  /**
+   * Compile a raw where clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereRaw (query, where) {
+    return String(where.sql)
+  }
+
+  /**
+   * Compile a "where time" clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereTime (query, where) {
+    return this.dateBasedWhere('time', query, where)
+  }
+
+  /**
+   * Compile a "where year" clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereYear (query, where) {
+    return this.dateBasedWhere('year', query, where)
   }
 
   /**
@@ -296,5 +620,15 @@ export class Grammar extends BaseGrammar {
     }
 
     return this.wrapSegments(value.split('.'))
+  }
+
+  /**
+   * Wrap a union subquery in parentheses.
+   *
+   * @param  {string}  sql
+   * @return {string}
+   */
+  wrapUnion (sql) {
+    return `(${sql})`
   }
 }

@@ -27,6 +27,16 @@ export class Grammar {
   }
 
   /**
+   * Get the value of a raw expression.
+   *
+   * @param  {\Illuminate\Database\Query\Expression}  expression
+   * @return {string}
+   */
+  getValue (expression) {
+    return expression.getValue()
+  }
+
+  /**
    * Determine if the given value is a raw expression.
    *
    * @param  {*}  value
@@ -34,6 +44,27 @@ export class Grammar {
    */
   isExpression (value) {
     return value instanceof Expression
+  }
+
+  /**
+   * Get the appropriate query parameter place-holder for a value.
+   *
+   * @param  {*}  value
+   * @return {string}
+   */
+  parameter (value) {
+    return this.isExpression(value) ? this.getValue(value) : '?'
+  }
+
+  /**
+   * Create query parameter place-holders for an array.
+   *
+   * @param  {Array}  values
+   * @return {string}
+   */
+  parameterize (values) {
+    return (Array.isArray(values) ? values : Object.values(values))
+      .map((value) => this.parameter(value)).join(', ')
   }
 
   /**

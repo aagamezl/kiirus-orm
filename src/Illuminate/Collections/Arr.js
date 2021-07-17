@@ -80,7 +80,7 @@ export class Arr {
    *
    * @static
    * @param {Array | object} value
-   * @returns Array
+   * @returns {Array}
    * @memberof Arr
    */
   static iterable (value) {
@@ -130,6 +130,16 @@ export class Arr {
     }
 
     return results
+  }
+
+  static values (array) {
+    const values = []
+
+    for (const value of array.values()) {
+      values.push(value)
+    }
+
+    return values
   }
 
   /**

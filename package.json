@@ -17,6 +17,7 @@
     ]
   },
   "dependencies": {
+    "@devnetic/utils": "^1.2.1",
     "lodash": "^4.17.21"
   },
   "devDependencies": {

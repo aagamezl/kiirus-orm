@@ -1,11 +1,12 @@
-import { isString } from 'lodash'
+import { isBoolean, isInteger, isObjectLike, isString } from 'lodash'
+import { dateFormat } from '@devnetic/utils'
 
 import { Arr } from './../../Collections/Arr'
 import { Builder as EloquentBuilder } from './../Eloquent/Query'
 import { Expression } from './Expression'
 import { JoinClause } from './internal'
 import { Relation } from './../Eloquent/Relations'
-import { collect } from '../../Collections/helpers'
+import { collect, head } from '../../Collections/helpers'
 
 export class Builder {
   /**
@@ -121,11 +122,52 @@ export class Builder {
     this.unions = []
 
     /**
+     * The maximum number of union records to return.
+     *
+     * @type number
+     */
+    this.unionLimit = undefined
+
+    /**
+     * The number of union records to skip.
+     *
+     * @type number
+     */
+    this.unionOffset = undefined
+
+    /**
+     * The orderings for the union query.
+     *
+     * @type {Array}
+     */
+    this.unionOrders = []
+
+    /**
      * The where constraints for the query.
      *
      * @type {Array}
      */
     this.wheres = []
+  }
+
+  /**
+   * Add an array of where clauses to the query.
+   *
+   * @param  {Array}  column
+   * @param  {string}  boolean
+   * @param  {{string}}  method
+   * @return {this}
+   */
+  addArrayOfWheres (column, boolean, method = 'where') {
+    return this.whereNested((query) => {
+      for (const [key, value] of Object.entries(column)) {
+        if (isInteger(parseInt(key, 10)) && Array.isArray(value)) {
+          query[method](...value)
+        } else {
+          query[method](key, '=', value, boolean)
+        }
+      }
+    }, boolean)
   }
 
   /**
@@ -146,6 +188,45 @@ export class Builder {
       this.bindings[type] = Array.from(Object.values([...this.bindings[type], ...value]))
     } else {
       this.bindings[type].push(value)
+    }
+
+    return this
+  }
+
+  /**
+   * Add a date based (year, month, day, time) statement to the query.
+   *
+   * @param  {string}  type
+   * @param  {string}  column
+   * @param  {string}  operator
+   * @param  {*}  value
+   * @param  {string}  boolean
+   * @return {this}
+   */
+  addDateBasedWhere (type, column, operator, value, boolean = 'and') {
+    this.wheres.push({ column, type, boolean, operator, value })
+
+    if (!(value instanceof Expression)) {
+      this.addBinding(value, 'where')
+    }
+
+    return this
+  }
+
+  /**
+   * Add another query builder as a nested where to the query builder.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {string}  [boolean=and]
+   * @return {Builder}
+   */
+  addNestedWhereQuery (query, boolean = 'and') {
+    if (query.wheres.length > 0) {
+      const type = 'Nested'
+
+      this.wheres.push({ type, query, boolean })
+
+      this.addBinding(query.getRawBindings().where, 'where')
     }
 
     return this
@@ -189,6 +270,18 @@ export class Builder {
   }
 
   /**
+   * Remove all of the expressions from a list of bindings.
+   *
+   * @param  {Array}  bindings
+   * @return {Array}
+   */
+  cleanBindings (bindings) {
+    return Arr.values(bindings.filter((binding) => {
+      return !(binding instanceof Expression)
+    }))
+  }
+
+  /**
    * Creates a subquery and parse it.
    *
    * @param  {Function|\Illuminate\Database\Query\Builder|string}  query
@@ -224,6 +317,25 @@ export class Builder {
   }
 
   /**
+   * Get a scalar type value from an unknown type of input.
+   *
+   * @param  {*}  value
+   * @return {*}
+   */
+  flattenValue (value) {
+    return Array.isArray(value) ? head(Arr.flatten(value)) : value
+  }
+
+  /**
+   * Create a new query instance for nested where condition.
+   *
+   * @return {\Illuminate\Database\Query\Builder}
+   */
+  forNestedWhere () {
+    return this.newQuery().from(this.fromProperty)
+  }
+
+  /**
    * Create a new query instance for a sub-query.
    *
    * @return {\Illuminate\Database\Query\Builder}
@@ -238,6 +350,7 @@ export class Builder {
    * @param  {Function|\Illuminate\Database\Query\Builder|string}  table
    * @param  {string|undefined}  as
    * @return {this}
+   * @memberof Builder
    */
   from (table, as = undefined) {
     if (this.isQueryable(table)) {
@@ -268,6 +381,15 @@ export class Builder {
    */
   getBindings () {
     return Arr.flatten(this.bindings)
+  }
+
+  /**
+   * Get the raw array of bindings.
+   *
+   * @return {object}
+   */
+  getRawBindings () {
+    return this.bindings
   }
 
   /**
@@ -309,6 +431,20 @@ export class Builder {
   }
 
   /**
+   * Determine if the given operator and value combination is legal.
+   *
+   * Prevents using Null values with invalid operators.
+   *
+   * @param  {string}  operator
+   * @param  {*}  value
+   * @return {boolean}
+   */
+  invalidOperatorAndValue (operator, value) {
+    return !value && this.operators.includes(operator) &&
+      !['=', '<>', '!='].includes(operator)
+  }
+
+  /**
    * Determine if the value is a query builder instance or a Closure.
    *
    * @param  {*}  value
@@ -330,7 +466,7 @@ export class Builder {
    * @param  {Function|string}  first
    * @param  {string|undefined}  [operator]
    * @param  {string|undefined}  [second]
-   * @param  {string}  [type='inner']
+   * @param  {string}  [type=inner]
    * @param  {boolean}  [where=false]
    * @return {this}
    */
@@ -361,6 +497,22 @@ export class Builder {
   }
 
   /**
+   * Set the "limit" value of the query.
+   *
+   * @param  {number}  value
+   * @return {this}
+   */
+  limit (value) {
+    const property = this.unions.length > 0 ? 'unionLimit' : 'limitProperty'
+
+    if (value >= 0) {
+      this[property] = value
+    }
+
+    return this
+  }
+
+  /**
    * Get a new join clause.
    *
    * @param  {\Illuminate\Database\Query\Builder}  parentQuery
@@ -379,6 +531,20 @@ export class Builder {
    */
   newQuery () {
     return new this.constructor(this.connection, this.grammar, this.processor)
+  }
+
+  /**
+   * Set the "offset" value of the query.
+   *
+   * @param  {number}  value
+   * @return {this}
+   */
+  offset (value) {
+    const property = this.unions.length > 0 ? 'unionOffset' : 'offsetProperty'
+
+    this[property] = Math.max(0, value)
+
+    return this
   }
 
   /**
@@ -405,6 +571,186 @@ export class Builder {
   }
 
   /**
+   * Add an "order by" clause to the query.
+   *
+   * @param  {Function|\Illuminate\Database\Query\Builder|\Illuminate\Database\Query\Expression|string}  column
+   * @param  {string}  [direction=asc]
+   * @return {this}
+   *
+   * @throws {\InvalidArgumentException}
+   */
+  orderBy (column, direction = 'asc') {
+    if (this.isQueryable(column)) {
+      const [query, bindings] = this.createSub(column)
+
+      column = new Expression('(' + query + ')')
+
+      this.addBinding(bindings, this.unions ? 'unionOrder' : 'order')
+    }
+
+    direction = direction.toLowerCase()
+
+    if (!['asc', 'desc'].includes(direction)) {
+      throw new Error('InvalidArgumentException: Order direction must be "asc" or "desc".')
+    }
+
+    this[this.unions.length > 0 ? 'unionOrders' : 'orders'].push({
+      column,
+      direction
+    })
+
+    return this
+  }
+
+  /**
+   * Add an "or where" clause to the query.
+   *
+   * @param  {Function|string|Array}  column
+   * @param  {*}  operator
+   * @param  {*}  value
+   * @return {this}
+   */
+  orWhere (column, operator = undefined, value = undefined) {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    )
+
+    return this.where(column, operator, value, 'or')
+  }
+
+  /**
+   * Add an "or where" clause comparing two columns to the query.
+   *
+   * @param  {string|Array}  first
+   * @param  {string}  [operator]
+   * @param  {string}  [second]
+   * @return {this}
+   */
+  orWhereColumn (first, operator = undefined, second = undefined) {
+    return this.whereColumn(first, operator, second, 'or')
+  }
+
+  /**
+   * Add an "or where date" statement to the query.
+   *
+   * @param  {string}  column
+   * @param  {string}  operator
+   * @param  {Date|string|undefined}  value
+   * @return {this}
+   */
+  orWhereDate (column, operator, value) {
+    [value, operator] = this.prepareValueAndOperator(
+      String(value), String(operator), arguments.length === 2
+    )
+
+    return this.whereDate(column, operator, value, 'or')
+  }
+
+  /**
+   * Add an "or where day" statement to the query.
+   *
+   * @param  {string}  column
+   * @param  {string}  operator
+   * @param {Date|string|undefined} [value=undefined]
+   * @return {this}
+   * @memberof Builder
+   */
+  orWhereDay (column, operator, value = undefined) {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    )
+
+    return this.whereDay(column, operator, value, 'or')
+  }
+
+  /**
+   * Add an "or where in" clause to the query.
+   *
+   * @param  {string}  column
+   * @param  {*}  values
+   * @return {this}
+   */
+  orWhereIn (column, values) {
+    return this.whereIn(column, values, 'or')
+  }
+
+  /**
+   * Add an "or where month" statement to the query.
+   *
+   * @param  {string}  column
+   * @param  {string}  operator
+   * @param  {Date|string|undefined}  value
+   * @return {this}
+   */
+  orWhereMonth (column, operator, value) {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    )
+
+    return this.whereMonth(column, operator, value, 'or')
+  }
+
+  /**
+   * Add an "or where not in" clause to the query.
+   *
+   * @param  {string}  column
+   * @param  {*}  values
+   * @return {this}
+   */
+  orWhereNotIn (column, values) {
+    return this.whereNotIn(column, values, 'or')
+  }
+
+  /**
+   * Add an "or where in raw" clause for integer values to the query.
+   *
+   * @param  {string}  column
+   * @param  {Array}  values
+   * @return {this}
+   */
+  orWhereIntegerInRaw (column, values) {
+    return this.whereIntegerInRaw(column, values, 'or')
+  }
+
+  /**
+   * Add an "or where not in raw" clause for integer values to the query.
+   *
+   * @param  {string}  column
+   * @param  {Array}  values
+   * @return {this}
+   */
+  orWhereIntegerNotInRaw (column, values) {
+    return this.whereIntegerNotInRaw(column, values, 'or')
+  }
+
+  /**
+   * Add a raw or where clause to the query.
+   *
+   * @param  {string}  sql
+   * @param  {*}  bindings
+   * @return {this}
+   */
+  orWhereRaw (sql, bindings = []) {
+    return this.whereRaw(sql, bindings, 'or')
+  }
+
+  /**
+   * Add an "or where year" statement to the query.
+   *
+   * @param  {string}  column
+   * @param  {string}  operator
+   * @param  {Date|string|number|undefined}  [value]
+   * @return {Builder}
+   */
+  orWhereYear (column, operator, value) {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    )
+
+    return this.whereYear(column, operator, value, 'or')
+  }
+
+  /**
    * Parse the subquery into SQL and bindings.
    *
    * @param  {*}  query
@@ -428,6 +774,26 @@ export class Builder {
         'InvalidArgumentException: A subquery must be a query builder instance, a Closure, or a string.'
       )
     }
+  }
+
+  /**
+   * Prepare the value and operator for a where clause.
+   *
+   * @param  {string}  value
+   * @param  {string}  operator
+   * @param  {boolean}  useDefault
+   * @return {Array}
+   *
+   * @throws {\InvalidArgumentException}
+   */
+  prepareValueAndOperator (value, operator, useDefault = false) {
+    if (useDefault) {
+      return [operator, '=']
+    } else if (this.invalidOperatorAndValue(operator, value)) {
+      throw new TypeError('InvalidArgumentException: Illegal operator and value combination.')
+    }
+
+    return [value, operator]
   }
 
   /**
@@ -518,6 +884,36 @@ export class Builder {
   }
 
   /**
+   * Alias to set the "offset" value of the query.
+   *
+   * @param  {number}  value
+   * @return {Builder}
+   */
+  skip (value) {
+    return this.offset(value)
+  }
+
+  /**
+   * Alias to set the "limit" value of the query.
+   *
+   * @param  {number}  value
+   * @return {Builder}
+   */
+  take (value) {
+    return this.limit(value)
+  }
+
+  /**
+   * Pass the query to a given callback.
+   *
+   * @param  {Function}  callback
+   * @return {this}
+   */
+  tap (callback) {
+    return this.when(true, callback)
+  }
+
+  /**
    * Get the SQL representation of the query.
    *
    * @return {string}
@@ -526,6 +922,200 @@ export class Builder {
     this.applyBeforeQueryCallbacks()
 
     return this.grammar.compileSelect(this)
+  }
+
+  /**
+   * Add a union statement to the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder|Function}  query
+   * @param  {boolean}  [all=false]
+   * @return {Builder}
+   */
+  union (query, all = false) {
+    if (query instanceof Function) {
+      const callback = query
+      query = this.newQuery()
+
+      callback(query)
+    }
+
+    this.unions.push({ query: query, all })
+
+    this.addBinding(query.getBindings(), 'union')
+
+    return this
+  }
+
+  /**
+   * Add a union all statement to the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder|Function}  query
+   * @return {this}
+   */
+  unionAll (query) {
+    return this.union(query, true)
+  }
+
+  /**
+   * Apply the callback's query changes if the given "value" is false.
+   *
+   * @param  {*}  value
+   * @param  {Function}  callbackFunc
+   * @param  {Function}  [defaultCallback]
+   * @return {this|*}
+   */
+  unless (value, callbackFunc, defaultCallback = undefined) {
+    if (!value) {
+      return callbackFunc(this, value) ?? this
+    } else if (defaultCallback) {
+      return defaultCallback(this, value) ?? this
+    }
+
+    return this
+  }
+
+  /**
+   * Apply the callback's query changes if the given "value" is true.
+   *
+   * @param  {*}  value
+   * @param  {Function}  callback
+   * @param  {Function|undefined}  [defaultCallback]
+   * @return {*|this}
+   */
+  when (value, callbackFunc, defaultCallback = undefined) {
+    if (value) {
+      return callbackFunc(this, value) ?? this
+    } else if (defaultCallback) {
+      return defaultCallback(this, value) ?? this
+    }
+
+    return this
+  }
+
+  /**
+   * Add a basic where clause to the query.
+   *
+   * @param  {Function|string|Array}  column
+   * @param  {*}  [operator]
+   * @param  {*}  [value]
+   * @param  {string}  boolean
+   * @return {this}
+   */
+  where (column, operator = undefined, value = undefined, boolean = 'and') {
+    // If the column is an array, we will assume it is an array of key-value pairs
+    // and can add them each as a where clause. We will maintain the boolean we
+    // received when the method was called and pass it into the nested where.
+    if (Array.isArray(column) || isObjectLike(column)) {
+      return this.addArrayOfWheres(column, boolean)
+    }
+
+    // Here we will make some assumptions about the operator. If only 2 values are
+    // passed to the method, we will assume that the operator is an equals sign
+    // and keep going. Otherwise, we'll require the operator to be passed in.
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    )
+
+    // If the columns is actually a Closure instance, we will assume the developer
+    // wants to begin a nested where statement which is wrapped in parenthesis.
+    // We'll add that Closure to the query then return back out immediately.
+    if (column instanceof Function && !operator) {
+      return this.whereNested(column, boolean)
+    }
+
+    // If the column is a Closure instance and there is an operator value, we will
+    // assume the developer wants to run a subquery and then compare the result
+    // of that subquery with the given value that was provided to the method.
+    if (this.isQueryable(column) && operator) {
+      const [sub, bindings] = this.createSub(column)
+
+      return this.addBinding(bindings, 'where')
+        .where(new Expression('(' + sub + ')'), operator, value, boolean)
+    }
+
+    // If the given operator is not found in the list of valid operators we will
+    // assume that the developer is just short-cutting the '=' operators and
+    // we will set the operators to '=' and set the values appropriately.
+    if (this.invalidOperator(operator)) {
+      [value, operator] = [operator, '=']
+    }
+
+    // If the value is a Closure, it means the developer is performing an entire
+    // sub-select within the query and we will need to compile the sub-select
+    // within the where clause to get the appropriate query record results.
+    if (value instanceof Function) {
+      return this.whereSub(column, operator, value, boolean)
+    }
+
+    // If the value is "null", we will just assume the developer wants to add a
+    // where null clause to the query. So, we will allow a short-cut here to
+    // that method for convenience so the developer doesn't have to check.
+    if (!value) {
+      return this.whereNull(column, boolean, operator !== '=')
+    }
+
+    let type = 'Basic'
+
+    // If the column is making a JSON reference we'll check to see if the value
+    // is a boolean. If it is, we'll add the raw boolean string as an actual
+    // value to the query to ensure this is properly handled by the query.
+    if (column.includes('->') && isBoolean(value)) {
+      value = new Expression(value ? 'true' : 'false')
+
+      if (isString(column)) {
+        type = 'JsonBoolean'
+      }
+    }
+
+    // Now that we are working with just a simple query we can put the elements
+    // in our array and add the query binding to our array of bindings that
+    // will be bound to each SQL statements when it is finally executed.
+    this.wheres.push({
+      type, column, operator, value, boolean
+    })
+
+    if (!(value instanceof Expression)) {
+      this.addBinding(this.flattenValue(value), 'where')
+    }
+
+    return this
+  }
+
+  /**
+   * Add a where between statement to the query.
+   *
+   * @param  {string|\Illuminate\Database\Query\Expression}  column
+   * @param  {Array}  values
+   * @param  {string}  boolean
+   * @param  {boolean}  not
+   * @return {this}
+   */
+  whereBetween (column, values, boolean = 'and', not = false) {
+    const type = 'Between'
+
+    this.wheres.push({ type, column, values, boolean, not })
+
+    const flatten = Arr.flatten(values)
+    this.addBinding(this.cleanBindings(flatten).slice(0, 2), 'where')
+
+    return this
+  }
+
+  /**
+   * Add a where between statement using columns to the query.
+   *
+   * @param  {string}  column
+   * @param  {Array}  values
+   * @param  {string}  boolean
+   * @param  {boolean}  not
+   * @return {this}
+   */
+  whereBetweenColumns (column, values, boolean = 'and', not = false) {
+    const type = 'BetweenColumns'
+
+    this.wheres.push({ type, column, values, boolean, not })
+
+    return this
   }
 
   /**
@@ -562,5 +1152,259 @@ export class Builder {
     })
 
     return this
+  }
+
+  /**
+   * Add a "where date" statement to the query.
+   *
+   * @param  {string}  column
+   * @param  {string}  operator
+   * @param  {Date|string|undefined}  [value]
+   * @param  {string}  [boolean]
+   * @return {this}
+   */
+  whereDate (column, operator, value = undefined, boolean = 'and') {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    )
+
+    value = this.flattenValue(value)
+
+    if (value instanceof Date) {
+      value = dateFormat(value, 'Y-m-d')
+    }
+
+    return this.addDateBasedWhere('Date', column, operator, value, boolean)
+  }
+
+  /**
+   * Add a "where day" statement to the query.
+   *
+   * @param  {string}  column
+   * @param  {string} | number | Expression  operator
+   * @param  {Date|string|Expression|undefined}  value
+   * @param  {string}  boolean
+   * @return {this}
+   * @memberof Builder
+   */
+  whereDay (column, operator, value, boolean = 'and') {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    )
+
+    value = this.flattenValue(value)
+
+    if (value instanceof Date) {
+      value = dateFormat(value, 'd')
+    }
+
+    // if (!(value instanceof Expression)) {
+    //   value = String(value).padStart(2, '0')
+    // }
+
+    return this.addDateBasedWhere('Day', column, operator, value, boolean)
+  }
+
+  /**
+   * Add a "where in" clause to the query.
+   * @param  {string}  column
+   * @param  {*}  values
+   * @param  {string}  boolean
+   * @param  {boolean}  [not=false]
+   * @return {this}
+   */
+  whereIn (column, values, boolean = 'and', not = false) {
+    const type = not ? 'NotIn' : 'In'
+
+    // If the value is a query builder instance we will assume the developer wants to
+    // look for any values that exists within this given query. So we will add the
+    // query accordingly so that this query is properly executed when it is run.
+    if (this.isQueryable(values)) {
+      const [query, bindings] = this.createSub(values)
+
+      values = [new Expression(query)]
+
+      this.addBinding(bindings, 'where')
+    }
+
+    this.wheres.push({ type, column, values, boolean })
+
+    // Finally we'll add a binding for each values unless that value is an expression
+    // in which case we will just skip over it since it will be the query as a raw
+    // string and not as a parameterized place-holder to be replaced by the PDO.
+    this.addBinding(this.cleanBindings(values), 'where')
+
+    return this
+  }
+
+  /**
+   * Add a "where in raw" clause for integer values to the query.
+   *
+   * @param  {string}  column
+   * @param  {Array}  values
+   * @param  {string}  [boolean=and]
+   * @param  {boolean}  [not=false]
+   * @return {this}
+   */
+  whereIntegerInRaw (column, values, boolean = 'and', not = false) {
+    const type = not ? 'NotInRaw' : 'InRaw'
+
+    values = values.map(value => parseInt(value, 10))
+
+    this.wheres.push({ type, column, values, boolean })
+
+    return this
+  }
+
+  /**
+   * Add a "where month" statement to the query.
+   *
+   * @param  {string}  column
+   * @param  {string} | number | Expression  operator
+   * @param  {Date|string|Expression|undefined}  value
+   * @param  {string}  boolean
+   * @return {this}
+   */
+  whereMonth (column, operator, value, boolean = 'and') {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    )
+
+    value = this.flattenValue(value)
+
+    if (value instanceof Date) {
+      value = dateFormat(value, 'm')
+    }
+
+    // if (!(value instanceof Expression)) {
+    //   value = String(value).padStart(2, '0')
+    // }
+
+    return this.addDateBasedWhere('Month', column, operator, value, boolean)
+  }
+
+  /**
+   * Add a nested where statement to the query.
+   *
+   * @param  {Function}  callback
+   * @param  {string}  [boolean=and]
+   * @return {this}
+   */
+  whereNested (callback, boolean = 'and') {
+    const query = this.forNestedWhere()
+
+    callback(query)
+
+    return this.addNestedWhereQuery(query, boolean)
+  }
+
+  /**
+   * Add a where not between statement to the query.
+   *
+   * @param  {string}  column
+   * @param  {Array}  values
+   * @param  {string}  boolean
+   * @return {this}
+   */
+  whereNotBetween (column, values, boolean = 'and') {
+    return this.whereBetween(column, values, boolean, true)
+  }
+
+  /**
+ * Add a where not between statement using columns to the query.
+ *
+ * @param  {string}  column
+ * @param  {Array}  values
+ * @param  {string}  boolean
+ * @return {this}
+ */
+  whereNotBetweenColumns (column, values, boolean = 'and') {
+    return this.whereBetweenColumns(column, values, boolean, true)
+  }
+
+  /**
+   * Add a "where not in" clause to the query.
+   *
+   * @param  {string}  column
+   * @param  {*}  values
+   * @param  {string}  boolean
+   * @return {this}
+   */
+  whereNotIn (column, values, boolean = 'and') {
+    return this.whereIn(column, values, boolean, true)
+  }
+
+  /**
+   * Add a "where not in raw" clause for integer values to the query.
+   *
+   * @param  {string}  column
+   * @param  {Array}  values
+   * @param  {string}  boolean
+   * @return {this}
+   */
+  whereIntegerNotInRaw (column, values, boolean = 'and') {
+    return this.whereIntegerInRaw(column, values, boolean, true)
+  }
+
+  /**
+   * Add a raw where clause to the query.
+   *
+   * @param  {string}  sql
+   * @param  {*}  bindings
+   * @param  {string}  boolean
+   * @return {this}
+   */
+  whereRaw (sql, bindings = [], boolean = 'and') {
+    this.wheres.push({ type: 'Raw', sql, boolean })
+
+    this.addBinding(bindings, 'where')
+
+    return this
+  }
+
+  /**
+   * Add a "where time" statement to the query.
+   *
+   * @param  {string}  column
+   * @param  {string}  operator
+   * @param  {Date|string|undefined}  value
+   * @param  {string}  [boolean=and]
+   * @return {this}
+   */
+  whereTime (column, operator, value, boolean = 'and') {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    )
+
+    value = this.flattenValue(value)
+
+    if (value instanceof Date) {
+      value = dateFormat(value, 'H:i:s')
+    }
+
+    return this.addDateBasedWhere('Time', column, operator, value, boolean)
+  }
+
+  /**
+   * Add a "where year" statement to the query.
+   *
+   * @param  {string}  column
+   * @param  {string}  operator
+   * @param  {Date|string|Number|undefined}  value
+   * @param  {string}  boolean
+   * @return {this}
+   */
+  whereYear (column, operator, value, boolean = 'and') {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    )
+
+    value = this.flattenValue(value)
+
+    if (value instanceof Date) {
+      value = dateFormat(value, 'Y')
+    }
+
+    return this.addDateBasedWhere('Year', column, operator, value, boolean)
   }
 }

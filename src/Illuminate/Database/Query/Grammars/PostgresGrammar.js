@@ -28,4 +28,59 @@ export class PostgresGrammar extends Grammar {
 
     return select + this.columnize(columns)
   }
+
+  /**
+   * Compile a date based where clause.
+   *
+   * @param  {string}  type
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  dateBasedWhere (type, query, where) {
+    const value = this.parameter(where.value)
+
+    return 'extract(' + type + ' from ' + this.wrap(where.column) + ') ' + where.operator + ' ' + value
+  }
+
+  /**
+   * {@inheritdoc}
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereBasic (query, where) {
+    if (where.operator?.toLowerCase().includes('like')) {
+      return `${this.wrap(where.column)}::text ${where.operator} ${this.parameter(where.value)}`
+    }
+
+    return super.whereBasic(query, where)
+  }
+
+  /**
+   * Compile a "where date" clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereDate (query, where) {
+    const value = this.parameter(where.value)
+
+    return this.wrap(where.column) + '::date ' + where.operator + ' ' + value
+  }
+
+  /**
+   * Compile a "where time" clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereTime (query, where) {
+    const value = this.parameter(where.value)
+
+    return this.wrap(where.column) + '::time ' + where.operator + ' ' + value
+  }
 }

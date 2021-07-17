@@ -51,6 +51,36 @@ export const dataGet = (target, key, defaultValue = undefined) => {
 }
 
 /**
+ * Get the last element of an array. Useful for method chaining.
+ *
+ * @param  {Array}  array
+ * @return {*}
+ */
+export const end = (array) => {
+  return array[array.length - 1]
+}
+
+/**
+ * Get the first element of an array. Useful for method chaining.
+ *
+ * @param  {Array}  array
+ * @return {*}
+ */
+export const head = (array) => {
+  return Array.isArray(array) ? array[0] : Array.from(Object.values(array))[0]
+}
+
+/**
+ * Get the first element of an array. Useful for method chaining.
+ *
+ * @param  {Array}  array
+ * @return {*}
+ */
+export const reset = (array) => {
+  return head(array)
+}
+
+/**
  * Return the default value of the given value.
  *
  * @param  {*}  target
