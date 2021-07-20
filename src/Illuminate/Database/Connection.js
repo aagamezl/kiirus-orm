@@ -1,10 +1,16 @@
 import { Grammar as QueryGrammar } from './Query/Grammars'
 import { Processor } from './Query/Processors'
 
+/**
+ *
+ * @export
+ * @class Connection
+ */
 export class Connection {
   /**
    * Create a new database connection instance.
    *
+   * @constructs
    * @param  {object|Function}  connection
    * @param  {string}  database
    * @param  {string}  tablePrefix
@@ -32,6 +38,36 @@ export class Connection {
   }
 
   /**
+   * Run an SQL statement and get the number of rows affected.
+   *
+   * @param  {string}  query
+   * @param  {object}  bindings
+   * @return {number}
+   */
+  affectingStatement (query, bindings = {}) {
+    return this.run(query, bindings, async (query, bindings) => {
+      if (this.pretending()) {
+        return 0
+      }
+
+      // For update or delete statements, we want to get the number of rows affected
+      // by the statement and return that back to the developer. We'll first need
+      // to execute the statement and then we'll use PDO to fetch the affected.
+      const statement = this.prepare(query, this.getConnection())
+
+      this.bindValues(statement, this.prepareBindings(bindings))
+
+      await statement.execute()
+
+      const count = statement.rowCount()
+
+      this.recordsHaveBeenModified(count > 0)
+
+      return count
+    })
+  }
+
+  /**
    * Get the name of the connected database.
    *
    * @return {string}
@@ -56,6 +92,17 @@ export class Connection {
    */
   getDefaultQueryGrammar () {
     return new QueryGrammar()
+  }
+
+  /**
+   * Run an insert statement against the database.
+   *
+   * @param  {string}  query
+   * @param  {object}  bindings
+   * @return {boolean}
+   */
+  insert (query, bindings = {}) {
+    return this.statement(query, bindings)
   }
 
   /**

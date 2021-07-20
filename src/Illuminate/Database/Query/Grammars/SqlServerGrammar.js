@@ -1,3 +1,4 @@
+import { clone } from 'lodash'
 import { isNumeric } from '@devnetic/utils'
 
 import { Grammar } from './Grammar'
@@ -43,6 +44,42 @@ export class SqlServerGrammar extends Grammar {
     }
 
     return select + this.columnize(columns)
+  }
+
+  /**
+   * Compile an exists statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder } query
+   * @return {string}
+   */
+  compileExists (query) {
+    const existsQuery = clone(query)
+
+    existsQuery.columns = []
+
+    return this.compileSelect(existsQuery.selectRaw('1 [exists]').limit(1))
+  }
+
+  /**
+   * Compile the "limit" portions of the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {number}  limit
+   * @return {string}
+   */
+  compileLimit (query, limit) {
+    return ''
+  }
+
+  /**
+   * Compile the "offset" portions of the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {number}  offset
+   * @return {string}
+   */
+  compileOffset (query, offset) {
+    return ''
   }
 
   /**
@@ -97,7 +134,7 @@ export class SqlServerGrammar extends Grammar {
   /**
    * Wrap a table in keyword identifiers.
    *
-   * @param  string  table
+   * @param  {string}  table
    * @return {string}
    */
   wrapTableValuedFunction (table) {

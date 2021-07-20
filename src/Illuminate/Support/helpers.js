@@ -1,3 +1,43 @@
+import { HigherOrderTapProxy } from './HigherOrderTapProxy'
+
+/**
+ * Returns an array with all keys from array lowercased or uppercased.
+ *
+ * @param {object} value
+ * @param {string} [changeCase=CAMEL_CASE]
+ * @returns {object}
+ */
+export const changeKeyCase = (value, changeCase = 'CASE_LOWER') => {
+  const result = {}
+
+  if (value && typeof value === 'object') {
+    const casefunction = (!changeCase || changeCase === 'CASE_LOWER') ? 'toLowerCase' : 'toUpperCase'
+
+    for (const key in value) {
+      result[key[casefunction]()] = value[key]
+    }
+
+    return result
+  }
+}
+
 export const isNumeric = (value) => {
   return !Array.isArray(value) && (value - parseFloat(value) + 1) >= 0
+}
+
+/**
+ * Call the given Closure with the given value then return the value.
+ *
+ * @param  {any}  value
+ * @param  {Function|null}  callback
+ * @return {any}
+ */
+export const tap = (value, callback) => {
+  if (!callback) {
+    return new HigherOrderTapProxy(value)
+  }
+
+  callback(value)
+
+  return value
 }

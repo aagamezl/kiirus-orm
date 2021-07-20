@@ -51,6 +51,8 @@ export class Collection {
       return items.all()
     } else if (isPlainObject(items)) {
       return [items]
+    } else if (items === undefined) {
+      return []
     }
 
     return [items]
@@ -71,6 +73,15 @@ export class Collection {
     }
 
     return this.items.join(value ?? '')
+  }
+
+  /**
+   * Determine if the collection is empty or not.
+   *
+   * @return {boolean}
+   */
+  isEmpty () {
+    return !this.items || this.items.length === 0
   }
 
   /**

@@ -2,7 +2,7 @@ import { capitalize } from 'lodash'
 
 import { Grammar as BaseGrammar } from './../../Grammar'
 import { JoinClause } from './../JoinClause'
-import { collect, end, reset } from './../../../Collections/helpers'
+import { collect, end, head, last, reset } from './../../../Collections/helpers'
 
 export class Grammar extends BaseGrammar {
   constructor () {
@@ -36,6 +36,42 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile an aggregated select clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  aggregate
+   * @return {string}
+   */
+  compileAggregate (query, aggregate) {
+    let column = this.columnize(aggregate.columns)
+
+    // If the query has a "distinct" constraint and we're not asking for all columns
+    // we need to prepend "distinct" onto the column name so that the query takes
+    // it into account when it performs the aggregating operations on the data.
+    if (Array.isArray(query.distinctProperty)) {
+      column = 'distinct ' + this.columnize(query.distinctProperty)
+    } else if (query.distinctProperty && column !== '*') {
+      column = 'distinct ' + column
+    }
+
+    return 'select ' + aggregate.function + '(' + column + ') as aggregate'
+  }
+
+  /**
+   * Compile a basic having clause.
+   *
+   * @param  {Array}  having
+   * @return {string}
+   */
+  compileBasicHaving (having) {
+    const column = this.wrap(having.column)
+
+    const parameter = this.parameter(having.value)
+
+    return having.boolean + ' ' + column + ' ' + having.operator + ' ' + parameter
+  }
+
+  /**
    * Compile the "select *" portion of the query.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -47,7 +83,7 @@ export class Grammar extends BaseGrammar {
     // compiler handle the building of the select clauses, as it will need some
     // more syntax that is best handled by that function to keep things neat.
     if (query.aggregateProperty) {
-      return
+      return ''
     }
 
     const select = query.distinctProperty ? 'select distinct ' : 'select '
@@ -76,6 +112,18 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile an exists statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @return {string}
+   */
+  compileExists (query) {
+    const select = this.compileSelect(query)
+
+    return `select exists(${select}) as ${this.wrap('exists')}`
+  }
+
+  /**
    * Compile the "from" portion of the query.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -84,6 +132,54 @@ export class Grammar extends BaseGrammar {
    */
   compileFrom (query, table) {
     return 'from ' + this.wrapTable(table)
+  }
+
+  /**
+   * Compile the "group by" portions of the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  groups
+   * @return {string}
+   */
+  compileGroups (query, groups) {
+    return `group by ${this.columnize(groups)}`
+  }
+
+  /**
+   * Compile a single having clause.
+   *
+   * @param  {Array}  having
+   * @return {string}
+   */
+  compileHaving (having) {
+    // If the having clause is "raw", we can just return the clause straight away
+    // without doing any more processing on it. Otherwise, we will compile the
+    // clause into SQL based on the components that make it up from builder.
+    if (having.type === 'Raw') {
+      return having.boolean + ' ' + having.sql
+    } else if (having.type === 'between') {
+      return this.compileHavingBetween(having)
+    }
+
+    return this.compileBasicHaving(having)
+  }
+
+  /**
+   * Compile a "between" having clause.
+   *
+   * @param  {object}  having
+   * @return {string}
+   */
+  compileHavingBetween (having) {
+    const between = having.not ? 'not between' : 'between'
+
+    const column = this.wrap(having.column)
+
+    const min = this.parameter(head(having.values))
+
+    const max = this.parameter(last(having.values))
+
+    return having.boolean + ' ' + column + ' ' + between + ' ' + min + ' and ' + max
   }
 
   /**
@@ -97,6 +193,49 @@ export class Grammar extends BaseGrammar {
     const sql = havings.map(having => this.compileHaving(having)).join(' ')
 
     return sql ? 'having ' + this.removeLeadingBoolean(sql) : ''
+  }
+
+  /**
+   * Compile an insert statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  values
+   * @return {string}
+   */
+  compileInsert (query, values) {
+    // Essentially we will force every insert to be treated as a batch insert which
+    // simply makes creating the SQL easier for us since we can utilize the same
+    // basic routine regardless of an amount of records given to us to insert.
+    const table = this.wrapTable(query.fromProperty)
+
+    values = (Array.isArray(values) ? values : [values])
+
+    if (values.length === 0) {
+      return `insert into ${table} default values`
+    }
+
+    const columns = this.columnize(Object.keys(values[0]))
+
+    // We need to build a list of parameter place-holders of values that are bound
+    // to the query. Each insert should have the exact same amount of parameter
+    // bindings so we will loop through the record and parameterize them all.
+    const parameters = collect(values).map((record) => {
+      return '(' + this.parameterize(record) + ')'
+    }).implode(', ')
+
+    return `insert into ${table} (${columns}) values ${parameters}`
+  }
+
+  /**
+   * Compile an insert statement using a subquery into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  columns
+   * @param  {string}  sql
+   * @return {string}
+   */
+  compileInsertUsing (query, columns, sql) {
+    return `insert into ${this.wrapTable(query.fromProperty)} (${this.columnize(columns)}) ${sql}`
   }
 
   /**
@@ -529,6 +668,17 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile a where exists clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {object}  where
+   * @return {string}
+   */
+  whereNotExists (query, where) {
+    return 'not exists (' + this.compileSelect(where.query) + ')'
+  }
+
+  /**
    * Compile a "where not in" clause.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -561,6 +711,28 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile a "where not null" clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {object}  where
+   * @return {string}
+   */
+  whereNotNull (query, where) {
+    return this.wrap(where.column) + ' is not null'
+  }
+
+  /**
+   * Compile a "where null" clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {object}  where
+   * @return {string}
+   */
+  whereNull (query, where) {
+    return this.wrap(where.column) + ' is null'
+  }
+
+  /**
    * Compile a raw where clause.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -569,6 +741,19 @@ export class Grammar extends BaseGrammar {
    */
   whereRaw (query, where) {
     return String(where.sql)
+  }
+
+  /**
+   * Compile a where condition with a sub-select.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {object}  where
+   * @return {string}
+   */
+  whereSub (query, where) {
+    const select = this.compileSelect(where.query)
+
+    return this.wrap(where.column) + ' ' + where.operator + ` (${select})`
   }
 
   /**
@@ -620,6 +805,35 @@ export class Grammar extends BaseGrammar {
     }
 
     return this.wrapSegments(value.split('.'))
+  }
+
+  /**
+   * Split the given JSON selector into the field and the optional path and wrap them separately.
+   *
+   * @param  {string}  column
+   * @return {Array}
+   */
+  wrapJsonFieldAndPath (column) {
+    const parts = column.split('->', 2)
+
+    const field = this.wrap(parts[0])
+
+    const path = parts.length > 1 ? ', ' + this.wrapJsonPath(parts[1], '->') : ''
+
+    return [field, path]
+  }
+
+  /**
+   * Wrap the given JSON path.
+   *
+   * @param  {string}  value
+   * @param  {string}  delimiter
+   * @return {string}
+   */
+  wrapJsonPath (value, delimiter = '->') {
+    value = value.replace(/([\\\\]+)?\\'/, '\'\'')
+
+    return '\'$."' + value.replace(delimiter, '"."') + '"\''
   }
 
   /**

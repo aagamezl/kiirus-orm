@@ -87,10 +87,14 @@ export class Arr {
     value = Array.isArray(value) ? value : [value]
 
     return value.reduce((result, column, index) => {
-      if (isObject(column)) {
+      if (isPlainObject(column)) {
         result.push(...Object.entries(column))
       } else {
-        result.push([index, column])
+        if (Array.isArray(column)) {
+          result.push(...this.iterable(column))
+        } else {
+          result.push([index, column])
+        }
       }
 
       return result

@@ -1,10 +1,18 @@
 import { Builder } from './internal'
 
+/**
+ *
+ *
+ * @export
+ * @class JoinClause
+ * @extends {Builder}
+ */
 export class JoinClause extends Builder {
   /**
    * Create a new join clause instance.
    *
-   * @param  {\Illuminate\Database\Query\Builder}  parentQuery
+   * @constructor
+   * @param  {{\Illuminate\Database\Query\Builder}}  parentQuery
    * @param  {string}  type
    * @param  {string}  table
    * @return {void}
@@ -22,6 +30,35 @@ export class JoinClause extends Builder {
     this.parentGrammar = parentQuery.getGrammar()
     this.parentProcessor = parentQuery.getProcessor()
     this.parentConnection = parentQuery.getConnection()
+  }
+
+  /**
+   * Create a new query instance for sub-query.
+   *
+   * @return {\Illuminate\Database\Query\Builder}
+   */
+  forSubQuery () {
+    return this.newParentQuery().newQuery()
+  }
+
+  /**
+   * Create a new parent query instance.
+   *
+   * @return {\Illuminate\Database\Query\Builder}
+   */
+  newParentQuery () {
+    const constructor = this.parentClass
+
+    return new constructor(this.parentConnection, this.parentGrammar, this.parentProcessor)
+  }
+
+  /**
+   * Get a new instance of the join clause builder.
+   *
+   * @return {\Illuminate\Database\Query\JoinClause}
+   */
+  newQuery () {
+    return new this.constructor(this.newParentQuery(), this.type, this.table)
   }
 
   /**
@@ -50,5 +87,17 @@ export class JoinClause extends Builder {
     }
 
     return this.whereColumn(first, operator, second, boolean)
+  }
+
+  /**
+   * Add an "or on" clause to the join.
+   *
+   * @param  {Function|string}  first
+   * @param  {string}  [operator=undefined]
+   * @param  {string}  [second=undefined]
+   * @return {\Illuminate\Database\Query\JoinClause}
+   */
+  orOn (first, operator = undefined, second = undefined) {
+    return this.on(first, operator, second, 'or')
   }
 }

@@ -12,7 +12,7 @@ export class Grammar {
     this.tablePrefix = ''
 
     if (new.target === Grammar) {
-      throw new TypeError('Cannot construct Abstract instances directly')
+      throw new Error('Cannot construct Abstract instances directly')
     }
   }
 
