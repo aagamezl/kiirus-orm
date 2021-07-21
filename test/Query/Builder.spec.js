@@ -2082,3 +2082,217 @@ test('testInsertUsingMethod', (t) => {
 
   autoVerify()
 })
+
+test('testInsertOrIgnoreMethod', (t) => {
+  const error = t.throws(() => {
+    const builder = getBuilder()
+    builder.from('users').insertOrIgnore({ email: 'foo' })
+  }, { instanceOf: Error })
+
+  t.true(error.message.includes('RuntimeException'))
+  t.true(error.message.includes('does not support'))
+})
+
+test('testMySqlInsertOrIgnoreMethod', (t) => {
+  const builder = getMySqlBuilder()
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert ignore into `users` (`email`) values (?)', ['foo']).returns(1)
+  const result = builder.from('users').insertOrIgnore({ email: 'foo' })
+  t.is(1, result)
+
+  autoVerify()
+})
+
+test('testPostgresInsertOrIgnoreMethod', (t) => {
+  const builder = getPostgresBuilder()
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into "users" ("email") values (?) on conflict do nothing', ['foo']).returns(1)
+  const result = builder.from('users').insertOrIgnore({ email: 'foo' })
+  t.is(1, result)
+
+  autoVerify()
+})
+
+test('testSQLiteInsertOrIgnoreMethod', async (t) => {
+  const builder = getSQLiteBuilder()
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert or ignore into "users" ("email") values (?)', ['foo']).resolves(1)
+  const result = await builder.from('users').insertOrIgnore({ email: 'foo' })
+  t.is(1, result)
+
+  autoVerify()
+})
+
+test('testSqlServerInsertOrIgnoreMethod', (t) => {
+  const error = t.throws(() => {
+    const builder = getSqlServerBuilder()
+    builder.from('users').insertOrIgnore({ email: 'foo' })
+  }, { instanceOf: Error })
+
+  t.true(error.message.includes('RuntimeException'))
+  t.true(error.message.includes('does not support'))
+})
+
+test('testInsertGetIdMethod', async (t) => {
+  const builder = getBuilder()
+  createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into "users" ("email") values (?)', ['foo'], 'id').resolves(1)
+  const result = await builder.from('users').insertGetId({ email: 'foo' }, 'id')
+  t.is(1, result)
+
+  autoVerify()
+})
+
+test('testInsertGetIdMethodRemovesExpressions', async (t) => {
+  const builder = getBuilder()
+  createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into "users" ("email", "bar") values (?, bar)', ['foo'], 'id').resolves(1)
+  const result = await builder.from('users').insertGetId({ email: 'foo', bar: new Raw('bar') }, 'id')
+  t.is(1, result)
+
+  autoVerify()
+})
+
+test('testInsertGetIdWithEmptyValues', (t) => {
+  let builder = getMySqlBuilder()
+  createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into `users` () values ()', [], undefined)
+  builder.from('users').insertGetId([])
+
+  builder = getPostgresBuilder()
+  createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into "users" default values returning "id"', [], undefined)
+  builder.from('users').insertGetId([])
+
+  builder = getSQLiteBuilder()
+  createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into "users" default values', [], undefined)
+  builder.from('users').insertGetId([])
+
+  builder = getSqlServerBuilder()
+  createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into [users] default values', [], undefined)
+  builder.from('users').insertGetId([])
+
+  t.pass()
+
+  autoVerify()
+})
+
+test('testInsertMethodRespectsRawBindings', async (t) => {
+  const builder = getBuilder()
+  createMock(builder.getConnection()).expects('insert').once().withArgs('insert into "users" ("email") values (CURRENT TIMESTAMP)', []).resolves(true)
+  const result = await builder.from('users').insert({ email: new Raw('CURRENT TIMESTAMP') })
+  t.true(result)
+
+  autoVerify()
+})
+
+test('testMultipleInsertsWithExpressionValues', async (t) => {
+  const builder = getBuilder()
+  createMock(builder.getConnection()).expects('insert').once().withArgs('insert into "users" ("email") values (UPPER(\'Foo\')), (LOWER(\'Foo\'))', []).resolves(true)
+  const result = await builder.from('users').insert([{ email: new Raw("UPPER('Foo')") }, { email: new Raw("LOWER('Foo')") }])
+  t.true(result)
+
+  autoVerify()
+})
+
+test('testUpdateMethod', async (t) => {
+  let builder = getBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update "users" set "email" = ?, "name" = ? where "id" = ?', ['foo', 'bar', 1]).resolves(1)
+  let result = await builder.from('users').where('id', '=', 1).update({ email: 'foo', name: 'bar' })
+  t.is(1, result)
+
+  builder = getMySqlBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update `users` set `email` = ?, `name` = ? where `id` = ? order by `foo` desc limit 5', ['foo', 'bar', 1]).resolves(1)
+  result = await builder.from('users').where('id', '=', 1).orderBy('foo', 'desc').limit(5).update({ email: 'foo', name: 'bar' })
+  t.is(1, result)
+
+  autoVerify()
+})
+
+test('testUpsertMethod', async (t) => {
+  let builder = getMySqlBuilder()
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into `users` (`email`, `name`) values (?, ?), (?, ?) on duplicate key update `email` = values(`email`), `name` = values(`name`)', ['foo', 'bar', 'foo2', 'bar2']).resolves(2)
+  let result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email')
+  t.is(2, result)
+
+  builder = getPostgresBuilder()
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into "users" ("email", "name") values (?, ?), (?, ?) on conflict ("email") do update set "email" = "excluded"."email", "name" = "excluded"."name"', ['foo', 'bar', 'foo2', 'bar2']).resolves(2)
+  result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email')
+  t.is(2, result)
+
+  builder = getSQLiteBuilder()
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into "users" ("email", "name") values (?, ?), (?, ?) on conflict ("email") do update set "email" = "excluded"."email", "name" = "excluded"."name"', ['foo', 'bar', 'foo2', 'bar2']).resolves(2)
+  result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email')
+  t.is(2, result)
+
+  builder = getSqlServerBuilder()
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('merge [users] using (values (?, ?), (?, ?)) [laravel_source] ([email], [name]) on [laravel_source].[email] = [users].[email] when matched then update set [email] = [laravel_source].[email], [name] = [laravel_source].[name] when not matched then insert ([email], [name]) values ([email], [name]);', ['foo', 'bar', 'foo2', 'bar2']).resolves(2)
+  result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email')
+  t.is(2, result)
+
+  autoVerify()
+})
+
+test('testUpsertMethodWithUpdateColumns', async (t) => {
+  let builder = getMySqlBuilder()
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into `users` (`email`, `name`) values (?, ?), (?, ?) on duplicate key update `name` = values(`name`)', ['foo', 'bar', 'foo2', 'bar2']).resolves(2)
+  let result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email', ['name'])
+  t.is(2, result)
+
+  builder = getPostgresBuilder()
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into "users" ("email", "name") values (?, ?), (?, ?) on conflict ("email") do update set "name" = "excluded"."name"', ['foo', 'bar', 'foo2', 'bar2']).resolves(2)
+  result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email', ['name'])
+  t.is(2, result)
+
+  builder = getSQLiteBuilder()
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into "users" ("email", "name") values (?, ?), (?, ?) on conflict ("email") do update set "name" = "excluded"."name"', ['foo', 'bar', 'foo2', 'bar2']).resolves(2)
+  result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email', ['name'])
+  t.is(2, result)
+
+  builder = getSqlServerBuilder()
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('merge [users] using (values (?, ?), (?, ?)) [laravel_source] ([email], [name]) on [laravel_source].[email] = [users].[email] when matched then update set [name] = [laravel_source].[name] when not matched then insert ([email], [name]) values ([email], [name]);', ['foo', 'bar', 'foo2', 'bar2']).resolves(2)
+  result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email', ['name'])
+  t.is(2, result)
+})
+
+test('testUpdateMethodWithJoins', async (t) => {
+  let builder = getBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update "users" inner join "orders" on "users"."id" = "orders"."user_id" set "email" = ?, "name" = ? where "users"."id" = ?', ['foo', 'bar', 1]).resolves(1)
+  let result = await builder.from('users').join('orders', 'users.id', '=', 'orders.user_id').where('users.id', '=', 1).update({ email: 'foo', name: 'bar' })
+  t.is(1, result)
+
+  builder = getBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update "users" inner join "orders" on "users"."id" = "orders"."user_id" and "users"."id" = ? set "email" = ?, "name" = ?', [1, 'foo', 'bar']).resolves(1)
+  result = await builder.from('users').join('orders', (join) => {
+    join.on('users.id', '=', 'orders.user_id')
+      .where('users.id', '=', 1)
+  }).update({ email: 'foo', name: 'bar' })
+  t.is(1, result)
+})
+
+test('testUpdateMethodWithJoinsOnSqlServer', async (t) => {
+  let builder = getSqlServerBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update [users] set [email] = ?, [name] = ? from [users] inner join [orders] on [users].[id] = [orders].[user_id] where [users].[id] = ?', ['foo', 'bar', 1]).resolves(1)
+  let result = await builder.from('users').join('orders', 'users.id', '=', 'orders.user_id').where('users.id', '=', 1).update({ email: 'foo', name: 'bar' })
+  t.is(1, result)
+
+  builder = getSqlServerBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update [users] set [email] = ?, [name] = ? from [users] inner join [orders] on [users].[id] = [orders].[user_id] and [users].[id] = ?', ['foo', 'bar', 1]).resolves(1)
+  result = await builder.from('users').join('orders', (join) => {
+    join.on('users.id', '=', 'orders.user_id')
+      .where('users.id', '=', 1)
+  }).update({ email: 'foo', name: 'bar' })
+  t.is(1, result)
+})
+
+test('testUpdateMethodWithJoinsOnMySql', async (t) => {
+  let builder = getMySqlBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update `users` inner join `orders` on `users`.`id` = `orders`.`user_id` set `email` = ?, `name` = ? where `users`.`id` = ?', ['foo', 'bar', 1]).resolves(1)
+  let result = await builder.from('users').join('orders', 'users.id', '=', 'orders.user_id').where('users.id', '=', 1).update({ email: 'foo', name: 'bar' })
+  t.is(1, result)
+
+  builder = getMySqlBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update `users` inner join `orders` on `users`.`id` = `orders`.`user_id` and `users`.`id` = ? set `email` = ?, `name` = ?', [1, 'foo', 'bar']).resolves(1)
+  result = await builder.from('users').join('orders', (join) => {
+    join.on('users.id', '=', 'orders.user_id')
+      .where('users.id', '=', 1)
+  }).update({ email: 'foo', name: 'bar' })
+  t.is(1, result)
+})
+
+// test('test_name', (t) => {
+
+// })

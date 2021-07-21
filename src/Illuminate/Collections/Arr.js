@@ -6,6 +6,17 @@ import { dataGet, value as getValue } from './helpers'
 
 export class Arr {
   /**
+   * Get all of the given array except for a specified array of keys.
+   *
+   * @param  {object}  array
+   * @param  {array|string}  keys
+   * @return {object}
+   */
+  static except (array, keys) {
+    return this.forget(array, keys)
+  }
+
+  /**
    * Explode the "value" and "key" arguments passed to "pluck".
    *
    * @param  {string|Array}  value
@@ -70,6 +81,52 @@ export class Arr {
           result.push(value)
         }
       }
+    }
+
+    return result
+  }
+
+  /**
+   * Remove one or many array items from a given array using "dot" notation.
+   *
+   * @param  {object}  array
+   * @param  {Array|string}  keys
+   * @return {object}
+   */
+  static forget (array, keys) {
+    const original = Object.assign({}, array)
+
+    keys = Array.isArray(keys) ? keys : [keys]
+
+    if (keys.length === 0) {
+      return array
+    }
+
+    let result = Object.assign({}, array)
+
+    for (const key of keys) {
+      if (result[key] !== undefined) {
+        delete result[key]
+
+        continue
+      }
+
+      const parts = key.split('.')
+
+      // clean up before each pass
+      array = Object.assign({}, original)
+
+      while (parts.length > 1) {
+        const part = parts.shift()
+
+        if (result[part] !== undefined && Array.isArray(result[part])) {
+          result = result[part]
+        } else {
+          continue
+        }
+      }
+
+      delete result[parts.shift()]
     }
 
     return result
@@ -144,6 +201,25 @@ export class Arr {
     }
 
     return values
+  }
+
+  /**
+   * Filter the array using the given callback.
+   *
+   * @param  {Array}  array
+   * @param  {Function}  callback
+   * @return {Array}
+   */
+  static where (array, callback) {
+    return array.filter((item, index) => {
+      if (!Array.isArray(item)) {
+        return callback(item, index)
+      }
+
+      const [key, value] = item
+
+      return callback(value, key)
+    })
   }
 
   /**

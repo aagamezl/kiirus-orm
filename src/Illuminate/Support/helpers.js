@@ -25,6 +25,12 @@ export const isNumeric = (value) => {
   return !Array.isArray(value) && (value - parseFloat(value) + 1) >= 0
 }
 
+export const ksort = (value) => Object.keys(value).sort().reduce((result, key) => {
+  result[key] = value[key]
+
+  return result
+}, {})
+
 /**
  * Call the given Closure with the given value then return the value.
  *

@@ -1,4 +1,4 @@
-import { isPlainObject } from 'lodash'
+import { isFunction, isPlainObject, isString } from 'lodash'
 
 import { Arr } from './Arr'
 
@@ -28,9 +28,23 @@ export class Collection {
   }
 
   /**
+   * Run a filter over each of the items.
+   *
+   * @param  {Function|undefined}  [callback]
+   * @return {static}
+   */
+  filter (callback = undefined) {
+    if (callback) {
+      return new this.constructor(Arr.where(this.items, callback))
+    }
+
+    return new this.constructor(this.items.filter(item => item))
+  }
+
+  /**
    * Get the first item from the collection passing the given truth test.
    *
-   * @param  {callbackFn}  [callback]
+   * @param  {Function}  [callback]
    * @param  {*}  [defaultValue]
    * @return {*}
    */
@@ -132,5 +146,31 @@ export class Collection {
    */
   pluck (value, key = undefined) {
     return new this.constructor(Arr.pluck(this.items, value, key))
+  }
+
+  /**
+   * Create a collection of all elements that do not pass a given truth test.
+   *
+   * @param  {callbackFn|any}  callback
+   * @return {static}
+   */
+  reject (callback = true) {
+    const useAsCallable = this.useAsCallable(callback)
+
+    return this.filter((value, key) => {
+      return useAsCallable
+        ? !callback(value, key)
+        : value !== callback
+    })
+  }
+
+  /**
+   * Determine if the given value is callable, but not a string.
+   *
+   * @param  {*}  value
+   * @return {boolean}
+   */
+  useAsCallable (value) {
+    return !isString(value) && isFunction(value)
   }
 }

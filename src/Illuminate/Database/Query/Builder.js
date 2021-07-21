@@ -1,4 +1,10 @@
-import { isBoolean, isInteger, isObjectLike, isPlainObject, isString } from 'lodash'
+import {
+  isBoolean,
+  isInteger,
+  isObjectLike,
+  isPlainObject,
+  isString
+} from 'lodash'
 import { dateFormat } from '@devnetic/utils'
 
 import { Arr } from './../../Collections/Arr'
@@ -7,7 +13,7 @@ import { Expression } from './Expression'
 import { JoinClause } from './internal'
 import { Relation } from './../Eloquent/Relations'
 import { collect, head, last, reset } from './../../Collections/helpers'
-import { changeKeyCase, tap } from './../../Support'
+import { changeKeyCase, ksort, tap } from './../../Support'
 
 /**
  *
@@ -834,6 +840,50 @@ export class Builder {
     // the query so they are all in one huge, flattened array for execution.
     return this.connection.insert(
       this.grammar.compileInsert(this, values),
+      this.cleanBindings(Arr.flatten(values, 1))
+    )
+  }
+
+  /**
+   * Insert a new record and get the value of the primary key.
+   *
+   * @param  {Array}  values
+   * @param  {string|undefined}  [sequence]
+   * @return number
+   */
+  insertGetId (values, sequence) {
+    this.applyBeforeQueryCallbacks()
+
+    if (!Array.isArray(reset(values)) && !isObjectLike(values)) {
+      values = [values]
+    }
+
+    const sql = this.grammar.compileInsertGetId(this, values, sequence)
+
+    values = this.cleanBindings(Arr.flatten(values, 1))
+
+    return this.processor.processInsertGetId(this, sql, values, sequence)
+  }
+
+  /**
+   * Insert new records into the database while ignoring errors.
+   *
+   * @param  {Array}  values
+   * @return {number}
+   */
+  insertOrIgnore (values) {
+    if (values.length === 0 || Object.keys(values).length === 0) {
+      return 0
+    }
+
+    if (!Array.isArray(reset(values)) && !isObjectLike(values)) {
+      values = [values]
+    }
+
+    this.applyBeforeQueryCallbacks()
+
+    return this.connection.affectingStatement(
+      this.grammar.compileInsertOrIgnore(this, values),
       this.cleanBindings(Arr.flatten(values, 1))
     )
   }
@@ -1791,6 +1841,68 @@ export class Builder {
     }
 
     return this
+  }
+
+  /**
+   * Update records in the database.
+   *
+   * @param  {Array}  values
+   * @return {number}
+   */
+  update (values) {
+    this.applyBeforeQueryCallbacks()
+
+    const sql = this.grammar.compileUpdate(this, values)
+
+    return this.connection.update(sql, this.cleanBindings(
+      this.grammar.prepareBindingsForUpdate(this.bindings, values)
+    ))
+  }
+
+  /**
+   * Insert new records or update the existing ones.
+   *
+   * @param  {Array}  values
+   * @param  {Array|string}  uniqueBy
+   * @param  {Array|undefined}  [update]
+   * @return {number}
+   */
+  upsert (values, uniqueBy, update = undefined) {
+    if (Object.keys(values).length === 0 || values.length === 0) {
+      return 0
+    } else if (update === []) {
+      return Number(this.insert(values))
+    }
+
+    if (!Array.isArray(reset(values)) && !isPlainObject(reset(values))) {
+      values = [values]
+    } else {
+      for (let [key, value] of Object.entries(values)) {
+        value = ksort(value)
+
+        values[key] = value
+      }
+    }
+
+    if (!update || update?.length === 0) {
+      update = Object.keys(reset(values))
+    }
+
+    this.applyBeforeQueryCallbacks()
+
+    const bindings = this.cleanBindings([
+      ...Arr.flatten(values, 1),
+      ...collect(update).reject((value, key) => {
+        return isInteger(key)
+      }).all()
+    ])
+
+    uniqueBy = !Array.isArray(uniqueBy) ? [uniqueBy] : uniqueBy
+
+    return this.connection.affectingStatement(
+      this.grammar.compileUpsert(this, values, uniqueBy, update),
+      bindings
+    )
   }
 
   /**

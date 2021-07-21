@@ -117,6 +117,17 @@ export class Connection {
   }
 
   /**
+   * Run an update statement against the database.
+   *
+   * @param  {string}  query
+   * @param  {Array}  {bindings}
+   * @return {number}
+   */
+  update (query, bindings = {}) {
+    return this.affectingStatement(query, bindings)
+  }
+
+  /**
    * Set the query post processor to the default implementation.
    *
    * @return {void}

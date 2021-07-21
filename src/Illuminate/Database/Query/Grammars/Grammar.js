@@ -1,5 +1,6 @@
 import { capitalize } from 'lodash'
 
+import { Arr } from './../../../Collections/Arr'
 import { Grammar as BaseGrammar } from './../../Grammar'
 import { JoinClause } from './../JoinClause'
 import { collect, end, head, last, reset } from './../../../Collections/helpers'
@@ -227,6 +228,31 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile an insert and get ID statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  values
+   * @param  {string}  [sequence]
+   * @return {string}
+   */
+  compileInsertGetId (query, values, sequence) {
+    return this.compileInsert(query, values)
+  }
+
+  /**
+   * Compile an insert ignore statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  values
+   * @return {string}
+   *
+   * @throws \RuntimeException
+   */
+  compileInsertOrIgnore (query, values) {
+    throw new Error('RuntimeException: This database engine does not support inserting while ignoring errors.')
+  }
+
+  /**
    * Compile an insert statement using a subquery into SQL.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -396,6 +422,85 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile an update statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  values
+   * @return {string}
+   */
+  compileUpdate (query, values) {
+    const table = this.wrapTable(query.fromProperty)
+
+    values = (Array.isArray(values) ? values : [values])
+
+    const columns = this.compileUpdateColumns(query, Object.entries(values[0]))
+
+    const where = this.compileWheres(query)
+
+    return (
+      query.joins.length > 0
+        ? this.compileUpdateWithJoins(query, table, columns, where)
+        : this.compileUpdateWithoutJoins(query, table, columns, where)
+    ).trim()
+  }
+
+  /**
+   * Compile the columns for an update statement.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  values
+   * @return {string}
+   */
+  compileUpdateColumns (query, values) {
+    return collect(values).map(([key, value]) => {
+      return this.wrap(key) + ' = ' + this.parameter(value)
+    }).join(', ')
+  }
+
+  /**
+   * Compile an update statement with joins into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {string}  table
+   * @param  {string}  columns
+   * @param  {string}  where
+   * @return {string}
+   */
+  compileUpdateWithJoins (query, table, columns, where) {
+    const joins = this.compileJoins(query, query.joins)
+
+    return `update ${table} ${joins} set ${columns} ${where}`
+  }
+
+  /**
+   * Compile an update statement without joins into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  string  table
+   * @param  string  columns
+   * @param  string  where
+   * @return string
+   */
+  compileUpdateWithoutJoins (query, table, columns, where) {
+    return `update ${table} set ${columns} ${where}`
+  }
+
+  /**
+   * Compile an "upsert" statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder} query
+   * @param  {Array}  values
+   * @param  {Array}  uniqueBy
+   * @param  {Array}  update
+   * @return {string}
+   *
+   * @throws \RuntimeException
+   */
+  compileUpsert (query, values, uniqueBy, update) {
+    throw new Error('RuntimeException: This database engine does not support upserts.')
+  }
+
+  /**
    * Compile the "where" portions of the query.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -503,6 +608,21 @@ export class Grammar extends BaseGrammar {
    */
   isJsonSelector (value) {
     return value.includes('->')
+  }
+
+  /**
+   * Prepare the bindings for an update statement.
+   *
+   * @param  {object}  bindings
+   * @param  {Array}  values
+   * @return {Array}
+   */
+  prepareBindingsForUpdate (bindings, values) {
+    const cleanBindings = Arr.forget(bindings, ['select', 'join'])
+
+    return Object.values(
+      [...bindings.join, ...Object.values(values), ...Arr.flatten(cleanBindings)]
+    )
   }
 
   /**

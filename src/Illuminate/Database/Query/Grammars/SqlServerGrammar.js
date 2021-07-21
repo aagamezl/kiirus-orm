@@ -1,7 +1,9 @@
 import { clone } from 'lodash'
-import { isNumeric } from '@devnetic/utils'
 
+import { Arr } from './../../../Collections/Arr'
 import { Grammar } from './Grammar'
+import { collect, last, reset } from './../../../Collections/helpers'
+import { isNumeric } from './../../../Support'
 
 export class SqlServerGrammar extends Grammar {
   constructor () {
@@ -10,7 +12,7 @@ export class SqlServerGrammar extends Grammar {
     /**
      * All of the available clause operators.
      *
-     * @type {Array}
+     * @member {Array}
      */
     this.operators = [
       '=', '<', '>', '<=', '>=', '!<', '!>', '<>', '!=',
@@ -83,6 +85,34 @@ export class SqlServerGrammar extends Grammar {
   }
 
   /**
+   * Compile the over statement for a table expression.
+   *
+   * @param  {string}  orderings
+   * @return {string}
+   */
+  compileOver (orderings) {
+    return `, row_number() over (${orderings}) as row_num`
+  }
+
+  /**
+   * Compile the limit / offset row constraint for a query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @return {string}
+   */
+  compileRowConstraint (query) {
+    const start = Number(query.offsetProperty) + 1
+
+    if (Number(query.limitProperty) > 0) {
+      const finish = Number(query.offsetProperty) + Number(query.limitProperty)
+
+      return `between ${start} and ${finish}`
+    }
+
+    return `>= ${start}`
+  }
+
+  /**
    * Compile a select query into SQL.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -102,6 +132,92 @@ export class SqlServerGrammar extends Grammar {
 
     return this.compileAnsiOffset(
       query, this.compileComponents(query)
+    )
+  }
+
+  /**
+   * Compile a common table expression for a query.
+   *
+   * @param  {string}  sql
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @return {string}
+   */
+  compileTableExpression (sql, query) {
+    const constraint = this.compileRowConstraint(query)
+
+    return `select * from (${sql}) as temp_table where row_num ${constraint} order by row_num`
+  }
+
+  /**
+   * Compile an update statement with joins into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {string}  table
+   * @param  {string}  columns
+   * @param  {string}  where
+   * @return {string}
+   */
+  compileUpdateWithJoins (query, table, columns, where) {
+    const alias = last(table.split(' as '))
+
+    const joins = this.compileJoins(query, query.joins)
+
+    return `update ${alias} set ${columns} from ${table} ${joins} ${where}`
+  }
+
+  /**
+   * Compile an "upsert" statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  values
+   * @param  {Array}  uniqueBy
+   * @param  {Array}  update
+   * @return {string}
+   */
+  compileUpsert (query, values, uniqueBy, update) {
+    const columns = this.columnize(Object.keys(reset(values)))
+
+    let sql = 'merge ' + this.wrapTable(query.fromProperty) + ' '
+
+    const parameters = collect(values).map((record) => {
+      return '(' + this.parameterize(record) + ')'
+    }).implode(', ')
+
+    sql += 'using (values ' + parameters + ') ' + this.wrapTable('laravel_source') + ' (' + columns + ') '
+
+    const on = collect(uniqueBy).map((column) => {
+      return this.wrap('laravel_source.' + column) + ' = ' + this.wrap(query.fromProperty + '.' + column)
+    }).implode(' and ')
+
+    sql += 'on ' + on + ' '
+
+    if (update.length > 0) {
+      const updateSql = collect(update).map((value, key) => {
+        return isNumeric(key)
+          ? this.wrap(value) + ' = ' + this.wrap('laravel_source.' + value)
+          : this.wrap(key) + ' = ' + this.parameter(value)
+      }).implode(', ')
+
+      sql += 'when matched then update set ' + updateSql + ' '
+    }
+
+    sql += 'when not matched then insert (' + columns + ') values (' + columns + ');'
+
+    return sql
+  }
+
+  /**
+   * Prepare the bindings for an update statement.
+   *
+   * @param  {Array}  bindings
+   * @param  {Array}  values
+   * @return {Array}
+   */
+  prepareBindingsForUpdate (bindings, values) {
+    const cleanBindings = Arr.except(bindings, 'select')
+
+    return Object.values(
+      [...Object.values(values), ...Arr.flatten(cleanBindings)]
     )
   }
 
@@ -129,6 +245,20 @@ export class SqlServerGrammar extends Grammar {
     const value = this.parameter(where.value)
 
     return 'cast(' + this.wrap(where.column) + ' as time) ' + where.operator + ' ' + value
+  }
+
+  /**
+   * Wrap a table in keyword identifiers.
+   *
+   * @param  {\Illuminate\Database\Query\Expression|string}  table
+   * @return {string}
+   */
+  wrapTable (table) {
+    if (!this.isExpression(table)) {
+      return this.wrapTableValuedFunction(super.wrapTable(table))
+    }
+
+    return this.getValue(table)
   }
 
   /**
