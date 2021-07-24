@@ -628,8 +628,8 @@ export class Builder {
    * @param  {Array|string}  columns
    * @return {\Illuminate\Support\Collection}
    */
-  get (columns = ['*']) {
-    return collect(this.onceWithColumns(Arr.wrap(columns), () => {
+  async get (columns = ['*']) {
+    return collect(await this.onceWithColumns(Arr.wrap(columns), () => {
       return this.processor.processSelect(this, this.runSelect())
     }))
   }
@@ -1143,14 +1143,14 @@ export class Builder {
    * @param  {Function}  callback
    * @return {*}
    */
-  onceWithColumns (columns, callback) {
+  async onceWithColumns (columns, callback) {
     const original = this.columns
 
     if (original.length === 0) {
       this.columns = columns
     }
 
-    const result = callback()
+    const result = await callback()
 
     this.columns = original
 

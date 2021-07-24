@@ -2,16 +2,14 @@ const { Builder } = require('./../lib/Illuminate/Database/Query')
 const { Connection } = require('../lib/Illuminate/Database')
 const { Grammar } = require('../lib/Illuminate/Database/Query/Grammars')
 const { Processor } = require('../lib/Illuminate/Database/Query/Processors')
-const { HigherOrderTapProxy } = require('../lib/Illuminate/Support/HigherOrderTapProxy')
-
-const { Person } = require('./../lib/Person')
+// const { HigherOrderTapProxy } = require('../lib/Illuminate/Support/HigherOrderTapProxy')
 
 const config = {
-  driver: 'mysql',
+  driver: 'postgres',
   host: '127.0.0.1',
   database: 'test',
-  username: 'root',
-  password: 'root'
+  username: 'postgres',
+  password: 'postgres'
 }
 
 const connection = new Connection(config)
@@ -47,22 +45,19 @@ try {
   // select('foo', 'bar')
   // select({ foo: () => { }, bar: () => { } })
 
-  console.log(query.select().from('users').toSql())
+  // console.log(query.select().from('users').toSql())
+  console.log(query.select().from('users').get())
   // console.log(query.select({ id: () => { } }).from('users').toSql())
 
-  const target = {
-    select: () => {
-      console.log('select')
-    }
-  }
+  // const target = {
+  //   select: () => {
+  //     console.log('select')
+  //   }
+  // }
 
-  const proxy = new HigherOrderTapProxy(target)
+  // const proxy = new HigherOrderTapProxy(target)
 
-  proxy.select()
-
-  const person = new Person()
-
-  console.log(person.getPet().type)
+  // proxy.select()
 } catch (error) {
   console.error(error)
 }

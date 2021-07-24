@@ -24,12 +24,12 @@ export class MySqlProcessor extends Processor {
    * @return {*}
    * @memberof MySqlProcessor
    */
-  async processInsertGetId (query, sql, values, sequence) {
+  processInsertGetId (query, sql, values, sequence) {
     const connection = query.getConnection()
 
     connection.recordsHaveBeenModified()
 
-    const result = await connection.selectFromWriteConnection(sql, values)
+    const result = connection.selectFromWriteConnection(sql, values)
 
     return parseInt(Reflect.get(result[0], 'insertId'), 10)
   }

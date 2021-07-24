@@ -20,7 +20,7 @@ export class Processor {
    * @param  {string|undefined}  [sequence]
    * @return {number}
    */
-  async processInsertGetId (query, sql, values, sequence) {
+  processInsertGetId (query, sql, values, sequence) {
     throw new Error('RuntimeException: This database engine does not support get last insert id.')
   }
 
