@@ -4,6 +4,7 @@ import { get as getData, isBoolean, isFunction, isString } from 'lodash'
 import { Grammar as QueryGrammar } from './Query/Grammars'
 import { Processor } from './Query/Processors'
 import { QueryExecuted } from './Events'
+import { throwException } from './../Support'
 
 /**
  *
@@ -85,6 +86,13 @@ export class Connection {
     this.queryLog = []
 
     /**
+     * Indicates if changes have been made to the database.
+     *
+     * @member boolean
+     */
+    this.recordsModified = false
+
+    /**
      * The table prefix for the connection.
      *
      * @member string
@@ -114,7 +122,7 @@ export class Connection {
    * @return {number}
    */
   affectingStatement (query, bindings = {}) {
-    return this.run(query, bindings, (query, bindings) => {
+    return this.run(query, bindings, async (query, bindings) => {
       if (this.pretending()) {
         return 0
       }
@@ -122,11 +130,11 @@ export class Connection {
       // For update or delete statements, we want to get the number of rows affected
       // by the statement and return that back to the developer. We'll first need
       // to execute the statement and then we'll use PDO to fetch the affected.
-      const statement = this.prepare(query, this.getConnection())
+      const statement = this.prepared(this.getConnection(), query)
 
       this.bindValues(statement, this.prepareBindings(bindings))
 
-      statement.execute()
+      await statement.execute()
 
       const count = statement.rowCount()
 
@@ -232,7 +240,7 @@ export class Connection {
   }
 
   getConnection () {
-    throw new Error('RuntimeException: Implement getConnection method on concrete class.')
+    throwException('concrete-method', 'getConnection')
   }
 
   /**
@@ -417,6 +425,18 @@ export class Connection {
   }
 
   /**
+   * Indicate if any records have been modified.
+   *
+   * @param  {boolean}  [value=true]
+   * @return {void}
+   */
+  recordsHaveBeenModified (value = true) {
+    if (!this.recordsModified) {
+      this.recordsModified = value
+    }
+  }
+
+  /**
    * Run a SQL statement and log its execution context.
    *
    * @param  {string}  query
@@ -507,6 +527,31 @@ export class Connection {
       await statement.execute()
 
       return statement.fetchAll()
+    })
+  }
+
+  /**
+   * Execute an SQL statement and return the boolean result.
+   *
+   * @param  {string}  query
+   * @param  {object}  bindings
+   * @return {boolean}
+   */
+  statement (query, bindings = {}) {
+    return this.run(query, bindings, async (query, bindings) => {
+      if (this.pretending()) {
+        return true
+      }
+
+      const statement = this.prepared(this.getConnection(), query)
+
+      this.bindValues(statement, this.prepareBindings(bindings))
+
+      this.recordsHaveBeenModified()
+
+      const result = await statement.execute()
+
+      return result
     })
   }
 

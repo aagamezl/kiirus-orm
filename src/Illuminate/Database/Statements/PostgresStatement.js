@@ -1,4 +1,6 @@
+import { replace } from 'lodash'
 import { uuid } from '@devnetic/utils'
+
 import { Statement } from './Statement'
 
 export class PostgresStatement extends Statement {
@@ -18,6 +20,8 @@ export class PostgresStatement extends Statement {
       this.result = await this.connection.query(query)
 
       this.connection.end()
+
+      return this.result
     } catch (error) {
       console.error(error)
     }
@@ -28,12 +32,17 @@ export class PostgresStatement extends Statement {
   }
 
   parameterize (query) {
-    const regex = /\s*=\s*\?/gm
+    const regex = /\?/gm
 
     if (query.match(regex) === null) {
       return query
     }
 
-    return query.split(regex).filter(part => part).map((part, index) => `${part} = $${index + 1}`).join('')
+    let index = 0
+    return replace(query, regex, () => `$${++index}`)
+  }
+
+  rowCount () {
+    return this.result.rowCount
   }
 }

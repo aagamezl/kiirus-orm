@@ -47,3 +47,13 @@ export const tap = (value, callback) => {
 
   return value
 }
+
+export const throwException = (type, message) => {
+  switch (type) {
+    case 'abstract':
+      throw new Error('Cannot create an instance of an abstract class.')
+
+    case 'concrete-method':
+      throw new Error(`RuntimeException: Implement ${message} method on concrete class.`)
+  }
+}

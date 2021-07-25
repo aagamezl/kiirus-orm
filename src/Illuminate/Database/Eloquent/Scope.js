@@ -1,7 +1,9 @@
+import { throwException } from './../../Support'
+
 export class Scope {
   constructor () {
     if (new.target === Scope) {
-      throw new Error('Cannot construct Abstract instances directly')
+      throwException('abstract')
     }
   }
 

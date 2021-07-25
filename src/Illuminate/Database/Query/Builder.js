@@ -821,7 +821,7 @@ export class Builder {
    * @param  {Array}  values
    * @return {boolean}
    */
-  insert (values) {
+  async insert (values) {
     // Since every insert gets treated like a batch insert, we will make sure the
     // bindings are structured in a way that is convenient when building these
     // inserts statements by verifying these elements are actually an array.
@@ -1849,7 +1849,7 @@ export class Builder {
    * @param  {Array}  values
    * @return {number}
    */
-  update (values) {
+  async update (values) {
     this.applyBeforeQueryCallbacks()
 
     const sql = this.grammar.compileUpdate(this, values)

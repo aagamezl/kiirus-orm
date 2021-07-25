@@ -1,6 +1,7 @@
 import { Expression } from './Query/Expression'
 
 import { collect } from './../Collections/helpers'
+import { throwException } from './../Support'
 
 export class Grammar {
   constructor () {
@@ -12,7 +13,7 @@ export class Grammar {
     this.tablePrefix = ''
 
     if (new.target === Grammar) {
-      throw new Error('Cannot construct Abstract instances directly')
+      throwException('abstract')
     }
   }
 

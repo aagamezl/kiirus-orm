@@ -1,3 +1,5 @@
+import { throwException } from './../../Support'
+
 export class Statement {
   /**
    * Creates an instance of Statement.
@@ -27,5 +29,13 @@ export class Statement {
     } catch (error) {
       return false
     }
+  }
+
+  parameterize () {
+    throwException('concrete-method', 'parameterize')
+  }
+
+  rowCount () {
+    throwException('concrete-method', 'rowCount')
   }
 }
