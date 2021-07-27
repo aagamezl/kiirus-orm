@@ -309,12 +309,12 @@ export class Builder {
    * @param  {Array}  columns
    * @return {*}
    */
-  aggregate (functionName, columns = ['*']) {
+  async aggregate (functionName, columns = ['*']) {
     // We need to save the original bindings, because the cloneWithoutBindings
     // method delete them from the builder object
     const bindings = Object.assign({}, this.bindings)
 
-    const results = this.cloneWithout(this.unions.length > 0 || this.havings.length > 0 ? [] : ['columns'])
+    const results = await this.cloneWithout(this.unions.length > 0 || this.havings.length > 0 ? [] : ['columns'])
       .cloneWithoutBindings(this.unions.length > 0 || this.havings.length > 0 ? [] : ['select'])
       .setAggregate(functionName, columns)
       .get(columns)
@@ -496,8 +496,10 @@ export class Builder {
    *
    * @return {boolean}
    */
-  doesntExist () {
-    return !this.exists()
+  async doesntExist () {
+    const result = await this.exists()
+
+    return !result
   }
 
   /**
@@ -506,8 +508,8 @@ export class Builder {
    * @param  {Function}  callback
    * @return {*}
    */
-  doesntExistOr (callback) {
-    return this.doesntExist() ? true : callback()
+  async doesntExistOr (callback) {
+    return await this.doesntExist() ? true : callback()
   }
 
   /**
@@ -515,10 +517,10 @@ export class Builder {
    *
    * @return {boolean}
    */
-  exists () {
+  async exists () {
     this.applyBeforeQueryCallbacks()
 
-    let results = this.connection.select(
+    let results = await this.connection.select(
       this.grammar.compileExists(this), this.getBindings()
     )
 
@@ -540,8 +542,8 @@ export class Builder {
    * @param  {Function}  callback
    * @return {*}
    */
-  existsOr (callback) {
-    return this.exists() ? true : callback()
+  async existsOr (callback) {
+    return await this.exists() ? true : callback()
   }
 
   /**
@@ -561,8 +563,10 @@ export class Builder {
    * @param  {Array|string}  columns
    * @return \Illuminate\Database\Eloquent\Model|object|static|undefined
    */
-  first (columns = ['*']) {
-    return this.take(1).get(columns).first()
+  async first (columns = ['*']) {
+    const result = await this.take(1).get(columns)
+
+    return result.first()
   }
 
   /**
@@ -667,8 +671,8 @@ export class Builder {
    * @param  {Array}  [columns=[*]]
    * @return {number}
    */
-  getCountForPagination (columns = ['*']) {
-    const results = this.runPaginationCountQuery(columns)
+  async getCountForPagination (columns = ['*']) {
+    const results = await this.runPaginationCountQuery(columns)
 
     // Once we have run the pagination count query, we will get the resulting count and
     // take into account what type of query it was. When there is a group by we will
@@ -811,8 +815,10 @@ export class Builder {
    * @param  {string}  [glue='']
    * @return {string}
    */
-  implode (column, glue = '') {
-    return this.pluck(column).implode(glue)
+  async implode (column, glue = '') {
+    const result = await this.pluck(column)
+
+    return result.implode(glue)
   }
 
   /**
@@ -1465,11 +1471,11 @@ export class Builder {
    * @param  {string|undefined}  key
    * @return {\Illuminate\Support\Collection}
    */
-  pluck (column, key = undefined) {
+  async pluck (column, key = undefined) {
     // First, we will need to select the results of the query accounting for the
     // given columns / key. Once we have the results, we will be able to take
     // the results and get the exact data that was requested for the query.
-    const queryResult = this.onceWithColumns(
+    const queryResult = await this.onceWithColumns(
       !key ? [column] : [column, key], () => {
         return this.processor.processSelect(
           this, this.runSelect()
@@ -1599,7 +1605,7 @@ export class Builder {
    * @param  {Array}  columns
    * @return {Array}
    */
-  runPaginationCountQuery (columns = ['*']) {
+  async runPaginationCountQuery (columns = ['*']) {
     // We need to save the original bindings, because the cloneWithoutBindings
     // method delete them from the builder object
     const bindings = Object.assign({}, this.bindings)
@@ -1611,29 +1617,29 @@ export class Builder {
         clone.select(this.fromProperty + '.*')
       }
 
-      const result = this.newQuery()
+      const result = await this.newQuery()
         .from(new Expression('(' + clone.toSql() + ') as ' + this.grammar.wrap('aggregate_table')))
         .mergeBindings(clone)
         .setAggregate('count', this.withoutSelectAliases(columns))
-        .get().all()
+        .get()
 
       this.bindings = bindings
 
-      return result
+      return result.all()
     }
 
     const without = this.unions.length > 0
       ? ['orders', 'limitProperty', 'offsetProperty']
       : ['columns', 'orders', 'limitProperty', 'offsetProperty']
 
-    const result = this.cloneWithout(without)
+    const result = await this.cloneWithout(without)
       .cloneWithoutBindings(this.unions.length > 0 ? ['order'] : ['select', 'order'])
       .setAggregate('count', this.withoutSelectAliases(columns))
-      .get().all()
+      .get()
 
     this.bindings = bindings
 
-    return result
+    return result.all()
   }
 
   /**
@@ -1756,8 +1762,8 @@ export class Builder {
    * @param  {string}  column
    * @return {*}
    */
-  sum (column) {
-    const result = this.aggregate('sum', [column])
+  async sum (column) {
+    const result = await this.aggregate('sum', [column])
 
     return result ?? 0
   }
@@ -1911,8 +1917,8 @@ export class Builder {
    * @param  {string}  column
    * @return {*}
    */
-  value (column) {
-    const result = this.first([column])
+  async value (column) {
+    const result = await this.first([column])
 
     return result.length > 0 || Object.keys(result).length > 0 ? reset(result) : null
   }

@@ -1,6 +1,6 @@
 const test = require('ava')
 
-const { autoVerify, createMock } = require('./../tools/auto-verify')
+const { mock } = require('../tools/mock')
 
 const { Builder } = require('./../../lib/Illuminate/Database/Query')
 const { Builder: EloquentBuilder } = require('./../../lib/Illuminate/Database/Eloquent/Builder')
@@ -76,40 +76,51 @@ const getSqlServerBuilder = () => {
   return new Builder(getConnection(), grammar, processor)
 }
 
-test('testBasicSelect', t => {
+test('testBasicSelect', (t) => {
   const builder = getBuilder()
   builder.select('*').from('users')
 
   t.is(builder.toSql(), 'select * from "users"')
 })
 
-test('testBasicSelectWithGetColumns', (t) => {
+test('testBasicSelectWithGetColumns', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getBuilder()
 
   const connectionMock = createMock(builder.getConnection())
-
   createMock(builder.getProcessor()).expects('processSelect').thrice()
 
-  connectionMock.expects('select').once().returns('select * from "users"')
-  connectionMock.expects('select').once().returns('select "foo", "bar" from "users"')
-  connectionMock.expects('select').once().returns('select "baz" from "users"')
+  connectionMock.expects('select').once().callsFake((sql) => {
+    return t.is('select * from "users"', sql)
+  }).reset()
 
-  builder.from('users').get()
+  connectionMock.expects('select').once().callsFake((sql) => {
+    return t.is('select "foo", "bar" from "users"', sql)
+  })
+
+  connectionMock.expects('select').once().callsFake((sql) => {
+    return t.is('select "baz" from "users"', sql)
+  })
+
+  await builder.from('users').get()
   t.deepEqual(builder.columns, [])
 
-  builder.from('users').get(['foo', 'bar'])
+  await builder.from('users').get(['foo', 'bar'])
   t.deepEqual(builder.columns, [])
 
-  builder.from('users').get('baz')
+  await builder.from('users').get(['baz'])
   t.deepEqual(builder.columns, [])
 
   t.is(builder.toSql(), 'select * from "users"')
   t.deepEqual(builder.columns, [])
 
-  autoVerify()
+  verifyMock()
 })
 
-test('testBasicMySqlSelect', (t) => {
+test('testBasicMySqlSelect', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   let builder = getMySqlBuilderWithProcessor()
 
   let connectionMock = createMock(builder.getConnection())
@@ -117,7 +128,7 @@ test('testBasicMySqlSelect', (t) => {
   connectionMock.expects('select').once()
     .withArgs('select * from `users`', [])
 
-  builder.select('*').from('users').get()
+  await builder.select('*').from('users').get()
 
   builder = getMySqlBuilderWithProcessor()
   connectionMock = createMock(builder.getConnection())
@@ -125,11 +136,11 @@ test('testBasicMySqlSelect', (t) => {
   connectionMock.expects('select').once()
     .withArgs('select * from `users`', [])
 
-  builder.select('*').from('users').get()
+  await builder.select('*').from('users').get()
 
   t.is('select * from `users`', builder.toSql())
 
-  autoVerify()
+  verifyMock()
 })
 
 test('testBasicTableWrappingProtectsQuotationMarks', (t) => {
@@ -986,6 +997,8 @@ test('testMySqlUnionLimitsAndOffsets', (t) => {
 })
 
 test('testUnionAggregate', (t) => {
+  const { createMock, verifyMock } = mock()
+
   let expected = 'select count(*) as aggregate from ((select * from `posts`) union (select * from `videos`)) as `temp_table`'
   let builder = getMySqlBuilder()
 
@@ -1017,11 +1030,13 @@ test('testUnionAggregate', (t) => {
   createMock(builder.getProcessor()).expects('processSelect').once()
   builder.from('posts').union(getSqlServerBuilder().from('videos')).count()
 
-  autoVerify()
+  verifyMock()
   t.pass()
 })
 
-test('testHavingAggregate', (t) => {
+test('testHavingAggregate', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const expected = 'select count(*) as aggregate from (select (select `count(*)` from `videos` where `posts`.`id` = `videos`.`post_id`) as `videos_count` from `posts` having `videos_count` > ?) as `temp_table`'
   const builder = getMySqlBuilder()
   const connectionMock = createMock(builder.getConnection())
@@ -1035,9 +1050,9 @@ test('testHavingAggregate', (t) => {
   builder.from('posts').selectSub((query) => {
     query.from('videos').select('count(*)').whereColumn('posts.id', '=', 'videos.post_id')
   }, 'videos_count').having('videos_count', '>', 1)
-  builder.count()
+  await builder.count()
 
-  autoVerify()
+  verifyMock()
   t.pass()
 })
 
@@ -1278,7 +1293,9 @@ test('testHavingShortcut', (t) => {
   t.is('select * from "users" having "email" = ? or "email" = ?', builder.toSql())
 })
 
-test('testHavingFollowedBySelectGet', (t) => {
+test('testHavingFollowedBySelectGet', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   let builder = getBuilder()
   let query = 'select "category", count(*) as "total" from "item" where "department" = ? group by "category" having "total" > ?'
   let connectionMock = createMock(builder.getConnection())
@@ -1288,7 +1305,7 @@ test('testHavingFollowedBySelectGet', (t) => {
     return results
   })
   builder.from('item')
-  let result = builder.select(['category', new Raw('count(*) as "total"')]).where('department', '=', 'popular').groupBy('category').having('total', '>', 3).get()
+  let result = await builder.select(['category', new Raw('count(*) as "total"')]).where('department', '=', 'popular').groupBy('category').having('total', '>', 3).get()
   t.deepEqual([{ category: 'rock', total: 5 }], result.all())
 
   // Using \Raw value
@@ -1301,10 +1318,10 @@ test('testHavingFollowedBySelectGet', (t) => {
     return results
   })
   builder.from('item')
-  result = builder.select(['category', new Raw('count(*) as "total"')]).where('department', '=', 'popular').groupBy('category').having('total', '>', new Raw('3')).get()
+  result = await builder.select(['category', new Raw('count(*) as "total"')]).where('department', '=', 'popular').groupBy('category').having('total', '>', new Raw('3')).get()
   t.deepEqual([{ category: 'rock', total: 5 }], result.all())
 
-  autoVerify()
+  verifyMock()
 })
 
 test('testRawHavings', (t) => {
@@ -1365,25 +1382,29 @@ test('testForPage', (t) => {
   t.is('select * from "users" limit 0 offset 0', builder.toSql())
 })
 
-test('testGetCountForPaginationWithBindings', (t) => {
+test('testGetCountForPaginationWithBindings', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getBuilder()
   builder.from('users').selectSub((query) => {
     query.select('body').from('posts').where('id', 4)
   }, 'post')
 
-  createMock(builder.getConnection()).expects('select').once().withArgs('select count(*) as aggregate from "users"', []).returns([{ aggregate: 1 }])
+  createMock(builder.getConnection()).expects('select').once().withArgs('select count(*) as aggregate from "users"', []).resolves([{ aggregate: 1 }])
   createMock(builder.getProcessor()).expects('processSelect').once().callsFake((builder, results) => {
     return results
   })
 
-  const count = builder.getCountForPagination()
+  const count = await builder.getCountForPagination()
   t.is(1, count)
   t.deepEqual([4], builder.getBindings())
 
-  autoVerify()
+  verifyMock()
 })
 
-test('testGetCountForPaginationWithColumnAliases', (t) => {
+test('testGetCountForPaginationWithColumnAliases', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getBuilder()
   const columns = ['body as post_body', 'teaser', 'posts.created as published']
   builder.from('posts').select(columns)
@@ -1393,13 +1414,15 @@ test('testGetCountForPaginationWithColumnAliases', (t) => {
     return results
   })
 
-  const count = builder.getCountForPagination(columns)
+  const count = await builder.getCountForPagination(columns)
   t.is(1, count)
 
-  autoVerify()
+  verifyMock()
 })
 
-test('testGetCountForPaginationWithUnion', (t) => {
+test('testGetCountForPaginationWithUnion', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getBuilder()
   builder.from('posts').select('id').union(getBuilder().from('videos').select('id'))
 
@@ -1408,10 +1431,10 @@ test('testGetCountForPaginationWithUnion', (t) => {
     return results
   })
 
-  const count = builder.getCountForPagination()
+  const count = await builder.getCountForPagination()
   t.is(1, count)
 
-  autoVerify()
+  verifyMock()
 })
 
 test('testWhereShortcut', (t) => {
@@ -1803,37 +1826,43 @@ test('testRawExpressionsInSelect', (t) => {
   t.is('select substr(foo, 6) from "users"', builder.toSql())
 })
 
-test('testFindReturnsFirstResultByID', (t) => {
+test('testFindReturnsFirstResultByID', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getBuilder()
   createMock(builder.getConnection()).expects('select').once().withArgs('select * from "users" where "id" = ? limit 1', [1]).returns([{ foo: 'bar' }])
   createMock(builder.getProcessor()).expects('processSelect').once().withArgs(builder, [{ foo: 'bar' }]).callsFake((query, results) => {
     return results
   })
-  const results = builder.from('users').find(1)
+  const results = await builder.from('users').find(1)
   t.deepEqual({ foo: 'bar' }, results)
 
-  autoVerify()
+  verifyMock()
 })
 
-test('testFirstMethodReturnsFirstResult', (t) => {
+test('testFirstMethodReturnsFirstResult', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getBuilder()
   createMock(builder.getConnection()).expects('select').once().withArgs('select * from "users" where "id" = ? limit 1', [1]).returns([{ foo: 'bar' }])
   createMock(builder.getProcessor()).expects('processSelect').once().withArgs(builder, [{ foo: 'bar' }]).callsFake((query, results) => {
     return results
   })
-  const results = builder.from('users').where('id', '=', 1).first()
+  const results = await builder.from('users').where('id', '=', 1).first()
   t.deepEqual({ foo: 'bar' }, results)
 
-  autoVerify()
+  verifyMock()
 })
 
-test('testPluckMethodGetsCollectionOfColumnValues', (t) => {
+test('testPluckMethodGetsCollectionOfColumnValues', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   let builder = getBuilder()
   createMock(builder.getConnection()).expects('select').once().returns([{ foo: 'bar' }, { foo: 'baz' }])
   createMock(builder.getProcessor()).expects('processSelect').once().withArgs(builder, [{ foo: 'bar' }, { foo: 'baz' }]).callsFake((query, results) => {
     return results
   })
-  let results = builder.from('users').where('id', '=', 1).pluck('foo')
+  let results = await builder.from('users').where('id', '=', 1).pluck('foo')
   t.deepEqual(['bar', 'baz'], results.all())
 
   builder = getBuilder()
@@ -1841,20 +1870,22 @@ test('testPluckMethodGetsCollectionOfColumnValues', (t) => {
   createMock(builder.getProcessor()).expects('processSelect').once().withArgs(builder, [{ id: 1, foo: 'bar' }, { id: 10, foo: 'baz' }]).callsFake((query, results) => {
     return results
   })
-  results = builder.from('users').where('id', '=', 1).pluck('foo', 'id')
+  results = await builder.from('users').where('id', '=', 1).pluck('foo', 'id')
   t.deepEqual([{ 1: 'bar', 10: 'baz' }], results.all())
 
-  autoVerify()
+  verifyMock()
 })
 
-test('testImplode', (t) => {
+test('testImplode', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   // Test without glue.
   let builder = getBuilder()
   createMock(builder.getConnection()).expects('select').once().returns([{ foo: 'bar' }, { foo: 'baz' }])
   createMock(builder.getProcessor()).expects('processSelect').once().withArgs(builder, [{ foo: 'bar' }, { foo: 'baz' }]).callsFake((query, results) => {
     return results
   })
-  let results = builder.from('users').where('id', '=', 1).implode('foo')
+  let results = await builder.from('users').where('id', '=', 1).implode('foo')
   t.is('barbaz', results)
 
   // Test with glue.
@@ -1863,39 +1894,43 @@ test('testImplode', (t) => {
   createMock(builder.getProcessor()).expects('processSelect').once().withArgs(builder, [{ foo: 'bar' }, { foo: 'baz' }]).callsFake((query, results) => {
     return results
   })
-  results = builder.from('users').where('id', '=', 1).implode('foo', ',')
+  results = await builder.from('users').where('id', '=', 1).implode('foo', ',')
   t.is('bar,baz', results)
 
-  autoVerify()
+  verifyMock()
 })
 
-test('testValueMethodReturnsSingleColumn', (t) => {
+test('testValueMethodReturnsSingleColumn', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getBuilder()
   createMock(builder.getConnection()).expects('select').once().withArgs('select "foo" from "users" where "id" = ? limit 1', [1]).returns([{ foo: 'bar' }])
   createMock(builder.getProcessor()).expects('processSelect').once().withArgs(builder, [{ foo: 'bar' }]).returns([{ foo: 'bar' }])
-  const results = builder.from('users').where('id', '=', 1).value('foo')
+  const results = await builder.from('users').where('id', '=', 1).value('foo')
   t.deepEqual('bar', results)
 
-  autoVerify()
+  verifyMock()
 })
 
-test('testAggregateFunctions', (t) => {
+test('testAggregateFunctions', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   let builder = getBuilder()
   createMock(builder.getConnection()).expects('select').once().withArgs('select count(*) as aggregate from "users"', []).returns([{ aggregate: 1 }])
   createMock(builder.getProcessor()).expects('processSelect').once().callsFake((builder, results) => {
     return results
   })
-  let results = builder.from('users').count()
+  let results = await builder.from('users').count()
   t.is(1, results)
 
   builder = getBuilder()
   createMock(builder.getConnection()).expects('select').once().withArgs('select exists(select * from "users") as "exists"', []).returns([{ exists: 1 }])
-  results = builder.from('users').exists()
+  results = await builder.from('users').exists()
   t.true(results)
 
   builder = getBuilder()
   createMock(builder.getConnection()).expects('select').once().withArgs('select exists(select * from "users") as "exists"', []).returns([{ exists: 0 }])
-  results = builder.from('users').doesntExist()
+  results = await builder.from('users').doesntExist()
   t.true(results)
 
   builder = getBuilder()
@@ -1903,7 +1938,7 @@ test('testAggregateFunctions', (t) => {
   createMock(builder.getProcessor()).expects('processSelect').once().callsFake((builder, results) => {
     return results
   })
-  results = builder.from('users').max('id')
+  results = await builder.from('users').max('id')
   t.is(1, results)
 
   builder = getBuilder()
@@ -1911,7 +1946,7 @@ test('testAggregateFunctions', (t) => {
   createMock(builder.getProcessor()).expects('processSelect').once().callsFake((builder, results) => {
     return results
   })
-  results = builder.from('users').min('id')
+  results = await builder.from('users').min('id')
   t.is(1, results)
 
   builder = getBuilder()
@@ -1919,78 +1954,93 @@ test('testAggregateFunctions', (t) => {
   createMock(builder.getProcessor()).expects('processSelect').once().callsFake((builder, results) => {
     return results
   })
-  results = builder.from('users').sum('id')
+  results = await builder.from('users').sum('id')
   t.is(1, results)
 
-  autoVerify()
+  verifyMock()
 })
 
-test('testSqlServerExists', (t) => {
+test('testSqlServerExists', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getSqlServerBuilder()
   createMock(builder.getConnection()).expects('select').once().withArgs('select top 1 1 [exists] from [users]', []).returns([{ exists: 1 }])
-  const results = builder.from('users').exists()
+  const results = await builder.from('users').exists()
   t.true(results)
 
-  autoVerify()
+  verifyMock()
 })
 
-test('testDoesntExistsOr', (t) => {
+test('testDoesntExistsOr', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   let builder = getBuilder()
-  createMock(builder.getConnection()).expects('select').returns([{ exists: 1 }])
-  let results = builder.from('users').doesntExistOr(() => {
+  createMock(builder.getConnection()).expects('select').resolves([{ exists: 1 }])
+  let results = await builder.from('users').doesntExistOr(() => {
     return 123
   })
   t.is(123, results)
 
   builder = getBuilder()
-  createMock(builder.getConnection()).expects('select').returns([{ exists: 0 }])
-  results = builder.from('users').doesntExistOr(() => {
+  createMock(builder.getConnection()).expects('select').resolves([{ exists: 0 }])
+  results = await builder.from('users').doesntExistOr(() => {
     throw new Error('RuntimeException')
   })
   t.true(results)
 
-  autoVerify()
+  verifyMock()
 })
 
-test('testExistsOr', (t) => {
+test('testExistsOr', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   let builder = getBuilder()
   createMock(builder.getConnection()).expects('select').returns([{ exists: 0 }])
-  let results = builder.from('users').existsOr(() => {
+  let results = await builder.from('users').existsOr(() => {
     return 123
   })
   t.is(123, results)
 
   builder = getBuilder()
   createMock(builder.getConnection()).expects('select').returns([{ exists: 1 }])
-  results = builder.from('users').existsOr(() => {
+  results = await builder.from('users').existsOr(() => {
     throw new Error('RuntimeException')
   })
   t.true(results)
 
-  autoVerify()
+  verifyMock()
 })
 
-test('testAggregateResetFollowedByGet', (t) => {
+test('testAggregateResetFollowedByGet', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getBuilder()
   const connectionMock = createMock(builder.getConnection())
+
   connectionMock.expects('select').once().withArgs('select count(*) as aggregate from "users"', []).returns([{ aggregate: 1 }])
   connectionMock.expects('select').once().withArgs('select sum("id") as aggregate from "users"', []).returns([{ aggregate: 2 }])
-  connectionMock.expects('select').once().withArgs('select "column1", "column2" from "users"', []).returns([{ column1: 'foo', column2: 'bar' }])
+  connectionMock.expects('select').once().withArgs('select "column1", "column2" from "users"', []).resolves([{ column1: 'foo', column2: 'bar' }])
+
   createMock(builder.getProcessor()).expects('processSelect').thrice().callsFake((builder, results) => {
     return results
   })
+
   builder.from('users').select('column1', 'column2')
-  const count = builder.count()
+  const count = await builder.count()
   t.is(1, count)
-  const sum = builder.sum('id')
+
+  const sum = await builder.sum('id')
   t.is(2, sum)
-  const result = builder.get()
+
+  const result = await builder.get()
   t.deepEqual([{ column1: 'foo', column2: 'bar' }], result.all())
 
-  autoVerify()
+  verifyMock()
 })
 
-test('testAggregateResetFollowedBySelectGet', (t) => {
+test('testAggregateResetFollowedBySelectGet', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getBuilder()
   const connectionMock = createMock(builder.getConnection())
   connectionMock.expects('select').once().withArgs('select count("column1") as aggregate from "users"', []).returns([{ aggregate: 1 }])
@@ -1999,46 +2049,55 @@ test('testAggregateResetFollowedBySelectGet', (t) => {
     return results
   })
   builder.from('users')
-  const count = builder.count('column1')
+  const count = await builder.count('column1')
   t.is(1, count)
-  const result = builder.select('column2', 'column3').get()
+  const result = await builder.select('column2', 'column3').get()
   t.deepEqual([{ column2: 'foo', column3: 'bar' }], result.all())
 
-  autoVerify()
+  verifyMock()
 })
 
-test('testAggregateResetFollowedByGetWithColumns', (t) => {
+test('testAggregateResetFollowedByGetWithColumns', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getBuilder()
+
   const connectionMock = createMock(builder.getConnection())
   connectionMock.expects('select').once().withArgs('select count("column1") as aggregate from "users"', []).returns([{ aggregate: 1 }])
   connectionMock.expects('select').once().withArgs('select "column2", "column3" from "users"', []).returns([{ column2: 'foo', column3: 'bar' }])
   createMock(builder.getProcessor()).expects('processSelect').twice().callsFake((builder, results) => {
     return results
   })
+
   builder.from('users')
-  const count = builder.count('column1')
+  const count = await builder.count('column1')
   t.is(1, count)
-  const result = builder.get(['column2', 'column3'])
+
+  const result = await builder.get(['column2', 'column3'])
   t.deepEqual([{ column2: 'foo', column3: 'bar' }], result.all())
 
-  autoVerify()
+  verifyMock()
 })
 
-test('testAggregateWithSubSelect', (t) => {
+test('testAggregateWithSubSelect', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getBuilder()
   createMock(builder.getConnection()).expects('select').once().withArgs('select count(*) as aggregate from "users"', []).returns([{ aggregate: 1 }])
   createMock(builder.getProcessor()).expects('processSelect').once().callsFake((builder, results) => {
     return results
   })
-  builder.from('users').selectSub((query) => {
+
+  await builder.from('users').selectSub((query) => {
     query.from('posts').select('foo', 'bar').where('title', 'foo')
   }, 'post')
-  const count = builder.count()
+
+  const count = await builder.count()
   t.is(1, count)
   t.is('(select "foo", "bar" from "posts" where "title" = ?) as "post"', builder.columns[0].getValue())
   t.deepEqual(['foo'], builder.getBindings())
 
-  autoVerify()
+  verifyMock()
 })
 
 test('testSubqueriesBindings', (t) => {
@@ -2058,20 +2117,25 @@ test('testSubqueriesBindings', (t) => {
   t.deepEqual(['bar', 4, '%.com', 'foo', 5], builder.getBindings())
 })
 
-test('testInsertMethod', (t) => {
+test('testInsertMethod', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getBuilder()
   createMock(builder.getConnection()).expects('insert').once().withArgs('insert into "users" ("email") values (?)', ['foo']).returns(true)
-  const result = builder.from('users').insert({ email: 'foo' })
+
+  const result = await builder.from('users').insert({ email: 'foo' })
   t.true(result)
 
-  autoVerify()
+  verifyMock()
 })
 
-test('testInsertUsingMethod', (t) => {
+test('testInsertUsingMethod', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getBuilder()
   createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into "table1" ("foo") select "bar" from "table2" where "foreign_id" = ?', [5]).returns(1)
 
-  const result = builder.from('table1').insertUsing(
+  const result = await builder.from('table1').insertUsing(
     ['foo'],
     (query) => {
       query.select(['bar']).from('table2').where('foreign_id', '=', 5)
@@ -2080,7 +2144,7 @@ test('testInsertUsingMethod', (t) => {
 
   t.is(1, result)
 
-  autoVerify()
+  verifyMock()
 })
 
 test('testInsertOrIgnoreMethod', (t) => {
@@ -2093,31 +2157,38 @@ test('testInsertOrIgnoreMethod', (t) => {
   t.true(error.message.includes('does not support'))
 })
 
-test('testMySqlInsertOrIgnoreMethod', (t) => {
+test('testMySqlInsertOrIgnoreMethod', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getMySqlBuilder()
   createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert ignore into `users` (`email`) values (?)', ['foo']).returns(1)
-  const result = builder.from('users').insertOrIgnore({ email: 'foo' })
-  t.is(1, result)
-
-  autoVerify()
-})
-
-test('testPostgresInsertOrIgnoreMethod', (t) => {
-  const builder = getPostgresBuilder()
-  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into "users" ("email") values (?) on conflict do nothing', ['foo']).returns(1)
-  const result = builder.from('users').insertOrIgnore({ email: 'foo' })
-  t.is(1, result)
-
-  autoVerify()
-})
-
-test('testSQLiteInsertOrIgnoreMethod', async (t) => {
-  const builder = getSQLiteBuilder()
-  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert or ignore into "users" ("email") values (?)', ['foo']).resolves(1)
   const result = await builder.from('users').insertOrIgnore({ email: 'foo' })
   t.is(1, result)
 
-  autoVerify()
+  verifyMock()
+})
+
+test('testPostgresInsertOrIgnoreMethod', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getPostgresBuilder()
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into "users" ("email") values (?) on conflict do nothing', ['foo']).returns(1)
+  const result = await builder.from('users').insertOrIgnore({ email: 'foo' })
+  t.is(1, result)
+
+  verifyMock()
+})
+
+test('testSQLiteInsertOrIgnoreMethod', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getSQLiteBuilder()
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert or ignore into "users" ("email") values (?)', ['foo']).resolves(1)
+
+  const result = await builder.from('users').insertOrIgnore({ email: 'foo' })
+  t.is(1, result)
+
+  verifyMock()
 })
 
 test('testSqlServerInsertOrIgnoreMethod', (t) => {
@@ -2131,24 +2202,30 @@ test('testSqlServerInsertOrIgnoreMethod', (t) => {
 })
 
 test('testInsertGetIdMethod', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getBuilder()
   createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into "users" ("email") values (?)', ['foo'], 'id').resolves(1)
   const result = await builder.from('users').insertGetId({ email: 'foo' }, 'id')
   t.is(1, result)
 
-  autoVerify()
+  verifyMock()
 })
 
 test('testInsertGetIdMethodRemovesExpressions', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getBuilder()
   createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into "users" ("email", "bar") values (?, bar)', ['foo'], 'id').resolves(1)
   const result = await builder.from('users').insertGetId({ email: 'foo', bar: new Raw('bar') }, 'id')
   t.is(1, result)
 
-  autoVerify()
+  verifyMock()
 })
 
 test('testInsertGetIdWithEmptyValues', (t) => {
+  const { createMock, verifyMock } = mock()
+
   let builder = getMySqlBuilder()
   createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into `users` () values ()', [], undefined)
   builder.from('users').insertGetId([])
@@ -2167,42 +2244,53 @@ test('testInsertGetIdWithEmptyValues', (t) => {
 
   t.pass()
 
-  autoVerify()
+  verifyMock()
 })
 
 test('testInsertMethodRespectsRawBindings', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getBuilder()
   createMock(builder.getConnection()).expects('insert').once().withArgs('insert into "users" ("email") values (CURRENT TIMESTAMP)', []).resolves(true)
   const result = await builder.from('users').insert({ email: new Raw('CURRENT TIMESTAMP') })
   t.true(result)
 
-  autoVerify()
+  verifyMock()
 })
 
 test('testMultipleInsertsWithExpressionValues', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   const builder = getBuilder()
   createMock(builder.getConnection()).expects('insert').once().withArgs('insert into "users" ("email") values (UPPER(\'Foo\')), (LOWER(\'Foo\'))', []).resolves(true)
+
   const result = await builder.from('users').insert([{ email: new Raw("UPPER('Foo')") }, { email: new Raw("LOWER('Foo')") }])
   t.true(result)
 
-  autoVerify()
+  verifyMock()
 })
 
 test('testUpdateMethod', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   let builder = getBuilder()
   createMock(builder.getConnection()).expects('update').once().withArgs('update "users" set "email" = ?, "name" = ? where "id" = ?', ['foo', 'bar', 1]).resolves(1)
+
   let result = await builder.from('users').where('id', '=', 1).update({ email: 'foo', name: 'bar' })
   t.is(1, result)
 
   builder = getMySqlBuilder()
   createMock(builder.getConnection()).expects('update').once().withArgs('update `users` set `email` = ?, `name` = ? where `id` = ? order by `foo` desc limit 5', ['foo', 'bar', 1]).resolves(1)
+
   result = await builder.from('users').where('id', '=', 1).orderBy('foo', 'desc').limit(5).update({ email: 'foo', name: 'bar' })
   t.is(1, result)
 
-  autoVerify()
+  verifyMock()
 })
 
 test('testUpsertMethod', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   let builder = getMySqlBuilder()
   createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into `users` (`email`, `name`) values (?, ?), (?, ?) on duplicate key update `email` = values(`email`), `name` = values(`name`)', ['foo', 'bar', 'foo2', 'bar2']).resolves(2)
   let result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email')
@@ -2223,10 +2311,12 @@ test('testUpsertMethod', async (t) => {
   result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email')
   t.is(2, result)
 
-  autoVerify()
+  verifyMock()
 })
 
 test('testUpsertMethodWithUpdateColumns', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   let builder = getMySqlBuilder()
   createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into `users` (`email`, `name`) values (?, ?), (?, ?) on duplicate key update `name` = values(`name`)', ['foo', 'bar', 'foo2', 'bar2']).resolves(2)
   let result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email', ['name'])
@@ -2246,9 +2336,13 @@ test('testUpsertMethodWithUpdateColumns', async (t) => {
   createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('merge [users] using (values (?, ?), (?, ?)) [laravel_source] ([email], [name]) on [laravel_source].[email] = [users].[email] when matched then update set [name] = [laravel_source].[name] when not matched then insert ([email], [name]) values ([email], [name]);', ['foo', 'bar', 'foo2', 'bar2']).resolves(2)
   result = await builder.from('users').upsert([{ email: 'foo', name: 'bar' }, { name: 'bar2', email: 'foo2' }], 'email', ['name'])
   t.is(2, result)
+
+  verifyMock()
 })
 
 test('testUpdateMethodWithJoins', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   let builder = getBuilder()
   createMock(builder.getConnection()).expects('update').once().withArgs('update "users" inner join "orders" on "users"."id" = "orders"."user_id" set "email" = ?, "name" = ? where "users"."id" = ?', ['foo', 'bar', 1]).resolves(1)
   let result = await builder.from('users').join('orders', 'users.id', '=', 'orders.user_id').where('users.id', '=', 1).update({ email: 'foo', name: 'bar' })
@@ -2261,9 +2355,13 @@ test('testUpdateMethodWithJoins', async (t) => {
       .where('users.id', '=', 1)
   }).update({ email: 'foo', name: 'bar' })
   t.is(1, result)
+
+  verifyMock()
 })
 
 test('testUpdateMethodWithJoinsOnSqlServer', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   let builder = getSqlServerBuilder()
   createMock(builder.getConnection()).expects('update').once().withArgs('update [users] set [email] = ?, [name] = ? from [users] inner join [orders] on [users].[id] = [orders].[user_id] where [users].[id] = ?', ['foo', 'bar', 1]).resolves(1)
   let result = await builder.from('users').join('orders', 'users.id', '=', 'orders.user_id').where('users.id', '=', 1).update({ email: 'foo', name: 'bar' })
@@ -2276,9 +2374,13 @@ test('testUpdateMethodWithJoinsOnSqlServer', async (t) => {
       .where('users.id', '=', 1)
   }).update({ email: 'foo', name: 'bar' })
   t.is(1, result)
+
+  verifyMock()
 })
 
 test('testUpdateMethodWithJoinsOnMySql', async (t) => {
+  const { createMock, verifyMock } = mock()
+
   let builder = getMySqlBuilder()
   createMock(builder.getConnection()).expects('update').once().withArgs('update `users` inner join `orders` on `users`.`id` = `orders`.`user_id` set `email` = ?, `name` = ? where `users`.`id` = ?', ['foo', 'bar', 1]).resolves(1)
   let result = await builder.from('users').join('orders', 'users.id', '=', 'orders.user_id').where('users.id', '=', 1).update({ email: 'foo', name: 'bar' })
@@ -2291,6 +2393,8 @@ test('testUpdateMethodWithJoinsOnMySql', async (t) => {
       .where('users.id', '=', 1)
   }).update({ email: 'foo', name: 'bar' })
   t.is(1, result)
+
+  verifyMock()
 })
 
 // test('test_name', (t) => {

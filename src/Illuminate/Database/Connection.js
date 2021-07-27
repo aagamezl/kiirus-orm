@@ -4,7 +4,7 @@ import { get as getData, isBoolean, isFunction, isString } from 'lodash'
 import { Grammar as QueryGrammar } from './Query/Grammars'
 import { Processor } from './Query/Processors'
 import { QueryExecuted } from './Events'
-import { throwException } from './../Support'
+import { Statement } from './Statements'
 
 /**
  *
@@ -240,7 +240,7 @@ export class Connection {
   }
 
   getConnection () {
-    throwException('concrete-method', 'getConnection')
+    return {}
   }
 
   /**
@@ -305,6 +305,17 @@ export class Connection {
    */
   getPostProcessor () {
     return this.postProcessor
+  }
+
+  /**
+   *
+   *
+   * @param {string} query
+   * @return {object}
+   * @memberof PostgresConnection
+   */
+  getPrepareStatement (connection, query) {
+    return new Statement(connection, query)
   }
 
   /**

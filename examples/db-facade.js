@@ -17,10 +17,10 @@ const main = async () => {
 
     // console.log('result.rowCount: %o', result.rowCount)
 
-    const result = await db.query().from('users')
-      .where('name', 'John Doe').update({ email: 'john.doe@email.com' })
+    // const result = await db.query().from('users')
+    //   .where('name', 'John Doe').update({ email: 'john.doe@email.com' })
 
-    console.log('result: %o', result)
+    // console.log('result: %o', result)
 
     console.log(db.query().from('users').where('name', 'John Doe').toSql())
     const users = await db.query().from('users').where('name', 'John Doe').get()
