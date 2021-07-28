@@ -193,6 +193,16 @@ export class Arr {
     return results
   }
 
+  /**
+   * Shuffle the given array and return the result.
+   *
+   * @param  {Array}  array
+   * @return {Array}
+   */
+  static shuffle (array) {
+    return array.sort()
+  }
+
   static values (array) {
     const values = []
 

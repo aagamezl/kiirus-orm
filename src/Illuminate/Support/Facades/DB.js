@@ -62,8 +62,11 @@ export class DB extends Facade {
   }
 
   setConnection () {
-    const { driver, database, prefix } = this.config
+    // const { driver, database, prefix } = this.config
 
-    this.connection = ConnectionFactory.createConnection(driver, database, prefix, this.config)
+    const connectionFactory = new ConnectionFactory()
+
+    // this.connection = ConnectionFactory.createConnection(driver, database, prefix, this.config)
+    this.connection = connectionFactory.createSingleConnection(this.config)
   }
 }

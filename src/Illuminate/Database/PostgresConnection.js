@@ -1,5 +1,3 @@
-import { Pool } from 'pg'
-
 import { Connection } from './Connection'
 import { PostgresGrammar as QueryGrammar } from './../Database/Query/Grammars'
 import { PostgresProcessor } from './../Database/Query/Processors'
@@ -11,17 +9,17 @@ export class PostgresConnection extends Connection {
    *
    * @return object
    */
-  getConnection () {
-    const pool = new Pool({
-      user: this.config.username,
-      host: this.config.host,
-      database: this.config.database,
-      password: this.config.database,
-      port: this.config.port || 5432
-    })
+  // getConnection () {
+  //   const pool = new Pool({
+  //     user: this.config.username,
+  //     host: this.config.host,
+  //     database: this.config.database,
+  //     password: this.config.database,
+  //     port: this.config.port || 5432
+  //   })
 
-    return pool
-  }
+  //   return pool
+  // }
 
   /**
    * Get the default query grammar instance.

@@ -7,12 +7,21 @@ export class Statement {
    * @param {string} query
    * @memberof Statement
    */
-  constructor (connection, query) {
+  // constructor (connection, query) {
+  constructor (dsn, username, password, options) {
     this.bindings = {}
-    this.connection = connection
-    this.query = query
+    // this.connection = connection
+    // this.query = query
+
+    this.dsn = dsn
+    this.fetchMode = undefined
+    this.username = username
+    this.password = password
+    this.options = options
+
     this.result = undefined
     this.rowCountProperty = 0
+    this.statement = undefined
   }
 
   /**
@@ -37,5 +46,9 @@ export class Statement {
 
   rowCount () {
     throwException('concrete-method', 'rowCount')
+  }
+
+  setFetchMode (mode) {
+    this.fetchMode = mode
   }
 }

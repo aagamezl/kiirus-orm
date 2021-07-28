@@ -3,7 +3,7 @@ import { get as getData, isBoolean, isFunction, isString } from 'lodash'
 
 import { Grammar as QueryGrammar } from './Query/Grammars'
 import { Processor } from './Query/Processors'
-import { QueryExecuted } from './Events'
+import { QueryExecuted, StatementPrepared } from './Events'
 import { Statement } from './Statements'
 
 /**
@@ -22,7 +22,14 @@ export class Connection {
    * @param  {Array}  [config={}]
    * @return {void}
    */
-  constructor (database = '', tablePrefix = '', config = {}) {
+  constructor (ndo, database = '', tablePrefix = '', config = {}) {
+    /**
+     * The active NDO connection.
+     *
+     * @member {object|Function}
+     */
+    this.ndo = ndo
+
     /**
      * The database connection configuration options.
      *
@@ -30,7 +37,7 @@ export class Connection {
      */
     this.config = config
 
-    this.connection = this.getConnection(config)
+    // this.connection = this.getConnection(config)
 
     // First we will setup the default properties. We keep track of the DB
     // name we are connected to since it is needed when some reflective
@@ -49,6 +56,13 @@ export class Connection {
      * @member \Illuminate\Contracts\Events\Dispatcher
      */
     this.events = undefined
+
+    /**
+     * The default fetch mode of the connection.
+     *
+     * @member string
+     */
+    this.fetchMode = undefined
 
     /**
      * Indicates whether queries are being logged.
@@ -86,6 +100,20 @@ export class Connection {
     this.queryLog = []
 
     /**
+     * The active PDO connection used for reads.
+     *
+     * @member object|Function
+     */
+    this.readNdo = undefined
+
+    /**
+     * Indicates if the connection should use the "write" PDO connection.
+     *
+     * @member boolean
+     */
+    this.readOnWriteConnection = false
+
+    /**
      * Indicates if changes have been made to the database.
      *
      * @member boolean
@@ -112,6 +140,19 @@ export class Connection {
     this.useDefaultQueryGrammar()
 
     this.useDefaultPostProcessor()
+  }
+
+  /**
+   * The connection resolvers.
+   *
+   * @member {array}
+   */
+  static get resolvers () {
+    if (this.constructor.resolvers === undefined) {
+      this.constructor.resolvers = []
+    }
+
+    return this.constructor.resolvers
   }
 
   /**
@@ -239,8 +280,24 @@ export class Connection {
     return getData(this.config, option)
   }
 
-  getConnection () {
-    return {}
+  getNdo () {
+    if (isFunction(this.ndo)) {
+      this.ndo = this.ndo()
+
+      return this.ndo
+    }
+
+    return this.ndo
+  }
+
+  /**
+   * Get the NDO connection to use for a select query.
+   *
+   * @param  {boolean}  [useReadNdo=true]
+   * @return {object}
+   */
+  getNdoForSelect (useReadNdo = true) {
+    return useReadNdo ? this.getReadNdo() : this.getNdo()
   }
 
   /**
@@ -316,6 +373,40 @@ export class Connection {
    */
   getPrepareStatement (connection, query) {
     return new Statement(connection, query)
+  }
+
+  /**
+   * Get the current PDO connection used for reading.
+   *
+   * @return {object}
+   */
+  getReadNdo () {
+    if (this.transactions > 0) {
+      return this.getNdo()
+    }
+
+    if (this.readOnWriteConnection ||
+      (this.recordsModified && this.getConfig('sticky'))) {
+      return this.getNdo()
+    }
+
+    if (isFunction(this.readPdo)) {
+      this.readNdo = this.readNdo()
+
+      return this.readNdo
+    }
+
+    return this.readNdo ?? this.getNdo()
+  }
+
+  /**
+   * Get the connection resolver for the given driver.
+   *
+   * @param  {string}  driver
+   * @return {*}
+   */
+  static getResolver (driver) {
+    return this.resolvers[driver] ?? undefined
   }
 
   /**
@@ -396,8 +487,16 @@ export class Connection {
    * @param  {string}  query
    * @return {\Illuminate\Database\Statements\Statement}
    */
-  prepared (connection, query) {
-    return this.getPrepareStatement(connection, query)
+  prepared (statement, query) {
+    // return this.getPrepareStatement(connection, query)
+
+    statement.setFetchMode(this.fetchMode)
+
+    this.event(new StatementPrepared(
+      this, statement
+    ))
+
+    return statement
   }
 
   /**
@@ -430,7 +529,7 @@ export class Connection {
    * @return void
    */
   reconnectIfMissingConnection () {
-    if (!this.connection) {
+    if (!this.ndo) {
       this.reconnect()
     }
   }
@@ -495,12 +594,12 @@ export class Connection {
    *
    * @throws \Illuminate\Database\QueryException
    */
-  runQueryCallback (query, bindings, callback) {
+  async runQueryCallback (query, bindings, callback) {
     // To execute the statement, we'll simply call the callback, which will actually
     // run the SQL against the PDO connection. Then we can calculate the time it
     // took to execute and log the query SQL, bindings and time in our memory.
     try {
-      const result = callback(query, bindings)
+      const result = await callback(query, bindings)
 
       return result
     } catch (error) {
@@ -518,9 +617,10 @@ export class Connection {
    *
    * @param  {string}  query
    * @param  {object}  [bindings]
+   * @param  {boolean}  [useReadPdo=true]
    * @return {object}
    */
-  select (query, bindings = []) {
+  select (query, bindings = [], useReadPdo = true) {
     return this.run(query, bindings, async (query, bindings) => {
       if (this.pretending()) {
         return []
@@ -530,7 +630,8 @@ export class Connection {
       // of the database result set. Each element in the array will be a single
       // row from the database table, and will either be an array or objects.
       const statement = this.prepared(
-        this.connection, query
+        // this.connection, query
+        this.getNdoForSelect(useReadPdo).prepare(query)
       )
 
       this.bindValues(statement, this.prepareBindings(bindings))

@@ -31,6 +31,20 @@ export const ksort = (value) => Object.keys(value).sort().reduce((result, key) =
   return result
 }, {})
 
+export const objectDiffKey = (target, ...from) => {
+  const keys = from.reduce((result, current) => {
+    return result.concat(Object.keys(current))
+  }, [])
+
+  return Object.entries(target).reduce((result, [key, value]) => {
+    if (!keys.includes(key)) {
+      result[key] = value
+    }
+
+    return result
+  }, {})
+}
+
 /**
  * Call the given Closure with the given value then return the value.
  *

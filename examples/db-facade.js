@@ -22,8 +22,9 @@ const main = async () => {
 
     // console.log('result: %o', result)
 
-    console.log(db.query().from('users').where('name', 'John Doe').toSql())
-    const users = await db.query().from('users').where('name', 'John Doe').get()
+    // console.log(db.query().from('users').where('name', 'John Doe').toSql())
+    // const users = await db.query().from('users').where('name', 'John Doe').get()
+    const users = await db.query().from('users').get()
 
     console.log(JSON.stringify(users.all(), null, 2))
   } catch (error) {
