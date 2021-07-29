@@ -1,6 +1,9 @@
+import { isPlainObject, set } from 'lodash'
+
+import { Arr } from '../../../Collections/Arr'
 import { Grammar } from './Grammar'
-import { collect } from '../../../Collections/helpers'
-import { isNumeric } from '../../../Support'
+import { collect, last } from './../../../Collections/helpers'
+import { isNumeric, Str } from './../../../Support'
 
 export class SQLiteGrammar extends Grammar {
   constructor () {
@@ -27,6 +30,72 @@ export class SQLiteGrammar extends Grammar {
    */
   compileInsertOrIgnore (query, values) {
     return this.compileInsert(query, values).replace('insert', 'insert or ignore')
+  }
+
+  /**
+  * Compile a "JSON" patch statement into SQL.
+  *
+  * @param {string} column
+  * @param {*} value
+  * @return {string}
+  */
+  compileJsonPatch (column, value) {
+    return `json_patch(ifnull(${this.wrap(column)}, json('{}')), json(${this.parameter(value)}))`
+  }
+
+  /**
+  * Compile an update statement into SQL.
+  *
+  * @param {\Illuminate\Database\Query\Builder} query
+  * @param {Array} values
+  * @return {string}
+  */
+  compileUpdate (query, values) {
+    if (query.joins.length > 0 || query.limitProperty !== undefined) {
+      return this.compileUpdateWithJoinsOrLimit(query, values)
+    }
+
+    return super.compileUpdate(query, values)
+  }
+
+  /**
+   * Compile the columns for an update statement.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  values
+   * @return {string}
+   */
+  compileUpdateColumns (query, values) {
+    const jsonGroups = this.groupJsonColumnsForUpdate(values)
+
+    return collect(values).reject((value, key) => {
+      return this.isJsonSelector(key)
+    }).merge(jsonGroups).map(([key, value]) => {
+      const column = last(key.split('.'))
+      value = jsonGroups[key] !== undefined ? this.compileJsonPatch(column, value) : this.parameter(value)
+
+      return this.wrap(column) + ' = ' + value
+    }).join(', ')
+  }
+
+  /**
+   * Compile an update statement with joins or limit into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {array}  values
+   * @return {string}
+   */
+  compileUpdateWithJoinsOrLimit (query, values) {
+    const table = this.wrapTable(query.fromProperty)
+
+    // const columns = this.compileUpdateColumns(query, values)
+    const columns = this.compileUpdateColumns(query, Object.entries(values))
+
+    const alias = last(query.fromProperty.split(/\s+as\s+/i))
+
+    const selectSql = this.compileSelect(query.select(alias + '.rowid'))
+
+    return `update ${table} set ${columns} where ${this.wrap('rowid')} in (${selectSql})`
   }
 
   /**
@@ -64,6 +133,48 @@ export class SQLiteGrammar extends Grammar {
     const value = this.parameter(where.value)
 
     return `strftime('${type}', ${this.wrap(where.column)}) ${where.operator} cast(${value} as text)`
+  }
+
+  /**
+   * Group the nested JSON columns.
+   *
+   * @param  {Array}  values
+   * @return {Array}
+   */
+  groupJsonColumnsForUpdate (values) {
+    const groups = []
+
+    for (const [key, value] of Object.entries(values)) {
+      if (this.isJsonSelector(key)) {
+        set(groups, Str.after(key, '.').replace('->', '.'), value)
+      }
+    }
+
+    return groups
+  }
+
+  /**
+  * Prepare the bindings for an update statement.
+  *
+  * @param {Array} bindings
+  * @param {Array} values
+  * @return {Array}
+  */
+  prepareBindingsForUpdate (bindings, values) {
+    const groups = this.groupJsonColumnsForUpdate(values)
+
+    values = collect(Object.entries(values)).reject((value, key) => {
+      return this.isJsonSelector(key)
+    }).merge(groups).map((value) => {
+      return isPlainObject(value) ? JSON.parse(value) : value
+    }).all()
+
+    const cleanBindings = Arr.except(bindings, 'select')
+
+    return [
+      ...Object.values(Object.fromEntries(values)),
+      ...Arr.flatten(cleanBindings)
+    ]
   }
 
   /**

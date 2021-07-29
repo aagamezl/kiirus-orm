@@ -620,9 +620,10 @@ export class Grammar extends BaseGrammar {
   prepareBindingsForUpdate (bindings, values) {
     const cleanBindings = Arr.forget(bindings, ['select', 'join'])
 
-    return Object.values(
-      [...bindings.join, ...Object.values(values), ...Arr.flatten(cleanBindings)]
-    )
+    // return Object.values(
+    //   [...bindings.join, ...Object.values(values), ...Arr.flatten(cleanBindings)]
+    // )
+    return [...bindings.join, ...Object.values(values), ...Arr.flatten(cleanBindings)]
   }
 
   /**

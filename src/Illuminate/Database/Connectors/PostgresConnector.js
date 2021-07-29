@@ -1,6 +1,8 @@
 import { Connector } from './'
 import { PostgresStatement } from './../Statements'
 
+const DEFAULT_PORT = 5432
+
 export class PostgresConnector extends Connector {
   /**
    * Add the SSL options to the DSN.
@@ -131,10 +133,6 @@ export class PostgresConnector extends Connector {
    * @return {object}
    */
   createNdoConnection (dsn, username, password, options) {
-    // if (class_exists(PDOConnection.class) && !this.isPersistentConnection(options)) {
-    //   return new PDOConnection(dsn, username, password, options)
-    // }
-
     return new PostgresStatement(dsn, username, password, options)
   }
 
@@ -164,7 +162,7 @@ export class PostgresConnector extends Connector {
     // need to establish the PDO connections and return them back for use.
     const { database, username, password, host, port } = config
 
-    const dsn = `postgresql://${username}:${password}@${host}:${port ?? 5432}/${database}`
+    const dsn = `postgresql://${username}:${password}@${host}:${port ?? DEFAULT_PORT}/${database}`
 
     return this.addSslOptions(dsn, config)
   }

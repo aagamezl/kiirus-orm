@@ -2397,6 +2397,46 @@ test('testUpdateMethodWithJoinsOnMySql', async (t) => {
   verifyMock()
 })
 
+test('testUpdateMethodWithJoinsOnSQLite', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  let builder = getSQLiteBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update "users" set "email" = ?, "name" = ? where "rowid" in (select "users"."rowid" from "users" where "users"."id" > ? order by "id" asc limit 3)', ['foo', 'bar', 1]).resolves(1)
+  let result = await builder.from('users').where('users.id', '>', 1).limit(3).oldest('id').update({ email: 'foo', name: 'bar' })
+  t.is(1, result)
+
+  builder = getSQLiteBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update "users" set "email" = ?, "name" = ? where "rowid" in (select "users"."rowid" from "users" inner join "orders" on "users"."id" = "orders"."user_id" where "users"."id" = ?)', ['foo', 'bar', 1]).resolves(1)
+  result = await builder.from('users').join('orders', 'users.id', '=', 'orders.user_id').where('users.id', '=', 1).update({ email: 'foo', name: 'bar' })
+  t.is(1, result)
+
+  builder = getSQLiteBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update "users" set "email" = ?, "name" = ? where "rowid" in (select "users"."rowid" from "users" inner join "orders" on "users"."id" = "orders"."user_id" and "users"."id" = ?)', ['foo', 'bar', 1]).resolves(1)
+  result = await builder.from('users').join('orders', (join) => {
+    join.on('users.id', '=', 'orders.user_id')
+      .where('users.id', '=', 1)
+  }).update({ email: 'foo', name: 'bar' })
+  t.is(1, result)
+
+  builder = getSQLiteBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update "users" as "u" set "email" = ?, "name" = ? where "rowid" in (select "u"."rowid" from "users" as "u" inner join "orders" as "o" on "u"."id" = "o"."user_id")', ['foo', 'bar']).resolves(1)
+  result = await builder.from('users as u').join('orders as o', 'u.id', '=', 'o.user_id').update({ email: 'foo', name: 'bar' })
+  t.is(1, result)
+
+  verifyMock()
+})
+
+test('testUpdateMethodWithJoinsAndAliasesOnSqlServer', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getSqlServerBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update [u] set [email] = ?, [name] = ? from [users] as [u] inner join [orders] on [u].[id] = [orders].[user_id] where [u].[id] = ?', ['foo', 'bar', 1]).resolves(1)
+  const result = await builder.from('users as u').join('orders', 'u.id', '=', 'orders.user_id').where('u.id', '=', 1).update({ email: 'foo', name: 'bar' })
+  t.is(1, result)
+
+  verifyMock()
+})
+
 // test('test_name', (t) => {
 
 // })

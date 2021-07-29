@@ -115,6 +115,13 @@ export class Builder {
     this.joins = []
 
     /**
+     * The maximum number of records to return.
+     *
+     * @member {number}
+     */
+    this.limitProperty = undefined
+
+    /**
      * All of the available clause operators.
      *
      * @member {Array}
@@ -1138,6 +1145,16 @@ export class Builder {
     this[property] = Math.max(0, value)
 
     return this
+  }
+
+  /**
+   * Add an "order by" clause for a timestamp to the query.
+   *
+   * @param  {Function|\Illuminate\Database\Query\Builder|\Illuminate\Database\Query\Expression|string}  column
+   * @return this
+   */
+  oldest (column = 'created_at') {
+    return this.orderBy(column, 'asc')
   }
 
   /**

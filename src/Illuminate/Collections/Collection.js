@@ -1,4 +1,9 @@
-import { isFunction, isPlainObject, isString } from 'lodash'
+import {
+  isFunction,
+  isPlainObject,
+  isString,
+  merge
+} from 'lodash'
 
 import { Arr } from './Arr'
 
@@ -125,6 +130,16 @@ export class Collection {
     const finalItem = collection.pop()
 
     return collection.implode(glue) + finalGlue + finalItem
+  }
+
+  /**
+   * Merge the collection with the given items.
+   *
+   * @param  {*}  items
+   * @return {static}
+   */
+  merge (items) {
+    return new this.constructor(merge(this.items, this.getArrayableItems(items)))
   }
 
   /**
