@@ -209,10 +209,14 @@ export class Grammar extends BaseGrammar {
     // basic routine regardless of an amount of records given to us to insert.
     const table = this.wrapTable(query.fromProperty)
 
-    values = (Array.isArray(values) ? values : [values])
+    // values = (Array.isArray(values) ? values : [values])
 
     if (values.length === 0) {
       return `insert into ${table} default values`
+    }
+
+    if (!Array.isArray(values) && !Array.isArray(reset(values))) {
+      values = [values]
     }
 
     const columns = this.columnize(Object.keys(values[0]))
@@ -431,9 +435,10 @@ export class Grammar extends BaseGrammar {
   compileUpdate (query, values) {
     const table = this.wrapTable(query.fromProperty)
 
-    values = (Array.isArray(values) ? values : [values])
+    // values = (Array.isArray(values) ? values : [values])
 
-    const columns = this.compileUpdateColumns(query, Object.entries(values[0]))
+    // const columns = this.compileUpdateColumns(query, Object.entries(values[0]))
+    const columns = this.compileUpdateColumns(query, Object.entries(values))
 
     const where = this.compileWheres(query)
 
@@ -452,7 +457,8 @@ export class Grammar extends BaseGrammar {
    * @return {string}
    */
   compileUpdateColumns (query, values) {
-    return collect(values).map(([key, value]) => {
+    // return collect(values).map(([key, value]) => {
+    return collect(values).map((value, key) => {
       return this.wrap(key) + ' = ' + this.parameter(value)
     }).join(', ')
   }

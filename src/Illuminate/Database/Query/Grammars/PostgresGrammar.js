@@ -1,8 +1,28 @@
+import { isPlainObject } from 'lodash'
+
+import { Arr } from './../../../Collections/Arr'
 import { Grammar } from './Grammar'
-import { collect } from './../../../Collections/helpers'
+import { collect, last } from './../../../Collections/helpers'
 import { isNumeric } from './../../../Support'
 
 export class PostgresGrammar extends Grammar {
+  constructor () {
+    super()
+
+    /**
+     * All of the available clause operators.
+     *
+     * @var string[]
+     */
+    this.operators = [
+      '=', '<', '>', '<=', '>=', '<>', '!=',
+      'like', 'not like', 'between', 'ilike', 'not ilike',
+      '~', '&', '|', '#', '<<', '>>', '<<=', '>>=',
+      '&&', '@>', '<@', '?', '?|', '?&', '||', '-', '@?', '@@', '#-',
+      'is distinct from', 'is not distinct from'
+    ]
+  }
+
   /**
    * Compile the "select *" portion of the query.
    *
@@ -55,6 +75,78 @@ export class PostgresGrammar extends Grammar {
   }
 
   /**
+  * Prepares a JSON column being updated using the JSONB_SET function.
+  *
+  * @param string key
+  * @param mixed value
+  * @return string
+  */
+  compileJsonUpdateColumn (key, value) {
+    const segments = key.explit('->')
+
+    const field = this.wrap(segments.shift())
+
+    const path = '\'{"' + segments.join('","') + '"}\''
+
+    return `${field} = jsonb_set(${field}::jsonb, ${path}, ${this.parameter(value)})`
+  }
+
+  /**
+  * Compile an update statement into SQL.
+  *
+  * @param \Illuminate\Database\Query\Builder query
+  * @param {Array} values
+  * @return {string}
+  */
+  compileUpdate (query, values) {
+    if (query.joins.length > 0 || query.limitProperty !== undefined) {
+      return this.compileUpdateWithJoinsOrLimit(query, values)
+    }
+
+    return super.compileUpdate(query, values)
+  }
+
+  /**
+  * Compile the columns for an update statement.
+  *
+  * @param {\Illuminate\Database\Query\Builder} query
+  * @param {Array} values
+  * @return {string}
+  */
+  compileUpdateColumns (query, values) {
+    // return collect(values).map(([key, value]) => {
+    return collect(values).map((value, key) => {
+      const column = last(key.split('.'))
+
+      if (this.isJsonSelector(key)) {
+        return this.compileJsonUpdateColumn(column, value)
+      }
+
+      return this.wrap(column) + ' = ' + this.parameter(value)
+    }).implode(', ')
+  }
+
+  /**
+  * Compile an update statement with joins or limit into SQL.
+  *
+  * @param {\Illuminate\Database\Query\Builder} query
+  * @param {Array} values
+  * @return {string}
+  */
+  compileUpdateWithJoinsOrLimit (query, values) {
+    const table = this.wrapTable(query.fromProperty)
+
+    // const columns = this.compileUpdateColumns(query, values)
+    const columns = this.compileUpdateColumns(query, Object.entries(values))
+
+    const alias = last(query.fromProperty.split(/\s+as\s+/i))
+
+    const selectSql = this.compileSelect(query.select(alias + '.ctid'))
+
+    return `update ${table} set ${columns} where ${this.wrap('ctid')} in (${selectSql})`
+  }
+
+  /**
    * Compile an "upsert" statement into SQL.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -89,6 +181,29 @@ export class PostgresGrammar extends Grammar {
     const value = this.parameter(where.value)
 
     return 'extract(' + type + ' from ' + this.wrap(where.column) + ') ' + where.operator + ' ' + value
+  }
+
+  /**
+   * Prepare the bindings for an update statement.
+   *
+   * @param  {Array}  bindings
+   * @param  {Array}  values
+   * @return {Array}
+   */
+  prepareBindingsForUpdate (bindings, values) {
+    values = collect(Object.entries(values)).map((value, column) => {
+    // values = collect(Object.entries(values)).map(([column, value]) => {
+      return isPlainObject(value) || (this.isJsonSelector(column) && !this.isExpression(value))
+        ? JSON.parse(value)
+        : value
+    }).all()
+
+    const cleanBindings = Arr.except(bindings, 'select')
+
+    return Arr.values([
+      ...values,
+      ...Arr.flatten(cleanBindings)
+    ])
   }
 
   /**

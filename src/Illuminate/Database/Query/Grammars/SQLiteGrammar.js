@@ -70,7 +70,7 @@ export class SQLiteGrammar extends Grammar {
 
     return collect(values).reject((value, key) => {
       return this.isJsonSelector(key)
-    }).merge(jsonGroups).map(([key, value]) => {
+    }).merge(jsonGroups).map((value, key) => {
       const column = last(key.split('.'))
       value = jsonGroups[key] !== undefined ? this.compileJsonPatch(column, value) : this.parameter(value)
 
@@ -172,7 +172,7 @@ export class SQLiteGrammar extends Grammar {
     const cleanBindings = Arr.except(bindings, 'select')
 
     return [
-      ...Object.values(Object.fromEntries(values)),
+      ...values,
       ...Arr.flatten(cleanBindings)
     ]
   }

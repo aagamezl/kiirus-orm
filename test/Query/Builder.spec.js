@@ -57,7 +57,7 @@ const getMySqlBuilder = () => {
 
 const getPostgresBuilder = () => {
   const grammar = new PostgresGrammar()
-  const processor = new MySqlProcessor()
+  const processor = new Processor()
 
   return new Builder(getConnection(), grammar, processor)
 }
@@ -2433,6 +2433,87 @@ test('testUpdateMethodWithJoinsAndAliasesOnSqlServer', async (t) => {
   createMock(builder.getConnection()).expects('update').once().withArgs('update [u] set [email] = ?, [name] = ? from [users] as [u] inner join [orders] on [u].[id] = [orders].[user_id] where [u].[id] = ?', ['foo', 'bar', 1]).resolves(1)
   const result = await builder.from('users as u').join('orders', 'u.id', '=', 'orders.user_id').where('u.id', '=', 1).update({ email: 'foo', name: 'bar' })
   t.is(1, result)
+
+  verifyMock()
+})
+
+test('testUpdateMethodWithoutJoinsOnPostgres', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  let builder = getPostgresBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update "users" set "email" = ?, "name" = ? where "id" = ?', ['foo', 'bar', 1]).resolves(1)
+  let result = await builder.from('users').where('id', '=', 1).update({ 'users.email': 'foo', name: 'bar' })
+  t.is(1, result)
+
+  builder = getPostgresBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update "users" set "email" = ?, "name" = ? where "id" = ?', ['foo', 'bar', 1]).resolves(1)
+  result = await builder.from('users').where('id', '=', 1).selectRaw('?', ['ignore']).update({ 'users.email': 'foo', name: 'bar' })
+  t.is(1, result)
+
+  builder = getPostgresBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update "users"."users" set "email" = ?, "name" = ? where "id" = ?', ['foo', 'bar', 1]).resolves(1)
+  result = await builder.from('users.users').where('id', '=', 1).selectRaw('?', ['ignore']).update({ 'users.users.email': 'foo', name: 'bar' })
+  t.is(1, result)
+
+  verifyMock()
+})
+
+test('testUpdateMethodWithJoinsOnPostgres', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  let builder = getPostgresBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update "users" set "email" = ?, "name" = ? where "ctid" in (select "users"."ctid" from "users" inner join "orders" on "users"."id" = "orders"."user_id" where "users"."id" = ?)', ['foo', 'bar', 1]).resolves(1)
+  let result = await builder.from('users').join('orders', 'users.id', '=', 'orders.user_id').where('users.id', '=', 1).update({ email: 'foo', name: 'bar' })
+  t.is(1, result)
+
+  builder = getPostgresBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update "users" set "email" = ?, "name" = ? where "ctid" in (select "users"."ctid" from "users" inner join "orders" on "users"."id" = "orders"."user_id" and "users"."id" = ?)', ['foo', 'bar', 1]).resolves(1)
+  result = await builder.from('users').join('orders', (join) => {
+    join.on('users.id', '=', 'orders.user_id')
+      .where('users.id', '=', 1)
+  }).update({ email: 'foo', name: 'bar' })
+  t.is(1, result)
+
+  builder = getPostgresBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update "users" set "email" = ?, "name" = ? where "ctid" in (select "users"."ctid" from "users" inner join "orders" on "users"."id" = "orders"."user_id" and "users"."id" = ? where "name" = ?)', ['foo', 'bar', 1, 'baz']).resolves(1)
+  result = await builder.from('users')
+    .join('orders', (join) => {
+      join.on('users.id', '=', 'orders.user_id')
+        .where('users.id', '=', 1)
+    }).where('name', 'baz')
+    .update({ email: 'foo', name: 'bar' })
+  t.is(1, result)
+
+  verifyMock()
+})
+
+test('testUpdateMethodRespectsRaw', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update "users" set "email" = foo, "name" = ? where "id" = ?', ['bar', 1]).resolves(1)
+  const result = await builder.from('users').where('id', '=', 1).update({ email: new Raw('foo'), name: 'bar' })
+  t.is(1, result)
+
+  verifyMock()
+})
+
+test('testUpdateOrInsertMethod', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  let builder = getBuilder()
+  createMock(builder).expects('where').once().withArgs({ email: 'foo' }).returnsThis()
+  createMock(builder).expects('exists').once().resolves(false)
+  createMock(builder).expects('insert').once().withArgs({ email: 'foo', name: 'bar' }).resolves(true)
+
+  t.true(await builder.updateOrInsert({ email: 'foo' }, { name: 'bar' }))
+
+  builder = getBuilder()
+  createMock(builder).expects('where').once().withArgs({ email: 'foo' }).returnsThis()
+  createMock(builder).expects('exists').once().resolves(true)
+  createMock(builder).expects('update').once().withArgs({ name: 'bar' }).resolves(1)
+
+  t.true(await builder.updateOrInsert({ email: 'foo' }, { name: 'bar' }))
 
   verifyMock()
 })

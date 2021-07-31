@@ -149,7 +149,15 @@ export class Collection {
    * @return {Collection}
    */
   map (callback) {
-    return new Collection(this.items.map(callback))
+    return new Collection(this.items.map((item, key) => {
+      if (isFunction(callback)) {
+        [key, item] = Array.isArray(item) && item.length > 0 ? item : [key, item]
+
+        return callback(item, key)
+      }
+
+      return item
+    }))
   }
 
   /**

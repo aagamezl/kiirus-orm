@@ -1,9 +1,11 @@
 import {
   isBoolean,
+  isEmpty,
   isInteger,
   isObjectLike,
   isPlainObject,
-  isString
+  isString,
+  merge
 } from 'lodash'
 import { dateFormat } from '@devnetic/utils'
 
@@ -842,7 +844,7 @@ export class Builder {
       return true
     }
 
-    if (!Array.isArray(reset(values)) && !isPlainObject(reset(values))) {
+    if (!Array.isArray(reset(values)) && !isPlainObject(reset(values)) && !isPlainObject(values)) {
       values = [values]
     }
 
@@ -1880,6 +1882,27 @@ export class Builder {
     return this.connection.update(sql, this.cleanBindings(
       this.grammar.prepareBindingsForUpdate(this.bindings, values)
     ))
+  }
+
+  /**
+   * Insert or update a record matching the attributes, and fill it with values.
+   *
+   * @param  {Array}  attributes
+   * @param  {Array}  values
+   * @return {boolean}
+   */
+  async updateOrInsert (attributes, values = []) {
+    const exist = await this.where(attributes).exists()
+
+    if (!exist) {
+      return this.insert(merge(attributes, values))
+    }
+
+    if (isEmpty(values)) {
+      return true
+    }
+
+    return Boolean(await this.limit(1).update(values))
   }
 
   /**
