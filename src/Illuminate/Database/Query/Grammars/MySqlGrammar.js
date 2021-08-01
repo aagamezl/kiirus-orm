@@ -17,6 +17,31 @@ export class MySqlGrammar extends Grammar {
   }
 
   /**
+  * Compile a delete query that does not use joins.
+  *
+  * @param {\Illuminate\Database\Query\Builder} query
+  * @param {string} table
+  * @param {string} where
+  * @return {string}
+  */
+  compileDeleteWithoutJoins (query, table, where) {
+    let sql = super.compileDeleteWithoutJoins(query, table, where)
+
+    // When using MySQL, delete statements may contain order by statements and limits
+    // so we will compile both of those here. Once we have finished compiling this
+    // we will return the completed SQL statement so it will be executed for us.
+    if (query.orders.length > 0) {
+      sql += ' ' + this.compileOrders(query, query.orders)
+    }
+
+    if (query.limitProperty !== undefined) {
+      sql += ' ' + this.compileLimit(query, query.limitProperty)
+    }
+
+    return sql
+  }
+
+  /**
    * Compile an insert statement into SQL.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query

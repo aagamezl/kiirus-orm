@@ -1,10 +1,11 @@
 import { dateFormat } from '@devnetic/utils'
-import { get as getData, isBoolean, isFunction, isString } from 'lodash'
+import { get as getData, isBoolean, isFunction } from 'lodash'
 
 import { Grammar as QueryGrammar } from './Query/Grammars'
 import { Processor } from './Query/Processors'
 import { QueryExecuted, StatementPrepared } from './Events'
 import { Statement } from './Statements'
+import { isNumeric } from './../Support'
 
 /**
  *
@@ -195,7 +196,7 @@ export class Connection {
   bindValues (statement, bindings) {
     for (const [key, value] of Object.entries(bindings)) {
       statement.bindValue(
-        isString(key) ? key : key + 1,
+        isNumeric(key) ? parseInt(key, 10) + 1 : key,
         value
       )
     }
@@ -256,6 +257,17 @@ export class Connection {
     }
 
     return false
+  }
+
+  /**
+   * Run a delete statement against the database.
+   *
+   * @param  {string}  query
+   * @param  {Array}  bindings
+   * @return {Number}
+   */
+  delete (query, bindings = []) {
+    return this.affectingStatement(query, bindings)
   }
 
   /**
@@ -488,8 +500,6 @@ export class Connection {
    * @return {\Illuminate\Database\Statements\Statement}
    */
   prepared (statement, query) {
-    // return this.getPrepareStatement(connection, query)
-
     statement.setFetchMode(this.fetchMode)
 
     this.event(new StatementPrepared(
@@ -655,7 +665,7 @@ export class Connection {
         return true
       }
 
-      const statement = this.prepared(this.getConnection(), query)
+      const statement = this.getNdo().prepare(query)
 
       this.bindValues(statement, this.prepareBindings(bindings))
 

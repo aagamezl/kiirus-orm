@@ -2518,6 +2518,63 @@ test('testUpdateOrInsertMethod', async (t) => {
   verifyMock()
 })
 
-// test('test_name', (t) => {
+test('testUpdateOrInsertMethodWorksWithEmptyUpdateValues', async (t) => {
+  const { createMock, verifyMock } = mock()
 
+  const builder = getBuilder()
+  const builderMock = createMock(builder)
+  builderMock.expects('where').once().withArgs({ email: 'foo' }).returnsThis()
+  builderMock.expects('exists').once().resolves(true)
+
+  t.true(await builder.updateOrInsert({ email: 'foo' }))
+  builderMock.expects('update').never()
+
+  verifyMock()
+})
+
+test('testDeleteMethod', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  let builder = getBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete from "users" where "email" = ?', ['foo']).resolves(1)
+  let result = await builder.from('users').where('email', '=', 'foo').delete()
+  t.is(1, result)
+
+  builder = getBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete from "users" where "users"."id" = ?', [1]).resolves(1)
+  result = await builder.from('users').delete(1)
+  t.is(1, result)
+
+  builder = getBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete from "users" where "users"."id" = ?', [1]).resolves(1)
+  result = await builder.from('users').selectRaw('?', ['ignore']).delete(1)
+  t.is(1, result)
+
+  builder = getSQLiteBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete from "users" where "rowid" in (select "users"."rowid" from "users" where "email" = ? order by "id" asc limit 1)', ['foo']).resolves(1)
+  result = await builder.from('users').where('email', '=', 'foo').orderBy('id').take(1).delete()
+  t.is(1, result)
+
+  builder = getMySqlBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete from `users` where `email` = ? order by `id` asc limit 1', ['foo']).resolves(1)
+  result = await builder.from('users').where('email', '=', 'foo').orderBy('id').take(1).delete()
+  t.is(1, result)
+
+  builder = getSqlServerBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete from [users] where [email] = ?', ['foo']).resolves(1)
+  result = await builder.from('users').where('email', '=', 'foo').delete()
+  t.is(1, result)
+
+  builder = getSqlServerBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete top (1) from [users] where [email] = ?', ['foo']).resolves(1)
+  result = await builder.from('users').where('email', '=', 'foo').orderBy('id').take(1).delete()
+  t.is(1, result)
+
+  verifyMock()
+})
+
+// test('test_name', (t) => {
+//   const { createMock, verifyMock } = mock()
+
+//   verifyMock()
 // })

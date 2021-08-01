@@ -113,6 +113,52 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+  * Compile a delete statement into SQL.
+  *
+  * @param {\Illuminate\Database\Query\Builder} query
+  * @return {string}
+  */
+  compileDelete (query) {
+    const table = this.wrapTable(query.fromProperty)
+
+    const where = this.compileWheres(query)
+
+    return (
+      query.joins.length > 0
+        ? this.compileDeleteWithJoins(query, table, where)
+        : this.compileDeleteWithoutJoins(query, table, where)
+    ).trim()
+  }
+
+  /**
+  * Compile a delete statement with joins into SQL.
+  *
+  * @param {\Illuminate\Database\Query\Builder} query
+  * @param {string} table
+  * @param {string} where
+  * @return {string}
+  */
+  compileDeleteWithJoins (query, table, where) {
+    const alias = last(table.explit(' as '))
+
+    const joins = this.compileJoins(query, query.joins)
+
+    return `delete ${alias} from ${table} ${joins} ${where}`
+  }
+
+  /**
+  * Compile a delete statement without joins into SQL.
+  *
+  * @param {\Illuminate\Database\Query\Builder} query
+  * @param {string} table
+  * @param {string} where
+  * @return {string}
+  */
+  compileDeleteWithoutJoins (query, table, where) {
+    return `delete from ${table} ${where}`
+  }
+
+  /**
    * Compile an exists statement into SQL.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -614,6 +660,18 @@ export class Grammar extends BaseGrammar {
    */
   isJsonSelector (value) {
     return value.includes('->')
+  }
+
+  /**
+  * Prepare the bindings for a delete statement.
+  *
+  * @param array bindings
+  * @return array
+  */
+  prepareBindingsForDelete (bindings) {
+    return Arr.flatten(
+      Arr.except(bindings, 'select')
+    )
   }
 
   /**

@@ -124,6 +124,13 @@ export class Builder {
     this.limitProperty = undefined
 
     /**
+     * The number of records to skip.
+     *
+     * @member number
+     */
+    this.offsetProperty = undefined
+
+    /**
      * All of the available clause operators.
      *
      * @member {Array}
@@ -483,6 +490,29 @@ export class Builder {
     this.joins.push(this.newJoinClause(this, 'cross', new Expression(expression)))
 
     return this
+  }
+
+  /**
+  * Delete records from the database.
+  *
+  * @param {*} id
+  * @return {number}
+  */
+  delete (id = undefined) {
+    // If an ID is passed to the method, we will set the where clause to check the
+    // ID to let developers to simply and quickly remove a single row from this
+    // database without manually specifying the "where" clauses on the query.
+    if (id !== undefined) {
+      this.where(this.fromProperty + '.id', '=', id)
+    }
+
+    this.applyBeforeQueryCallbacks()
+
+    return this.connection.delete(
+      this.grammar.compileDelete(this), this.cleanBindings(
+        this.grammar.prepareBindingsForDelete(this.bindings)
+      )
+    )
   }
 
   /**

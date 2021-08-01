@@ -22,6 +22,36 @@ export class SQLiteGrammar extends Grammar {
   }
 
   /**
+  * Compile a delete statement into SQL.
+  *
+  * @param {\Illuminate\Database\Query\Builder} query
+  * @return {string}
+  */
+  compileDelete (query) {
+    if (query.joins.length > 0 || query.limitProperty !== undefined) {
+      return this.compileDeleteWithJoinsOrLimit(query)
+    }
+
+    return super.compileDelete(query)
+  }
+
+  /**
+  * Compile a delete statement with joins or limit into SQL.
+  *
+  * @param {\Illuminate\Database\Query\Builder} query
+  * @return {string}
+  */
+  compileDeleteWithJoinsOrLimit (query) {
+    const table = this.wrapTable(query.fromProperty)
+
+    const alias = last(query.fromProperty.split(/\s+as\s+/i))
+
+    const selectSql = this.compileSelect(query.select(alias + '.rowid'))
+
+    return `delete from ${table} where ${this.wrap('rowid')} in (${selectSql})`
+  }
+
+  /**
    * Compile an insert ignore statement into SQL.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query

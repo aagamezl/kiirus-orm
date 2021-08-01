@@ -8,7 +8,7 @@ export class PostgresStatement extends Statement {
   constructor (dsn, username, password, options) {
     super(dsn, username, password, options)
 
-    this.connection = new Pool({
+    this.pool = new Pool({
       connectionString: this.dsn
     })
   }
@@ -20,9 +20,11 @@ export class PostgresStatement extends Statement {
     }
 
     try {
-      this.result = await this.connection.query(this.statement)
+      const client = await this.pool.connect()
 
-      this.connection.end()
+      this.result = await client.query(this.statement)
+
+      client.end()
 
       return this.result
     } catch (error) {
@@ -52,6 +54,8 @@ export class PostgresStatement extends Statement {
       text: this.parameterize(query),
       rowMode: this.fetchMode
     }
+
+    this.bindings = {}
 
     return this
   }
