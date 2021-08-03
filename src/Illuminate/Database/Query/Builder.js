@@ -356,6 +356,18 @@ export class Builder {
   }
 
   /**
+  * Register a closure to be invoked before the query is executed.
+  *
+  * @param {Function} callback
+  * @return {this}
+  */
+  beforeQuery (callback) {
+    this.beforeQueryCallbacks.push(callback)
+
+    return this
+  }
+
+  /**
    * Remove all of the expressions from a list of bindings.
    *
    * @param  {Array}  bindings
@@ -566,7 +578,7 @@ export class Builder {
     // If the results has rows, we will get the row and see if the exists column is a
     // boolean true. If there is no results for this query we will return false as
     // there are no rows for this query at all and we can return that info here.
-    if (results[0]) {
+    if (results[0] !== undefined) {
       results = results[0]
 
       return Boolean(results.exists)
@@ -1846,6 +1858,19 @@ export class Builder {
     this.applyBeforeQueryCallbacks()
 
     return this.grammar.compileSelect(this)
+  }
+
+  /**
+  * Run a truncate statement on the table.
+  *
+  * @return {void}
+  */
+  truncate () {
+    this.applyBeforeQueryCallbacks()
+
+    for (const [sql, bindings] of Object.entries(this.grammar.compileTruncate(this))) {
+      this.connection.statement(sql, bindings)
+    }
   }
 
   /**

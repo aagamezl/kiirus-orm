@@ -74,6 +74,19 @@ export class SQLiteGrammar extends Grammar {
   }
 
   /**
+   * Compile a truncate table statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @return {Array}
+   */
+  compileTruncate (query) {
+    return [
+      { 'delete from sqlite_sequence where name = ?': [query.fromProperty] },
+      { ['delete from ' + this.wrapTable(query.fromProperty)]: [] }
+    ]
+  }
+
+  /**
   * Compile an update statement into SQL.
   *
   * @param {\Illuminate\Database\Query\Builder} query

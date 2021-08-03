@@ -96,7 +96,6 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   compileUpdateColumns (query, values) {
-    // return collect(values).map(([key, value]) => {
     return collect(values).map((value, key) => {
       if (this.isJsonSelector(key)) {
         return this.compileJsonUpdateColumn(key, value)
@@ -166,7 +165,7 @@ export class MySqlGrammar extends Grammar {
       return this.isJsonSelector(column) && isBoolean(value)
     // }).map(([, value]) => {
     }).map(value => {
-      return isPlainObject(value) ? JSON.stringify(value) : value
+      return (isPlainObject(value) || Array.isArray(value)) ? JSON.stringify(value) : value
     }).all()
 
     return super.prepareBindingsForUpdate(bindings, values)

@@ -172,7 +172,7 @@ export class Connection {
       // For update or delete statements, we want to get the number of rows affected
       // by the statement and return that back to the developer. We'll first need
       // to execute the statement and then we'll use PDO to fetch the affected.
-      const statement = this.prepared(this.getConnection(), query)
+      const statement = this.getNdo().prepare(query)
 
       this.bindValues(statement, this.prepareBindings(bindings))
 

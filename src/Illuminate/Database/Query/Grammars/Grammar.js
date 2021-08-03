@@ -139,7 +139,7 @@ export class Grammar extends BaseGrammar {
   * @return {string}
   */
   compileDeleteWithJoins (query, table, where) {
-    const alias = last(table.explit(' as '))
+    const alias = last(table.split(' as '))
 
     const joins = this.compileJoins(query, query.joins)
 
@@ -254,8 +254,6 @@ export class Grammar extends BaseGrammar {
     // simply makes creating the SQL easier for us since we can utilize the same
     // basic routine regardless of an amount of records given to us to insert.
     const table = this.wrapTable(query.fromProperty)
-
-    // values = (Array.isArray(values) ? values : [values])
 
     if (values.length === 0) {
       return `insert into ${table} default values`
@@ -415,6 +413,16 @@ export class Grammar extends BaseGrammar {
     query.columns = original
 
     return sql
+  }
+
+  /**
+  * Compile a truncate table statement into SQL.
+  *
+  * @param {\Illuminate\Database\Query\Builder} query
+  * @return {Array}
+  */
+  compileTruncate (query) {
+    return { ['truncate table ' + this.wrapTable(query.fromProperty)]: [] }
   }
 
   /**
@@ -999,11 +1007,12 @@ export class Grammar extends BaseGrammar {
    * @return {Array}
    */
   wrapJsonFieldAndPath (column) {
-    const parts = column.split('->', 2)
+    const parts = column.split('->')
 
     const field = this.wrap(parts[0])
 
-    const path = parts.length > 1 ? ', ' + this.wrapJsonPath(parts[1], '->') : ''
+    // const path = parts.length > 1 ? ', ' + this.wrapJsonPath(parts[1], '->') : ''
+    const path = parts.length > 1 ? ', ' + this.wrapJsonPath(parts.slice(1).join('->'), '->') : ''
 
     return [field, path]
   }

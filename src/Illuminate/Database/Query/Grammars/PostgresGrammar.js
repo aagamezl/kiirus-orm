@@ -52,6 +52,36 @@ export class PostgresGrammar extends Grammar {
   }
 
   /**
+  * Compile a delete statement into SQL.
+  *
+  * @param {\Illuminate\Database\Query\Builder} query
+  * @return {string}
+  */
+  compileDelete (query) {
+    if (query.joins.length > 0 || query.limitProperty !== undefined) {
+      return this.compileDeleteWithJoinsOrLimit(query)
+    }
+
+    return super.compileDelete(query)
+  }
+
+  /**
+  * Compile a delete statement with joins or limit into SQL.
+  *
+  * @param {\Illuminate\Database\Query\Builder} query
+  * @return {string}
+  */
+  compileDeleteWithJoinsOrLimit (query) {
+    const table = this.wrapTable(query.fromProperty)
+
+    const alias = last(query.fromProperty.split(/\s+as\s+/i))
+
+    const selectSql = this.compileSelect(query.select(alias + '.ctid'))
+
+    return `delete from ${table} where ${this.wrap('ctid')} in (${selectSql})`
+  }
+
+  /**
    * Compile an insert and get ID statement into SQL.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -192,7 +222,6 @@ export class PostgresGrammar extends Grammar {
    */
   prepareBindingsForUpdate (bindings, values) {
     values = collect(Object.entries(values)).map((value, column) => {
-    // values = collect(Object.entries(values)).map(([column, value]) => {
       return isPlainObject(value) || (this.isJsonSelector(column) && !this.isExpression(value))
         ? JSON.parse(value)
         : value

@@ -2573,6 +2573,324 @@ test('testDeleteMethod', async (t) => {
   verifyMock()
 })
 
+test('testDeleteWithJoinMethod', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  let builder = getSQLiteBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete from "users" where "rowid" in (select "users"."rowid" from "users" inner join "contacts" on "users"."id" = "contacts"."id" where "users"."email" = ? order by "users"."id" asc limit 1)', ['foo']).resolves(1)
+  let result = await builder.from('users').join('contacts', 'users.id', '=', 'contacts.id').where('users.email', '=', 'foo').orderBy('users.id').limit(1).delete()
+  t.is(1, result)
+
+  builder = getSQLiteBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete from "users" as "u" where "rowid" in (select "u"."rowid" from "users" as "u" inner join "contacts" as "c" on "u"."id" = "c"."id")', []).resolves(1)
+  result = await builder.from('users as u').join('contacts as c', 'u.id', '=', 'c.id').delete()
+  t.is(1, result)
+
+  builder = getMySqlBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete `users` from `users` inner join `contacts` on `users`.`id` = `contacts`.`id` where `email` = ?', ['foo']).resolves(1)
+  result = await builder.from('users').join('contacts', 'users.id', '=', 'contacts.id').where('email', '=', 'foo').orderBy('id').limit(1).delete()
+  t.is(1, result)
+
+  builder = getMySqlBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete `a` from `users` as `a` inner join `users` as `b` on `a`.`id` = `b`.`user_id` where `email` = ?', ['foo']).resolves(1)
+  result = await builder.from('users AS a').join('users AS b', 'a.id', '=', 'b.user_id').where('email', '=', 'foo').orderBy('id').limit(1).delete()
+  t.is(1, result)
+
+  builder = getMySqlBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete `users` from `users` inner join `contacts` on `users`.`id` = `contacts`.`id` where `users`.`id` = ?', [1]).resolves(1)
+  result = await builder.from('users').join('contacts', 'users.id', '=', 'contacts.id').orderBy('id').take(1).delete(1)
+  t.is(1, result)
+
+  builder = getSqlServerBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete [users] from [users] inner join [contacts] on [users].[id] = [contacts].[id] where [email] = ?', ['foo']).resolves(1)
+  result = await builder.from('users').join('contacts', 'users.id', '=', 'contacts.id').where('email', '=', 'foo').delete()
+  t.is(1, result)
+
+  builder = getSqlServerBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete [a] from [users] as [a] inner join [users] as [b] on [a].[id] = [b].[user_id] where [email] = ?', ['foo']).resolves(1)
+  result = await builder.from('users AS a').join('users AS b', 'a.id', '=', 'b.user_id').where('email', '=', 'foo').orderBy('id').limit(1).delete()
+  t.is(1, result)
+
+  builder = getSqlServerBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete [users] from [users] inner join [contacts] on [users].[id] = [contacts].[id] where [users].[id] = ?', [1]).resolves(1)
+  result = await builder.from('users').join('contacts', 'users.id', '=', 'contacts.id').delete(1)
+  t.is(1, result)
+
+  builder = getPostgresBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete from "users" where "ctid" in (select "users"."ctid" from "users" inner join "contacts" on "users"."id" = "contacts"."id" where "users"."email" = ?)', ['foo']).resolves(1)
+  result = await builder.from('users').join('contacts', 'users.id', '=', 'contacts.id').where('users.email', '=', 'foo').delete()
+  t.is(1, result)
+
+  builder = getPostgresBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete from "users" as "a" where "ctid" in (select "a"."ctid" from "users" as "a" inner join "users" as "b" on "a"."id" = "b"."user_id" where "email" = ? order by "id" asc limit 1)', ['foo']).resolves(1)
+  result = await builder.from('users AS a').join('users AS b', 'a.id', '=', 'b.user_id').where('email', '=', 'foo').orderBy('id').limit(1).delete()
+  t.is(1, result)
+
+  builder = getPostgresBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete from "users" where "ctid" in (select "users"."ctid" from "users" inner join "contacts" on "users"."id" = "contacts"."id" where "users"."id" = ? order by "id" asc limit 1)', [1]).resolves(1)
+  result = await builder.from('users').join('contacts', 'users.id', '=', 'contacts.id').orderBy('id').take(1).delete(1)
+  t.is(1, result)
+
+  builder = getPostgresBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete from "users" where "ctid" in (select "users"."ctid" from "users" inner join "contacts" on "users"."id" = "contacts"."user_id" and "users"."id" = ? where "name" = ?)', [1, 'baz']).resolves(1)
+  result = await builder.from('users')
+    .join('contacts', function (join) {
+      join.on('users.id', '=', 'contacts.user_id')
+        .where('users.id', '=', 1)
+    }).where('name', 'baz')
+    .delete()
+  t.is(1, result)
+
+  builder = getPostgresBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete from "users" where "ctid" in (select "users"."ctid" from "users" inner join "contacts" on "users"."id" = "contacts"."id")', []).resolves(1)
+  result = await builder.from('users').join('contacts', 'users.id', '=', 'contacts.id').delete()
+  t.is(1, result)
+
+  verifyMock()
+})
+
+test('testTruncateMethod', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  let builder = getBuilder()
+  createMock(builder.getConnection()).expects('statement').once().withArgs('truncate table "users"', [])
+  await builder.from('users').truncate()
+
+  const sqlite = new SQLiteGrammar()
+  builder = getBuilder()
+  builder.from('users')
+  t.deepEqual([
+    { 'delete from sqlite_sequence where name = ?': ['users'] },
+    { 'delete from "users"': [] }
+  ], sqlite.compileTruncate(builder))
+
+  verifyMock()
+})
+
+test('testPreserveAddsClosureToArray', (t) => {
+  const builder = getBuilder()
+  builder.beforeQuery(() => {
+  })
+  t.is(1, builder.beforeQueryCallbacks.length)
+  t.true(builder.beforeQueryCallbacks[0] instanceof Function)
+})
+
+test('testApplyPreserveCleansArray', (t) => {
+  const builder = getBuilder()
+  builder.beforeQuery(() => {
+  })
+  t.is(1, builder.beforeQueryCallbacks.length)
+  builder.applyBeforeQueryCallbacks()
+  t.is(0, builder.beforeQueryCallbacks.length)
+})
+
+test('testPreservedAreAppliedByToSql', (t) => {
+  const builder = getBuilder()
+  builder.beforeQuery((builder) => {
+    builder.where('foo', 'bar')
+  })
+  t.is('select * where "foo" = ?', builder.toSql())
+  t.deepEqual(['bar'], builder.getBindings())
+})
+
+test('testPreservedAreAppliedByInsert', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getBuilder()
+  createMock(builder.getConnection()).expects('insert').once().withArgs('insert into "users" ("email") values (?)', ['foo'])
+  builder.beforeQuery((builder) => {
+    builder.from('users')
+  })
+  await builder.insert({ email: 'foo' })
+
+  t.pass()
+
+  verifyMock()
+})
+
+test('testPreservedAreAppliedByInsertGetId', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getBuilder()
+  createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into "users" ("email") values (?)', ['foo'], 'id')
+  builder.beforeQuery((builder) => {
+    builder.from('users')
+  })
+  await builder.insertGetId({ email: 'foo' }, 'id')
+
+  t.pass()
+
+  verifyMock()
+})
+
+test('testPreservedAreAppliedByInsertUsing', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getBuilder()
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into "users" () select *', [])
+  builder.beforeQuery((builder) => {
+    builder.from('users')
+  })
+  await builder.insertUsing([], getBuilder())
+
+  t.pass()
+
+  verifyMock()
+})
+
+test('testPreservedAreAppliedByUpsert', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getMySqlBuilder()
+  createMock(builder.getConnection()).expects('affectingStatement').once().withArgs('insert into `users` (`email`) values (?) on duplicate key update `email` = values(`email`)', ['foo'])
+  builder.beforeQuery((builder) => {
+    builder.from('users')
+  })
+  await builder.upsert({ email: 'foo' }, 'id')
+
+  t.pass()
+
+  verifyMock()
+})
+
+test('testPreservedAreAppliedByUpdate', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getBuilder()
+  createMock(builder.getConnection()).expects('update').once().withArgs('update "users" set "email" = ? where "id" = ?', ['foo', 1])
+  builder.from('users').beforeQuery((builder) => {
+    builder.where('id', 1)
+  })
+  await builder.update({ email: 'foo' })
+
+  t.pass()
+
+  verifyMock()
+})
+
+test('testPreservedAreAppliedByDelete', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getBuilder()
+  createMock(builder.getConnection()).expects('delete').once().withArgs('delete from "users"', [])
+  builder.beforeQuery((builder) => {
+    builder.from('users')
+  })
+  await builder.delete()
+
+  t.pass()
+
+  verifyMock()
+})
+
+test('testPreservedAreAppliedByTruncate', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getBuilder()
+  createMock(builder.getConnection()).expects('statement').once().withArgs('truncate table "users"', [])
+  builder.beforeQuery((builder) => {
+    builder.from('users')
+  })
+  await builder.truncate()
+
+  t.pass()
+
+  verifyMock()
+})
+
+test('testPreservedAreAppliedByExists', (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getBuilder()
+  createMock(builder.getConnection()).expects('select').once().withArgs('select exists(select * from "users") as "exists"', []).resolves([])
+  builder.beforeQuery((builder) => {
+    builder.from('users')
+  })
+  builder.exists()
+
+  t.pass()
+
+  verifyMock()
+})
+
+test('testPostgresInsertGetId', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getPostgresBuilder()
+  createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into "users" ("email") values (?) returning "id"', ['foo'], 'id').resolves(1)
+  const result = await builder.from('users').insertGetId({ email: 'foo' }, 'id')
+  t.is(1, result)
+
+  verifyMock()
+})
+
+test('testMySqlWrapping', (t) => {
+  const builder = getMySqlBuilder()
+  builder.select('*').from('users')
+  t.is('select * from `users`', builder.toSql())
+})
+
+test('testMySqlUpdateWrappingJson', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getMySqlBuilder()
+  createMock(builder.getConnection()).expects('update').once()
+    .withArgs(
+      'update `users` set `name` = json_set(`name`, \'$."first_name"\', ?), `name` = json_set(`name`, \'$."last_name"\', ?) where `active` = ?',
+      ['John', 'Doe', 1]
+    )
+
+  await builder.from('users').where('active', '=', 1).update({ 'name->first_name': 'John', 'name->last_name': 'Doe' })
+
+  t.pass()
+
+  verifyMock()
+})
+
+test('testMySqlUpdateWrappingNestedJson', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getMySqlBuilder()
+  createMock(builder.getConnection()).expects('update').once()
+    .withArgs(
+      'update `users` set `meta` = json_set(`meta`, \'$."name"."first_name"\', ?), `meta` = json_set(`meta`, \'$."name"."last_name"\', ?) where `active` = ?',
+      ['John', 'Doe', 1]
+    )
+
+  await builder.from('users').where('active', '=', 1).update({ 'meta->name->first_name': 'John', 'meta->name->last_name': 'Doe' })
+
+  t.pass()
+
+  verifyMock()
+})
+
+test('testMySqlUpdateWrappingJsonArray', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getMySqlBuilder()
+  createMock(builder.getConnection()).expects('update').once()
+    .withArgs(
+      'update `users` set `options` = ?, `meta` = json_set(`meta`, \'$."tags"\', cast(? as json)), `group_id` = 45, `created_at` = ? where `active` = ?',
+      [
+        JSON.stringify({ '2fa': false, presets: ['laravel', 'vue'] }),
+        JSON.stringify(['white', 'large']),
+        new Date('2019-08-06'),
+        1
+      ]
+    )
+
+  await builder.from('users').where('active', 1).update({
+    options: { '2fa': false, presets: ['laravel', 'vue'] },
+    'meta->tags': ['white', 'large'],
+    group_id: new Raw('45'),
+    created_at: new Date('2019-08-06')
+  })
+
+  t.pass()
+
+  verifyMock()
+})
+
 // test('test_name', (t) => {
 //   const { createMock, verifyMock } = mock()
 
