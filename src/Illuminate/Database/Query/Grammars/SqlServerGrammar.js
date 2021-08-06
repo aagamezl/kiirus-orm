@@ -24,9 +24,9 @@ export class SqlServerGrammar extends Grammar {
   /**
    * Create a full ANSI offset clause for the query.
    *
-   * @param  \Illuminate\Database\Query\Builder  query
-   * @param  array  components
-   * @return string
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {object}  components
+   * @return {string}
    */
   compileAnsiOffset (query, components) {
     // An ORDER BY clause is required to make this offset query work, so if one does
@@ -292,8 +292,8 @@ export class SqlServerGrammar extends Grammar {
   /**
    * Move the order bindings to be after the "select" statement to account for a order by subquery.
    *
-   * @param  \Illuminate\Database\Query\Builder  query
-   * @return array
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @return {Array}
    */
   sortBindingsForSubqueryOrderBy (query) {
     return Arr.sort(query.bindings, (bindings, key) => {

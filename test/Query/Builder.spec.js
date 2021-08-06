@@ -1798,7 +1798,7 @@ test('testJoinSub', (t) => {
   expected += 'inner join (select * from "contacts" where "name" = ?) as "sub1" on "users"."id" = ? '
   expected += 'inner join (select * from "contacts" where "name" = ?) as "sub2" on "users"."id" = "sub2"."user_id"'
   t.deepEqual(expected, builder.toSql())
-  t.deepEqual(['foo', 1, 'bar'], builder.getRawBindings().join)
+  t.deepEqual(['foo', 1, 'bar'], builder.getRawBindings().get('join'))
 })
 
 test('testJoinSubWithPrefix', (t) => {
@@ -3016,8 +3016,8 @@ test('testMySqlWrappingJsonWithString', (t) => {
   const builder = getMySqlBuilder()
   builder.select('*').from('users').where('items->sku', '=', 'foo-bar')
   t.is('select * from `users` where json_unquote(json_extract(`items`, \'$."sku"\')) = ?', builder.toSql())
-  t.is(1, builder.getRawBindings().where.length)
-  t.is('foo-bar', builder.getRawBindings().where[0])
+  t.is(1, builder.getRawBindings().get('where').length)
+  t.is('foo-bar', builder.getRawBindings().get('where')[0])
 })
 
 test('testMySqlWrappingJsonWithInteger', (t) => {
@@ -3150,44 +3150,76 @@ test('testSQLiteOrderBy', (t) => {
   t.is('select * from "users" order by "email" desc', builder.toSql())
 })
 
-// test.only('testSqlServerLimitsAndOffsets', (t) => {
-//   let builder = getSqlServerBuilder()
-//   builder.select('*').from('users').take(10)
-//   t.is('select top 10 * from [users]', builder.toSql())
+test('testSqlServerLimitsAndOffsets', (t) => {
+  let builder = getSqlServerBuilder()
+  builder.select('*').from('users').take(10)
+  t.is('select top 10 * from [users]', builder.toSql())
 
-//   builder = getSqlServerBuilder()
-//   builder.select('*').from('users').skip(10)
-//   t.is('select * from (select *, row_number() over (order by (select 0)) as row_num from [users]) as temp_table where row_num >= 11 order by row_num', builder.toSql())
+  builder = getSqlServerBuilder()
+  builder.select('*').from('users').skip(10)
+  t.is('select * from (select *, row_number() over (order by (select 0)) as row_num from [users]) as temp_table where row_num >= 11 order by row_num', builder.toSql())
 
-//   builder = getSqlServerBuilder()
-//   builder.select('*').from('users').skip(10).take(10)
-//   t.is('select * from (select *, row_number() over (order by (select 0)) as row_num from [users]) as temp_table where row_num between 11 and 20 order by row_num', builder.toSql())
+  builder = getSqlServerBuilder()
+  builder.select('*').from('users').skip(10).take(10)
+  t.is('select * from (select *, row_number() over (order by (select 0)) as row_num from [users]) as temp_table where row_num between 11 and 20 order by row_num', builder.toSql())
 
-//   builder = getSqlServerBuilder()
-//   builder.select('*').from('users').skip(10).take(10).orderBy('email', 'desc')
-//   t.is('select * from (select *, row_number() over (order by [email] desc) as row_num from [users]) as temp_table where row_num between 11 and 20 order by row_num', builder.toSql())
+  builder = getSqlServerBuilder()
+  builder.select('*').from('users').skip(10).take(10).orderBy('email', 'desc')
+  t.is('select * from (select *, row_number() over (order by [email] desc) as row_num from [users]) as temp_table where row_num between 11 and 20 order by row_num', builder.toSql())
 
-//   builder = getSqlServerBuilder()
-//   // const subQueryBuilder = getSqlServerBuilder()
-//   const subQuery = (query) => {
-//     return query.select('created_at').from('logins').where('users.name', 'nameBinding').whereColumn('user_id', 'users.id').limit(1)
-//   }
-//   builder.select('*').from('users').where('email', 'emailBinding').orderBy(subQuery).skip(10).take(10)
-//   t.is('select * from (select *, row_number() over (order by (select top 1 [created_at] from [logins] where [users].[name] = ? and [user_id] = [users].[id]) asc) as row_num from [users] where [email] = ?) as temp_table where row_num between 11 and 20 order by row_num', builder.toSql())
-//   t.deepEqual(['nameBinding', 'emailBinding'], builder.getBindings())
+  builder = getSqlServerBuilder()
+  const subQuery = (query) => {
+    return query.select('created_at').from('logins').where('users.name', 'nameBinding').whereColumn('user_id', 'users.id').limit(1)
+  }
+  builder.select('*').from('users').where('email', 'emailBinding').orderBy(subQuery).skip(10).take(10)
+  t.is('select * from (select *, row_number() over (order by (select top 1 [created_at] from [logins] where [users].[name] = ? and [user_id] = [users].[id]) asc) as row_num from [users] where [email] = ?) as temp_table where row_num between 11 and 20 order by row_num', builder.toSql())
+  t.deepEqual(['nameBinding', 'emailBinding'], builder.getBindings())
 
-//   builder = getSqlServerBuilder()
-//   builder.select('*').from('users').take('foo')
-//   t.is('select * from [users]', builder.toSql())
+  builder = getSqlServerBuilder()
+  builder.select('*').from('users').take('foo')
+  t.is('select * from [users]', builder.toSql())
 
-//   builder = getSqlServerBuilder()
-//   builder.select('*').from('users').take('foo').offset('bar')
-//   t.is('select * from [users]', builder.toSql())
+  builder = getSqlServerBuilder()
+  builder.select('*').from('users').take('foo').offset('bar')
+  t.is('select * from [users]', builder.toSql())
 
-//   builder = getSqlServerBuilder()
-//   builder.select('*').from('users').offset('bar')
-//   t.is('select * from [users]', builder.toSql())
-// })
+  builder = getSqlServerBuilder()
+  builder.select('*').from('users').offset('bar')
+  t.is('select * from [users]', builder.toSql())
+})
+
+test('testMySqlSoundsLikeOperator', (t) => {
+  const builder = getMySqlBuilder()
+  builder.select('*').from('users').where('name', 'sounds like', 'John Doe')
+  t.is('select * from `users` where `name` sounds like ?', builder.toSql())
+  t.deepEqual(['John Doe'], builder.getBindings())
+})
+
+test('testMergeWheresCanMergeWheresAndBindings', (t) => {
+  const builder = getBuilder()
+  builder.wheres = ['foo']
+  builder.mergeWheres(['wheres'], { 12: 'foo', 13: 'bar' })
+  t.deepEqual(['foo', 'wheres'], builder.wheres)
+  t.deepEqual(['foo', 'bar'], builder.getBindings())
+})
+
+test('test_name', (t) => {
+  let builder = getBuilder()
+  builder.select('*').from('users').where('foo', null)
+  t.is('select * from "users" where "foo" is null', builder.toSql())
+
+  builder = getBuilder()
+  builder.select('*').from('users').where('foo', '=', null)
+  t.is('select * from "users" where "foo" is null', builder.toSql())
+
+  builder = getBuilder()
+  builder.select('*').from('users').where('foo', '!=', null)
+  t.is('select * from "users" where "foo" is not null', builder.toSql())
+
+  builder = getBuilder()
+  builder.select('*').from('users').where('foo', '<>', null)
+  t.is('select * from "users" where "foo" is not null', builder.toSql())
+})
 
 // test('test_name', (t) => {
 //   const { createMock, verifyMock } = mock()

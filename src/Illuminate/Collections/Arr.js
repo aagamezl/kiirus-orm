@@ -67,7 +67,10 @@ export class Arr {
   static flatten (array, depth = Number.POSITIVE_INFINITY) {
     const result = []
 
-    for (let [, item] of Object.entries(array)) {
+    const entries = array instanceof Map ? array.entries() : Object.entries(array)
+
+    // for (let [, item] of Object.entries(array)) {
+    for (let [, item] of entries) {
       item = item instanceof Collection ? item.all() : item
 
       if (!Array.isArray(item) && !isPlainObject(item)) {
@@ -94,7 +97,9 @@ export class Arr {
    * @return {object}
    */
   static forget (array, keys) {
-    const original = Object.assign({}, array)
+    const original = isPlainObject(array)
+      ? Object.assign({}, array)
+      : Object.fromEntries(array.entries())
 
     keys = Array.isArray(keys) ? keys : [keys]
 
@@ -102,7 +107,9 @@ export class Arr {
       return array
     }
 
-    let result = Object.assign({}, array)
+    let result = isPlainObject(array)
+      ? Object.assign({}, array)
+      : Object.fromEntries(array.entries())
 
     for (const key of keys) {
       if (result[key] !== undefined) {
@@ -201,6 +208,17 @@ export class Arr {
    */
   static shuffle (array) {
     return array.sort()
+  }
+
+  /**
+   * Sort the array using the given callback or "dot" notation.
+   *
+   * @param  {Array}  array
+   * @param  {Function|Array|string|undefined}  callback
+   * @return {Array}
+   */
+  static sort (array, callback = undefined) {
+    return Collection.make(array).sortBy(callback).all()
   }
 
   static values (array) {

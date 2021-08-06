@@ -53,17 +53,28 @@ export class Builder {
      *
      * @member {Bindings}
      */
-    this.bindings = {
-      select: [],
-      from: [],
-      join: [],
-      where: [],
-      groupBy: [],
-      having: [],
-      order: [],
-      union: [],
-      unionOrder: []
-    }
+    // this.bindings = {
+    //   select: [],
+    //   from: [],
+    //   join: [],
+    //   where: [],
+    //   groupBy: [],
+    //   having: [],
+    //   order: [],
+    //   union: [],
+    //   unionOrder: []
+    // }
+    this.bindings = new Map([
+      ['select', []],
+      ['from', []],
+      ['join', []],
+      ['where', []],
+      ['groupBy', []],
+      ['having', []],
+      ['order', []],
+      ['union', []],
+      ['unionOrder', []]
+    ])
 
     /**
      * The columns that should be returned.
@@ -224,14 +235,14 @@ export class Builder {
    * @throws {\InvalidArgumentException}
    */
   addBinding (value, type = 'where') {
-    if (!this.bindings[type].length === 0) {
-      throw new TypeError(`InvalidArgumentException: Invalid binding type: ${type}.`)
+    if (!this.bindings.get(type).length === 0) {
+      throw new Error(`InvalidArgumentException: Invalid binding type: ${type}.`)
     }
 
     if (Array.isArray(value)) {
-      this.bindings[type] = Array.from(Object.values([...this.bindings[type], ...value]))
+      this.bindings.set(type, Array.from(Object.values([...this.bindings.get(type), ...value])))
     } else {
-      this.bindings[type].push(value)
+      this.bindings.get(type).push(value)
     }
 
     return this
@@ -270,7 +281,7 @@ export class Builder {
 
       this.wheres.push({ type, query, boolean })
 
-      this.addBinding(query.getRawBindings().where, 'where')
+      this.addBinding(query.getRawBindings().get('where'), 'where')
     }
 
     return this
@@ -328,7 +339,7 @@ export class Builder {
   async aggregate (functionName, columns = ['*']) {
     // We need to save the original bindings, because the cloneWithoutBindings
     // method delete them from the builder object
-    const bindings = Object.assign({}, this.bindings)
+    const bindings = new Map(this.bindings.entries())
 
     const results = await this.cloneWithout(this.unions.length > 0 || this.havings.length > 0 ? [] : ['columns'])
       .cloneWithoutBindings(this.unions.length > 0 || this.havings.length > 0 ? [] : ['select'])
@@ -429,7 +440,7 @@ export class Builder {
   cloneWithoutBindings (except) {
     return tap(this.clone(), (clone) => {
       for (const type of except) {
-        clone.bindings[type] = []
+        clone.bindings.set(type, [])
       }
     })
   }
@@ -1147,6 +1158,19 @@ export class Builder {
   }
 
   /**
+   * Merge an array of where clauses and bindings.
+   *
+   * @param  {Array}  wheres
+   * @param  {object}  bindings
+   * @return {void}
+   */
+  mergeWheres (wheres, bindings) {
+    this.wheres = [...this.wheres, ...wheres]
+
+    this.bindings.set('where', [...this.bindings.get('where'), ...Object.values(bindings)])
+  }
+
+  /**
    * Retrieve the minimum value of a given column.
    *
    * @param  {string}  column
@@ -1267,12 +1291,12 @@ export class Builder {
   }
 
   /**
- * Add a raw "order by" clause to the query.
- *
- * @param  {string}  sql
- * @param  {Array}  bindings
- * @return {this}
- */
+   * Add a raw "order by" clause to the query.
+   *
+   * @param  {string}  sql
+   * @param  {Array}  bindings
+   * @return {this}
+   */
   orderByRaw (sql, bindings = []) {
     const type = 'Raw'
 
@@ -1519,7 +1543,7 @@ export class Builder {
     } else if (typeof query === 'string') {
       return [query, []]
     } else {
-      throw new TypeError(
+      throw new Error(
         'InvalidArgumentException: A subquery must be a query builder instance, a Closure, or a string.'
       )
     }
@@ -1561,13 +1585,13 @@ export class Builder {
   }
 
   /**
- * Retrieve column values from rows represented as objects.
- *
- * @param  {Array}  queryResult
- * @param  {string}  column
- * @param  {string}  key
- * @return {\Illuminate\Support\Collection}
- */
+   * Retrieve column values from rows represented as objects.
+   *
+   * @param  {Array}  queryResult
+   * @param  {string}  column
+   * @param  {string}  key
+   * @return {\Illuminate\Support\Collection}
+   */
   pluckFromObjectColumn (queryResult, column, key) {
     let results
 
@@ -1636,8 +1660,8 @@ export class Builder {
   reorder (column = '', direction = 'asc') {
     this.orders = []
     this.unionOrders = []
-    this.bindings.order = []
-    this.bindings.unionOrder = []
+    this.bindings.set('order', [])
+    this.bindings.set('unionOrder', [])
 
     if (column) {
       return this.orderBy(column, direction)
@@ -1669,7 +1693,7 @@ export class Builder {
   async runPaginationCountQuery (columns = ['*']) {
     // We need to save the original bindings, because the cloneWithoutBindings
     // method delete them from the builder object
-    const bindings = Object.assign({}, this.bindings)
+    const bindings = new Map(this.bindings.entries())
 
     if (this.groups.length > 0 || this.havings.length > 0) {
       const clone = this.cloneForPaginationCount()
@@ -1725,7 +1749,7 @@ export class Builder {
     columns = columns.length === 0 ? ['*'] : columns
 
     this.columns = []
-    this.bindings.select = []
+    this.bindings.set('select', [])
 
     for (const [as, column] of Arr.iterable(columns)) {
       if (isString(as) && this.isQueryable(column)) {
@@ -1785,7 +1809,8 @@ export class Builder {
     if (this.groups.length === 0) {
       this.orders = []
 
-      this.bindings.order = []
+      // this.bindings.order = []
+      this.bindings.set('order', [])
     }
 
     return this
@@ -2045,7 +2070,7 @@ export class Builder {
    * @param  {string}  boolean
    * @return {this}
    */
-  where (column, operator = undefined, value = undefined, boolean = 'and') {
+  where (column, operator = undefined, value = null, boolean = 'and') {
     // If the column is an array, we will assume it is an array of key-value pairs
     // and can add them each as a where clause. We will maintain the boolean we
     // received when the method was called and pass it into the nested where.
@@ -2095,7 +2120,7 @@ export class Builder {
     // If the value is "null", we will just assume the developer wants to add a
     // where null clause to the query. So, we will allow a short-cut here to
     // that method for convenience so the developer doesn't have to check.
-    if (value === undefined) {
+    if (value === null) {
       return this.whereNull(column, boolean, operator !== '=')
     }
 
