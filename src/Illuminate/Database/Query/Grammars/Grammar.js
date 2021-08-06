@@ -99,7 +99,7 @@ export class Grammar extends BaseGrammar {
    * @return {Array}
    */
   compileComponents (query) {
-    const sql = []
+    const sql = {}
 
     for (const { name, property } of this.selectComponents) {
       if (this.isExecutable(query, property)) {
@@ -489,9 +489,6 @@ export class Grammar extends BaseGrammar {
   compileUpdate (query, values) {
     const table = this.wrapTable(query.fromProperty)
 
-    // values = (Array.isArray(values) ? values : [values])
-
-    // const columns = this.compileUpdateColumns(query, Object.entries(values[0]))
     const columns = this.compileUpdateColumns(query, Object.entries(values))
 
     const where = this.compileWheres(query)
@@ -628,7 +625,7 @@ export class Grammar extends BaseGrammar {
    *
    * @param  {string}  type
    * @param  {\Illuminate\Database\Query\Builder}  query
-   * @param  {Array}  where
+   * @param  {object}  where
    * @return {string}
    */
   dateBasedWhere (type, query, where) {
@@ -834,10 +831,47 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile a "where JSON boolean" clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {object}  where
+   * @return {string}
+   */
+  whereJsonBoolean (query, where) {
+    const column = this.wrapJsonBooleanSelector(where.column)
+
+    const value = this.wrapJsonBooleanValue(
+      this.parameter(where.value)
+    )
+
+    return `${column} ${where.operator} ${value}`
+  }
+
+  /**
+   * Wrap the given JSON selector for boolean values.
+   *
+   * @param  {string}  value
+   * @return {string}
+   */
+  wrapJsonBooleanSelector (value) {
+    return this.wrapJsonSelector(value)
+  }
+
+  /**
+   * Wrap the given JSON boolean value.
+   *
+   * @param  {string}  value
+   * @return {string}
+   */
+  wrapJsonBooleanValue (value) {
+    return value
+  }
+
+  /**
    * Compile a "where month" clause.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
-   * @param  {Array}  where
+   * @param  {object}  where
    * @return {string}
    */
   whereMonth (query, where) {
@@ -848,7 +882,7 @@ export class Grammar extends BaseGrammar {
    * Compile a nested where clause.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
-   * @param  {Array}  where
+   * @param  {object}  where
    * @return {string}
    */
   whereNested (query, where) {
@@ -1011,7 +1045,6 @@ export class Grammar extends BaseGrammar {
 
     const field = this.wrap(parts[0])
 
-    // const path = parts.length > 1 ? ', ' + this.wrapJsonPath(parts[1], '->') : ''
     const path = parts.length > 1 ? ', ' + this.wrapJsonPath(parts.slice(1).join('->'), '->') : ''
 
     return [field, path]
@@ -1025,7 +1058,7 @@ export class Grammar extends BaseGrammar {
    * @return {string}
    */
   wrapJsonPath (value, delimiter = '->') {
-    value = value.replace(/([\\\\]+)?\\'/, '\'\'')
+    value = value.replace(/([\\]+)?'/g, '\'\'')
 
     return '\'$."' + value.replace(delimiter, '"."') + '"\''
   }

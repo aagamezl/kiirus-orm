@@ -1,9 +1,9 @@
 import { clone } from 'lodash'
+import { isNumeric } from '@devnetic/utils'
 
 import { Arr } from './../../../Collections/Arr'
 import { Grammar } from './Grammar'
 import { collect, last, reset } from './../../../Collections/helpers'
-import { isNumeric } from './../../../Support'
 
 export class SqlServerGrammar extends Grammar {
   constructor () {
@@ -19,6 +19,40 @@ export class SqlServerGrammar extends Grammar {
       'like', 'not like', 'ilike',
       '&', '&=', '|', '|=', '^', '^='
     ]
+  }
+
+  /**
+   * Create a full ANSI offset clause for the query.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @param  array  components
+   * @return string
+   */
+  compileAnsiOffset (query, components) {
+    // An ORDER BY clause is required to make this offset query work, so if one does
+    // not exist we'll just create a dummy clause to trick the database and so it
+    // does not complain about the queries for not having an "order by" clause.
+    if (components.orders === undefined) {
+      components.orders = 'order by (select 0)'
+    }
+
+    // We need to add the row number to the query so we can compare it to the offset
+    // and limit values given for the statements. So we will add an expression to
+    // the "select" that will give back the row numbers on each of the records.
+    components.columns += this.compileOver(components.orders)
+
+    components.orders = []
+
+    if (this.queryOrderContainsSubquery(query)) {
+      query.bindings = this.sortBindingsForSubqueryOrderBy(query)
+    }
+
+    // Next we need to calculate the constraints that should be placed on the query
+    // to get the right offset and limit from our query but if there is no limit
+    // set we will just handle the offset only since that is all that matters.
+    const sql = this.concatenate(components)
+
+    return this.compileTableExpression(sql, query)
   }
 
   /**
@@ -240,6 +274,34 @@ export class SqlServerGrammar extends Grammar {
   }
 
   /**
+   * Determine if the query's order by clauses contain a subquery.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @return {boolean}
+   */
+  queryOrderContainsSubquery (query) {
+    if (!Array.isArray(query.orders)) {
+      return false
+    }
+
+    return Arr.first(query.orders, (value) => {
+      return this.isExpression(value.column ?? undefined)
+    }, false) !== false
+  }
+
+  /**
+   * Move the order bindings to be after the "select" statement to account for a order by subquery.
+   *
+   * @param  \Illuminate\Database\Query\Builder  query
+   * @return array
+   */
+  sortBindingsForSubqueryOrderBy (query) {
+    return Arr.sort(query.bindings, (bindings, key) => {
+      return ['select', 'order', 'from', 'join', 'where', 'groupBy', 'having', 'union', 'unionOrder'].indexOf(key)
+    })
+  }
+
+  /**
    * Compile a "where date" clause.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -263,6 +325,28 @@ export class SqlServerGrammar extends Grammar {
     const value = this.parameter(where.value)
 
     return 'cast(' + this.wrap(where.column) + ' as time) ' + where.operator + ' ' + value
+  }
+
+  /**
+   * Wrap the given JSON boolean value.
+   *
+   * @param  {string}  value
+   * @return {string}
+   */
+  wrapJsonBooleanValue (value) {
+    return `'${value}'`
+  }
+
+  /**
+   * Wrap the given JSON selector.
+   *
+   * @param  {string}  value
+   * @return {string}
+   */
+  wrapJsonSelector (value) {
+    const [field, path] = this.wrapJsonFieldAndPath(value)
+
+    return `json_value(${field}${path})`
   }
 
   /**

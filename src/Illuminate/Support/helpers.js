@@ -21,10 +21,6 @@ export const changeKeyCase = (value, changeCase = 'CASE_LOWER') => {
   }
 }
 
-export const isNumeric = (value) => {
-  return !Array.isArray(value) && (value - parseFloat(value) + 1) >= 0
-}
-
 export const ksort = (value) => Object.keys(value).sort().reduce((result, key) => {
   result[key] = value[key]
 

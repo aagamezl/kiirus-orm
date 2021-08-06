@@ -1,11 +1,10 @@
-import { dateFormat } from '@devnetic/utils'
+import { dateFormat, isNumeric } from '@devnetic/utils'
 import { get as getData, isBoolean, isFunction } from 'lodash'
 
 import { Grammar as QueryGrammar } from './Query/Grammars'
 import { Processor } from './Query/Processors'
 import { QueryExecuted, StatementPrepared } from './Events'
 import { Statement } from './Statements'
-import { isNumeric } from './../Support'
 
 /**
  *

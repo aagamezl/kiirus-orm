@@ -1,9 +1,10 @@
+import { isNumeric } from '@devnetic/utils'
 import { isPlainObject, set } from 'lodash'
 
 import { Arr } from '../../../Collections/Arr'
 import { Grammar } from './Grammar'
+import { Str } from '../../../Support'
 import { collect, last } from './../../../Collections/helpers'
-import { isNumeric, Str } from './../../../Support'
 
 export class SQLiteGrammar extends Grammar {
   constructor () {
@@ -131,7 +132,6 @@ export class SQLiteGrammar extends Grammar {
   compileUpdateWithJoinsOrLimit (query, values) {
     const table = this.wrapTable(query.fromProperty)
 
-    // const columns = this.compileUpdateColumns(query, values)
     const columns = this.compileUpdateColumns(query, Object.entries(values))
 
     const alias = last(query.fromProperty.split(/\s+as\s+/i))
@@ -182,14 +182,14 @@ export class SQLiteGrammar extends Grammar {
    * Group the nested JSON columns.
    *
    * @param  {Array}  values
-   * @return {Array}
+   * @return {object}
    */
   groupJsonColumnsForUpdate (values) {
-    const groups = []
+    const groups = {}
 
-    for (const [key, value] of Object.entries(values)) {
+    for (const [key, value] of values) {
       if (this.isJsonSelector(key)) {
-        set(groups, Str.after(key, '.').replace('->', '.'), value)
+        set(groups, Str.after(key, '.').replace(/->/g, '.'), value)
       }
     }
 
@@ -197,19 +197,19 @@ export class SQLiteGrammar extends Grammar {
   }
 
   /**
-  * Prepare the bindings for an update statement.
-  *
-  * @param {Array} bindings
-  * @param {Array} values
-  * @return {Array}
-  */
+   * Prepare the bindings for an update statement.
+   *
+   * @param {Array} bindings
+   * @param {Array} values
+   * @return {Array}
+   */
   prepareBindingsForUpdate (bindings, values) {
-    const groups = this.groupJsonColumnsForUpdate(values)
+    const groups = this.groupJsonColumnsForUpdate(Object.entries(values))
 
     values = collect(Object.entries(values)).reject((value, key) => {
       return this.isJsonSelector(key)
     }).merge(groups).map((value) => {
-      return isPlainObject(value) ? JSON.parse(value) : value
+      return (isPlainObject(value) || Array.isArray(value)) ? JSON.stringify(value) : value
     }).all()
 
     const cleanBindings = Arr.except(bindings, 'select')
@@ -221,12 +221,12 @@ export class SQLiteGrammar extends Grammar {
   }
 
   /**
- * Compile a "where date" clause.
- *
- * @param  {\Illuminate\Database\Query\Builder}  query
- * @param  {Array}  where
- * @return {string}
- */
+   * Compile a "where date" clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
   whereDate (query, where) {
     return this.dateBasedWhere('%Y-%m-%d', query, where)
   }
@@ -273,6 +273,18 @@ export class SQLiteGrammar extends Grammar {
    */
   whereYear (query, where) {
     return this.dateBasedWhere('%Y', query, where)
+  }
+
+  /**
+   * Wrap the given JSON selector.
+   *
+   * @param  {string}  value
+   * @return {string}
+   */
+  wrapJsonSelector (value) {
+    const [field, path] = this.wrapJsonFieldAndPath(value)
+
+    return `json_extract(${field}${path})`
   }
 
   /**

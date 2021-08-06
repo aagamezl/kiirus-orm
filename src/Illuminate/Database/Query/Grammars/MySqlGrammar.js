@@ -1,8 +1,8 @@
 import { isBoolean, isPlainObject } from 'lodash'
+import { isNumeric } from '@devnetic/utils'
 
 import { Grammar } from './Grammar'
 import { collect } from '../../../Collections/helpers'
-import { isNumeric } from './../../../Support'
 
 export class MySqlGrammar extends Grammar {
   constructor () {
@@ -163,7 +163,6 @@ export class MySqlGrammar extends Grammar {
   prepareBindingsForUpdate (bindings, values) {
     values = collect(Object.entries(values)).reject((value, column) => {
       return this.isJsonSelector(column) && isBoolean(value)
-    // }).map(([, value]) => {
     }).map(value => {
       return (isPlainObject(value) || Array.isArray(value)) ? JSON.stringify(value) : value
     }).all()
@@ -203,6 +202,18 @@ export class MySqlGrammar extends Grammar {
     }
 
     return super.whereNotNull(query, where)
+  }
+
+  /**
+   * Wrap the given JSON selector for boolean values.
+   *
+   * @param  string  $value
+   * @return string
+   */
+  wrapJsonBooleanSelector (value) {
+    const [field, path] = this.wrapJsonFieldAndPath(value)
+
+    return `json_extract(${field}${path})`
   }
 
   /**

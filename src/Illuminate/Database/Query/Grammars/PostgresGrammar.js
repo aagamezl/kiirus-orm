@@ -1,9 +1,9 @@
+import { isNumeric } from '@devnetic/utils'
 import { isPlainObject } from 'lodash'
 
 import { Arr } from './../../../Collections/Arr'
 import { Grammar } from './Grammar'
 import { collect, last } from './../../../Collections/helpers'
-import { isNumeric } from './../../../Support'
 
 export class PostgresGrammar extends Grammar {
   constructor () {
@@ -112,7 +112,7 @@ export class PostgresGrammar extends Grammar {
   * @return string
   */
   compileJsonUpdateColumn (key, value) {
-    const segments = key.explit('->')
+    const segments = key.split('->')
 
     const field = this.wrap(segments.shift())
 
@@ -144,7 +144,6 @@ export class PostgresGrammar extends Grammar {
   * @return {string}
   */
   compileUpdateColumns (query, values) {
-    // return collect(values).map(([key, value]) => {
     return collect(values).map((value, key) => {
       const column = last(key.split('.'))
 
@@ -222,8 +221,8 @@ export class PostgresGrammar extends Grammar {
    */
   prepareBindingsForUpdate (bindings, values) {
     values = collect(Object.entries(values)).map((value, column) => {
-      return isPlainObject(value) || (this.isJsonSelector(column) && !this.isExpression(value))
-        ? JSON.parse(value)
+      return (isPlainObject(value) || Array.isArray(value)) || (this.isJsonSelector(column) && !this.isExpression(value))
+        ? JSON.stringify(value)
         : value
     }).all()
 
@@ -274,5 +273,63 @@ export class PostgresGrammar extends Grammar {
     const value = this.parameter(where.value)
 
     return this.wrap(where.column) + '::time ' + where.operator + ' ' + value
+  }
+
+  /**
+   *Wrap the given JSON selector for boolean values.
+   *
+   * @param  {string}  value
+   * @return {string}
+   */
+  wrapJsonBooleanSelector (value) {
+    const selector = this.wrapJsonSelector(value).replace(/->>/g, '->')
+
+    return `(${selector})::jsonb`
+  }
+
+  /**
+   * Wrap the given JSON boolean value.
+   *
+   * @param  {string}  value
+   * @return {string}
+   */
+  wrapJsonBooleanValue (value) {
+    return `'${value}'::jsonb`
+  }
+
+  /**
+   * Wrap the attributes of the give JSON path.
+   *
+   * @param  {Array}  path
+   * @return {Array}
+   */
+  wrapJsonPathAttributes (path) {
+    return path.map((attribute) => {
+      return isNumeric(attribute) !== false
+        ? attribute
+        : `'${attribute}'`
+    })
+  }
+
+  /**
+   * Wrap the given JSON selector.
+   *
+   * @param  {string}  value
+   * @return {string}
+   */
+  wrapJsonSelector (value) {
+    const path = value.split('->')
+
+    const field = this.wrapSegments(path.shift().split('.'))
+
+    const wrappedPath = this.wrapJsonPathAttributes(path)
+
+    const attribute = wrappedPath.pop()
+
+    if (wrappedPath.length > 0) {
+      return `${field}->${wrappedPath.join('->')}->>${attribute}`
+    }
+
+    return `${field}->>${attribute}`
   }
 }

@@ -2049,7 +2049,8 @@ export class Builder {
     // If the column is an array, we will assume it is an array of key-value pairs
     // and can add them each as a where clause. We will maintain the boolean we
     // received when the method was called and pass it into the nested where.
-    if (Array.isArray(column) || isObjectLike(column)) {
+    // if (Array.isArray(column) || isObjectLike(column)) {
+    if (Array.isArray(column) || isPlainObject(column)) {
       return this.addArrayOfWheres(column, boolean)
     }
 
@@ -2094,7 +2095,7 @@ export class Builder {
     // If the value is "null", we will just assume the developer wants to add a
     // where null clause to the query. So, we will allow a short-cut here to
     // that method for convenience so the developer doesn't have to check.
-    if (!value) {
+    if (value === undefined) {
       return this.whereNull(column, boolean, operator !== '=')
     }
 
@@ -2103,7 +2104,7 @@ export class Builder {
     // If the column is making a JSON reference we'll check to see if the value
     // is a boolean. If it is, we'll add the raw boolean string as an actual
     // value to the query to ensure this is properly handled by the query.
-    if (column.includes('->') && isBoolean(value)) {
+    if (String(column).includes('->') && isBoolean(value)) {
       value = new Expression(value ? 'true' : 'false')
 
       if (isString(column)) {
@@ -2241,10 +2242,6 @@ export class Builder {
     if (value instanceof Date) {
       value = dateFormat(value, 'd')
     }
-
-    // if (!(value instanceof Expression)) {
-    //   value = String(value).padStart(2, '0')
-    // }
 
     return this.addDateBasedWhere('Day', column, operator, value, boolean)
   }

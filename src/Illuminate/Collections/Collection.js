@@ -1,8 +1,7 @@
 import {
   isFunction,
   isPlainObject,
-  isString,
-  merge
+  isString
 } from 'lodash'
 
 import { Arr } from './Arr'
@@ -139,7 +138,8 @@ export class Collection {
    * @return {static}
    */
   merge (items) {
-    return new this.constructor(merge(this.items, this.getArrayableItems(items)))
+    // return new this.constructor(merge(this.items, this.getArrayableItems(items)))
+    return new this.constructor([...this.items, ...this.getArrayableItems(Object.entries(items))])
   }
 
   /**
