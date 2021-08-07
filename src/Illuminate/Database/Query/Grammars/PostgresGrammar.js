@@ -1,5 +1,5 @@
 import { isNumeric } from '@devnetic/utils'
-import { isPlainObject } from 'lodash'
+import { isPlainObject, isString } from 'lodash'
 
 import { Arr } from './../../../Collections/Arr'
 import { Grammar } from './Grammar'
@@ -119,6 +119,21 @@ export class PostgresGrammar extends Grammar {
     const path = '\'{"' + segments.join('","') + '"}\''
 
     return `${field} = jsonb_set(${field}::jsonb, ${path}, ${this.parameter(value)})`
+  }
+
+  /**
+   * Compile the lock into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {boolean|string}  value
+   * @return {string}
+   */
+  compileLock (query, value) {
+    if (!isString(value)) {
+      return value ? 'for update' : 'for share'
+    }
+
+    return value
   }
 
   /**

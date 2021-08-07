@@ -5,7 +5,8 @@ import {
   isObjectLike,
   isPlainObject,
   isString,
-  merge
+  merge,
+  snakeCase
 } from 'lodash'
 import { dateFormat } from '@devnetic/utils'
 
@@ -35,6 +36,13 @@ export class Builder {
    */
   constructor (connection, grammar = undefined, processor = undefined) {
     /**
+     * An aggregate function and column to be run.
+     *
+     * @member {object}
+     */
+    this.aggregateProperty = undefined
+
+    /**
      * The database connection instance.
      *
      * @member {\Illuminate\Database\ConnectionInterface}
@@ -53,17 +61,6 @@ export class Builder {
      *
      * @member {Bindings}
      */
-    // this.bindings = {
-    //   select: [],
-    //   from: [],
-    //   join: [],
-    //   where: [],
-    //   groupBy: [],
-    //   having: [],
-    //   order: [],
-    //   union: [],
-    //   unionOrder: []
-    // }
     this.bindings = new Map([
       ['select', []],
       ['from', []],
@@ -135,6 +132,13 @@ export class Builder {
     this.limitProperty = undefined
 
     /**
+     * Indicates whether row locking is being used.
+     *
+     * @member {string|boolean}
+     */
+    this.lockProperty = undefined
+
+    /**
      * The number of records to skip.
      *
      * @member number
@@ -198,11 +202,43 @@ export class Builder {
     this.unionOrders = []
 
     /**
+     * Whether to use write pdo for the select.
+     *
+     * @var {boolean}
+     */
+    this.useWriteNdoProperty = false
+
+    /**
      * The where constraints for the query.
      *
      * @member {Array}
      */
     this.wheres = []
+
+    // const handler = {
+    //   get: (target, method, receiver) => {
+    //     if (Reflect.has(target, method)) {
+    //       return Reflect.get(target, method, receiver)
+    //     }
+
+    //     if (isString(method) && method.startsWith(method, 'where')) {
+    //       // return (...parameters) => this.dynamicWhere(method, parameters)
+    //       return (...parameters) => Reflect.get(target, 'dynamicWhere').apply(target, [method, parameters])
+    //     }
+
+    //     if (typeof method === 'symbol') {
+    //       return () => ({ next: () => ({ done: true, value: target }) })
+    //     }
+    //   }
+    // }
+
+    // // const proxy = Proxy.revocable(this, handler)
+    // const proxy = new Proxy(this, handler)
+    // Object.setPrototypeOf(proxy, Object.getPrototypeOf(this))
+
+    // proxy.prototype.valueOf = () => this
+
+    // return proxy
   }
 
   /**
@@ -266,6 +302,24 @@ export class Builder {
     }
 
     return this
+  }
+
+  /**
+   * Add a single dynamic where clause statement to the query.
+   *
+   * @param  {string}  segment
+   * @param  {string}  connector
+   * @param  {Array}  parameters
+   * @param  {number}  index
+   * @return {void}
+   */
+  addDynamic (segment, connector, parameters, index) {
+    // Once we have parsed out the columns and formatted the boolean operators we
+    // are ready to add it to this query as a where clause just like any other
+    // clause on the query. Then we'll increment the parameter index values.
+    const bool = connector.toLowerCase()
+
+    this.where(snakeCase(segment), '=', parameters[index], bool)
   }
 
   /**
@@ -572,6 +626,46 @@ export class Builder {
    */
   async doesntExistOr (callback) {
     return await this.doesntExist() ? true : callback()
+  }
+
+  /**
+   * Handles dynamic "where" clauses to the query.
+   *
+   * @param  {string}  method
+   * @param  {Array}  parameters
+   * @return {this}
+   */
+  dynamicWhere (method, parameters) {
+    const finder = method.substr(5)
+
+    const segments = finder.split(
+      /(And|Or)(?=[A-Z])/
+    )
+
+    // The connector variable will determine which connector will be used for the
+    // query condition. We will change it as we come across new boolean values
+    // in the dynamic method strings, which could contain a number of these.
+    let connector = 'and'
+
+    let index = 0
+
+    for (const segment of segments) {
+      // If the segment is not a boolean connector, we can assume it is a column's name
+      // and we will add it to the query as a new constraint as a where clause, then
+      // we can keep iterating through the dynamic method string's segments again.
+      if (segment !== 'And' && segment !== 'Or') {
+        this.addDynamic(segment, connector, parameters, index)
+
+        index++
+      } else {
+        // Otherwise, we will store the connector so we know how the next where clause we
+        // find in the query should be connected to the previous ones, meaning we will
+        // have the proper boolean connector to connect the next where clause found.
+        connector = segment
+      }
+    }
+
+    return this
   }
 
   /**
@@ -1142,6 +1236,22 @@ export class Builder {
 
     if (value >= 0) {
       this[property] = value
+    }
+
+    return this
+  }
+
+  /**
+   * Lock the selected rows in the table.
+   *
+   * @param  {string|boolean}  value
+   * @return {this}
+   */
+  lock (value = true) {
+    this.lockProperty = value
+
+    if (this.lockProperty !== undefined) {
+      this.useWriteNdo()
     }
 
     return this
@@ -2029,6 +2139,17 @@ export class Builder {
       this.grammar.compileUpsert(this, values, uniqueBy, update),
       bindings
     )
+  }
+
+  /**
+   * Use the write pdo for query.
+   *
+   * @return {this}
+   */
+  useWriteNdo () {
+    this.useWriteNdoProperty = true
+
+    return this
   }
 
   /**

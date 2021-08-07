@@ -1,4 +1,4 @@
-import { isBoolean, isPlainObject } from 'lodash'
+import { isBoolean, isPlainObject, isString } from 'lodash'
 import { isNumeric } from '@devnetic/utils'
 
 import { Grammar } from './Grammar'
@@ -86,6 +86,21 @@ export class MySqlGrammar extends Grammar {
     const [field, path] = this.wrapJsonFieldAndPath(key)
 
     return `${field} = json_set(${field}${path}, ${value})`
+  }
+
+  /**
+   * Compile the lock into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {boolean|string}  value
+   * @return {string}
+   */
+  compileLock (query, value) {
+    if (!isString(value)) {
+      return value ? 'for update' : 'lock in share mode'
+    }
+
+    return value
   }
 
   /**

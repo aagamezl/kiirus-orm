@@ -1,4 +1,4 @@
-import { capitalize } from 'lodash'
+import { capitalize, isString } from 'lodash'
 
 import { Arr } from './../../../Collections/Arr'
 import { Grammar as BaseGrammar } from './../../Grammar'
@@ -340,6 +340,17 @@ export class Grammar extends BaseGrammar {
    */
   compileLimit (query, limit) {
     return `limit ${limit}`
+  }
+
+  /**
+   * Compile the lock into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {boolean|string}  value
+   * @return {string}
+   */
+  compileLock (query, value) {
+    return isString(value) ? value : ''
   }
 
   /**

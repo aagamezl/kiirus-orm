@@ -3203,7 +3203,7 @@ test('testMergeWheresCanMergeWheresAndBindings', (t) => {
   t.deepEqual(['foo', 'bar'], builder.getBindings())
 })
 
-test('test_name', (t) => {
+test('testProvidingNullWithOperatorsBuildsCorrectly', (t) => {
   let builder = getBuilder()
   builder.select('*').from('users').where('foo', null)
   t.is('select * from "users" where "foo" is null', builder.toSql())
@@ -3219,6 +3219,93 @@ test('test_name', (t) => {
   builder = getBuilder()
   builder.select('*').from('users').where('foo', '<>', null)
   t.is('select * from "users" where "foo" is not null', builder.toSql())
+})
+
+test('testDynamicWhere', (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const method = 'whereFooBarAndBazOrQux'
+  const parameters = ['corge', 'waldo', 'fred']
+  const builder = getBuilder()
+
+  const mockBuilder = createMock(builder)
+  mockBuilder.expects('where').withArgs('foo_bar', '=', parameters[0], 'and').once().returnsThis()
+  mockBuilder.expects('where').withArgs('baz', '=', parameters[1], 'and').once().returnsThis()
+  mockBuilder.expects('where').withArgs('qux', '=', parameters[2], 'or').once().returnsThis()
+
+  t.deepEqual(builder, builder.dynamicWhere(method, parameters))
+
+  verifyMock()
+})
+
+test('testDynamicWhereIsNotGreedy', (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const method = 'whereIosVersionAndAndroidVersionOrOrientation'
+  const parameters = ['6.1', '4.2', 'Vertical']
+  const builder = getBuilder()
+
+  const mockBuilder = createMock(builder)
+  mockBuilder.expects('where').withArgs('ios_version', '=', '6.1', 'and').once().returnsThis()
+  mockBuilder.expects('where').withArgs('android_version', '=', '4.2', 'and').once().returnsThis()
+  mockBuilder.expects('where').withArgs('orientation', '=', 'Vertical', 'or').once().returnsThis()
+
+  builder.dynamicWhere(method, parameters)
+
+  t.pass()
+
+  verifyMock()
+})
+
+// test('testCallTriggersDynamicWhere', (t) => {
+//   const builder = getBuilder()
+
+//   t.deepEqual(builder, builder.whereFooAndBar('baz', 'qux'))
+//   t.is(2, builder.wheres.length)
+// })
+
+test('testBuilderThrowsExpectedExceptionWithUndefinedMethod', (t) => {
+  const error = t.throws(() => {
+    const builder = getBuilder()
+
+    builder.noValidMethodHere()
+  }, { instanceOf: TypeError })
+
+  t.true(error.message.includes('noValidMethodHere is not a function'))
+})
+
+test('testMySqlLock', (t) => {
+  let builder = getMySqlBuilder()
+  builder.select('*').from('foo').where('bar', '=', 'baz').lock()
+  t.is('select * from `foo` where `bar` = ? for update', builder.toSql())
+  t.deepEqual(['baz'], builder.getBindings())
+
+  builder = getMySqlBuilder()
+  builder.select('*').from('foo').where('bar', '=', 'baz').lock(false)
+  t.is('select * from `foo` where `bar` = ? lock in share mode', builder.toSql())
+  t.deepEqual(['baz'], builder.getBindings())
+
+  builder = getMySqlBuilder()
+  builder.select('*').from('foo').where('bar', '=', 'baz').lock('lock in share mode')
+  t.is('select * from `foo` where `bar` = ? lock in share mode', builder.toSql())
+  t.deepEqual(['baz'], builder.getBindings())
+})
+
+test('testPostgresLock', (t) => {
+  let builder = getPostgresBuilder()
+  builder.select('*').from('foo').where('bar', '=', 'baz').lock()
+  t.is('select * from "foo" where "bar" = ? for update', builder.toSql())
+  t.deepEqual(['baz'], builder.getBindings())
+
+  builder = getPostgresBuilder()
+  builder.select('*').from('foo').where('bar', '=', 'baz').lock(false)
+  t.is('select * from "foo" where "bar" = ? for share', builder.toSql())
+  t.deepEqual(['baz'], builder.getBindings())
+
+  builder = getPostgresBuilder()
+  builder.select('*').from('foo').where('bar', '=', 'baz').lock('for key share')
+  t.is('select * from "foo" where "bar" = ? for key share', builder.toSql())
+  t.deepEqual(['baz'], builder.getBindings())
 })
 
 // test('test_name', (t) => {
