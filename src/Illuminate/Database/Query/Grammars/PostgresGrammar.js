@@ -105,6 +105,33 @@ export class PostgresGrammar extends Grammar {
   }
 
   /**
+   * Compile a "JSON contains" statement into SQL.
+   *
+   * @param  {string}  column
+   * @param  {string}  value
+   * @return {string}
+   */
+  compileJsonContains (column, value) {
+    column = this.wrap(column).replace('->>', '->')
+
+    return `(${column})::jsonb @> ${value}`
+  }
+
+  /**
+   * Compile a "JSON length" statement into SQL.
+   *
+   * @param  {string}  column
+   * @param  {string}  operator
+   * @param  {string}  value
+   * @return {string}
+   */
+  compileJsonLength (column, operator, value) {
+    column = this.wrap(column).replace('->>', '->')
+
+    return `json_array_length((${column})::json) ${operator} ${value}`
+  }
+
+  /**
   * Prepares a JSON column being updated using the JSONB_SET function.
   *
   * @param string key

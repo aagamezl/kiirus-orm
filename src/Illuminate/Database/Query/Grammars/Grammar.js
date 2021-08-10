@@ -332,6 +332,33 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile a "JSON contains" statement into SQL.
+   *
+   * @param  {string}  column
+   * @param  {string}  value
+   * @return {string}
+   *
+   * @throws {\RuntimeException}
+   */
+  compileJsonContains (column, value) {
+    throw new Error('RuntimeException: This database engine does not support JSON contains operations.')
+  }
+
+  /**
+   * Compile a "JSON length" statement into SQL.
+   *
+   * @param  {string}  column
+   * @param  {string}  operator
+   * @param  {string}  value
+   * @return {string}
+   *
+   * @throws {\RuntimeException}
+   */
+  compileJsonLength (column, operator, value) {
+    throw new Error('RuntimeException: This database engine does not support JSON length operations.')
+  }
+
+  /**
    * Compile the "limit" portions of the query.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -691,6 +718,16 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Prepare the binding for a "JSON contains" statement.
+   *
+   * @param  {*}  binding
+   * @return {string}
+   */
+  prepareBindingForJsonContains (binding) {
+    return JSON.stringify(binding)
+  }
+
+  /**
    * Prepare the bindings for an update statement.
    *
    * @param  {object}  bindings
@@ -876,6 +913,34 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile a "where JSON contains" clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereJsonContains (query, where) {
+    const not = where.not ? 'not ' : ''
+
+    return not + this.compileJsonContains(
+      where.column, this.parameter(where.value)
+    )
+  }
+
+  /**
+   * Compile a "where JSON length" clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereJsonLength (query, where) {
+    return this.compileJsonLength(
+      where.column, where.operator, this.parameter(where.value)
+    )
+  }
+
+  /**
    * Compile a "where month" clause.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -976,6 +1041,21 @@ export class Grammar extends BaseGrammar {
    */
   whereRaw (query, where) {
     return String(where.sql)
+  }
+
+  /**
+   * Compile a where row values condition.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  where
+   * @return {string}
+   */
+  whereRowValues (query, where) {
+    const columns = this.columnize(where.columns)
+
+    const values = this.parameterize(where.values)
+
+    return `(${columns}) ${where.operator} (${values})`
   }
 
   /**

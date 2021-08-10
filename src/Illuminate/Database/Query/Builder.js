@@ -1,7 +1,9 @@
 import {
+  cloneDeep,
   isBoolean,
   isEmpty,
   isInteger,
+  isNil,
   isObjectLike,
   isPlainObject,
   isString,
@@ -454,6 +456,16 @@ export class Builder {
 
     Object.setPrototypeOf(cloned, Object.getPrototypeOf(this))
 
+    // The cloning process needs to run through Arrays and Maps to ensure that
+    // these structured are cloned correctly like new values and not references.
+    for (const propertyName of Object.getOwnPropertyNames(cloned)) {
+      const property = Reflect.get(cloned, propertyName)
+
+      if (Array.isArray(property) || property instanceof Map) {
+        Reflect.set(cloned, propertyName, cloneDeep(property))
+      }
+    }
+
     return cloned
   }
 
@@ -497,6 +509,101 @@ export class Builder {
         clone.bindings.set(type, [])
       }
     })
+  }
+
+  /**
+   * Chunk the results of the query.
+   *
+   * @param  {numbernt}  count
+   * @param  {Function}  callback
+   * @return {boolean}
+   */
+  async chunk (count, callback) {
+    this.enforceOrderBy()
+
+    let page = 1
+    let hasMore = false
+
+    do {
+      // We'll execute the query for the given page and get the results. If there are
+      // no results we can just break and return from here. When there are results
+      // we will call the callback with the current chunk of these results here.
+      let results = await this.forPage(page, count).get()
+
+      const countResults = results.count()
+
+      if (countResults === 0) {
+        break
+      }
+
+      // On each chunk result set, we will pass them to the callback and then let the
+      // developer take care of everything within the callback, which allows us to
+      // keep the memory low for spinning through large result sets for working.
+      if (callback(results, page) === false) {
+        return false
+      }
+
+      results = undefined
+
+      page++
+      hasMore = countResults === count
+    } while (hasMore)
+
+    return true
+  }
+
+  /**
+   * Chunk the results of a query by comparing IDs.
+   *
+   * @param  {number}  count
+   * @param  {Function}  callback
+   * @param  {string|null}  column
+   * @param  {string|{null}}  alias
+   * @return {boolean}
+   */
+  async chunkById (count, callback, column = null, alias = null) {
+    column = column ?? this.defaultKeyName()
+
+    alias = alias ?? column
+
+    let lastId = null
+
+    let page = 1
+    let hasMore = false
+
+    do {
+      // We'll execute the query for the given page and get the results. If there are
+      // no results we can just break and return from here. When there are results
+      // we will call the callback with the current chunk of these results here.
+      let results = await this.forPageAfterId(count, lastId, column).get()
+
+      const countResults = results.count()
+
+      if (countResults === 0) {
+        break
+      }
+
+      // On each chunk result set, we will pass them to the callback and then let the
+      // developer take care of everything within the callback, which allows us to
+      // keep the memory low for spinning through large result sets for working.
+      if (callback(results, page) === false) {
+        return false
+      }
+
+      lastId = results.last()[alias]
+
+      if (lastId === null) {
+        throw new Error(`RuntimeException: The chunkById operation was aborted because the [${alias}] column is not present in the query result.`)
+      }
+
+      results = undefined
+
+      page++
+
+      hasMore = countResults === count
+    } while (hasMore)
+
+    return true
   }
 
   /**
@@ -567,6 +674,15 @@ export class Builder {
     this.joins.push(this.newJoinClause(this, 'cross', new Expression(expression)))
 
     return this
+  }
+
+  /**
+   * Get the default key name of the table.
+   *
+   * @return {string}
+   */
+  defaultKeyName () {
+    return 'id'
   }
 
   /**
@@ -666,6 +782,19 @@ export class Builder {
     }
 
     return this
+  }
+
+  /**
+   * Throw an exception if the query doesn't have an orderBy clause.
+   *
+   * @return {void}
+   *
+   * @throws {\RuntimeException}
+   */
+  enforceOrderBy () {
+    if (this.orders.length === 0 && this.unionOrders.length === 0) {
+      throw new Error('RuntimeException: You must specify an orderBy clause when using this function.')
+    }
   }
 
   /**
@@ -780,6 +909,57 @@ export class Builder {
    */
   forPage (page, perPage = 15) {
     return this.offset((page - 1) * perPage).limit(perPage)
+  }
+
+  /**
+   * Constrain the query to the next "page" of results after a given ID.
+   *
+   * @param  {number}  [perPage=15]
+   * @param  {number|undefined}  [lastId=0]
+   * @param  {string}  [column='id']
+   * @return {this}
+   */
+  forPageAfterId (perPage = 15, lastId = 0, column = 'id') {
+    this.orders = this.removeExistingOrdersFor(column)
+
+    if (lastId !== null) {
+      this.where(column, '>', lastId)
+    }
+
+    return this.orderBy(column, 'asc')
+      .limit(perPage)
+  }
+
+  /**
+   * Add a raw from clause to the query.
+   *
+   * @param  {string}  expression
+   * @param  {*}  [bindings=[]]
+   * @return {this}
+   */
+  fromRaw (expression, bindings = []) {
+    this.fromProperty = new Expression(expression)
+
+    this.addBinding(bindings, 'from')
+
+    return this
+  }
+
+  /**
+   * Makes "from" fetch from a subquery.
+   *
+   * @param  {\Closure|\Illuminate\Database\Query\Builder|string}  query
+   * @param  {string}  as
+   * @return {this}
+   *
+   * @throws {\InvalidArgumentException}
+   */
+  fromSub (query, as) {
+    let bindings
+
+    [query, bindings] = this.createSub(query)
+
+    return this.fromRaw(`(${query}) as ${this.grammar.wrapTable(as)}`, bindings)
   }
 
   /**
@@ -1089,7 +1269,7 @@ export class Builder {
    * @return {boolean}
    */
   invalidOperatorAndValue (operator, value) {
-    return !value && this.operators.includes(operator) &&
+    return isNil(value) && this.operators.includes(operator) &&
       !['=', '<>', '!='].includes(operator)
   }
 
@@ -1265,6 +1445,20 @@ export class Builder {
    */
   max (column) {
     return this.aggregate('max', [column])
+  }
+
+  /**
+   * Merge an array of bindings into our bindings.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @return {this}
+   */
+  mergeBindings (query) {
+    for (const [key, value] of query.bindings) {
+      this.bindings.set(key, this.bindings.get(key).concat(value))
+    }
+
+    return this
   }
 
   /**
@@ -1528,6 +1722,22 @@ export class Builder {
   }
 
   /**
+   * Add an "or where JSON length" clause to the query.
+   *
+   * @param  {string}  column
+   * @param  {*}  operator
+   * @param  {*}  value
+   * @return {this}
+   */
+  orWhereJsonLength (column, operator, value = null) {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    )
+
+    return this.whereJsonLength(column, operator, value, 'or')
+  }
+
+  /**
    * Add an "or where month" statement to the query.
    *
    * @param  {string}  column
@@ -1607,6 +1817,28 @@ export class Builder {
   }
 
   /**
+   * Add an "or where JSON contains" clause to the query.
+   *
+   * @param  {string}  column
+   * @param  {*}  value
+   * @return {this}
+   */
+  orWhereJsonContains (column, value) {
+    return this.whereJsonContains(column, value, 'or')
+  }
+
+  /**
+   * Add an "or where JSON not contains" clause to the query.
+   *
+   * @param  {string}  column
+   * @param  {*}  value
+   * @return {this}
+   */
+  orWhereJsonDoesntContain (column, value) {
+    return this.whereJsonDoesntContain(column, value, 'or')
+  }
+
+  /**
    * Add a raw or where clause to the query.
    *
    * @param  {string}  sql
@@ -1615,6 +1847,18 @@ export class Builder {
    */
   orWhereRaw (sql, bindings = []) {
     return this.whereRaw(sql, bindings, 'or')
+  }
+
+  /**
+   * Adds an or where condition using row values.
+   *
+   * @param  {Array}  columns
+   * @param  {string}  operator
+   * @param  {Array}  values
+   * @return {this}
+   */
+  orWhereRowValues (columns, operator, values) {
+    return this.whereRowValues(columns, operator, values, 'or')
   }
 
   /**
@@ -1631,6 +1875,37 @@ export class Builder {
     )
 
     return this.whereYear(column, operator, value, 'or')
+  }
+
+  /**
+   * Paginate the given query into a simple paginator.
+   *
+   * @param  {number}  perPage
+   * @param  {Array}  columns
+   * @param  {number|null}  page
+   * @return {object}
+   */
+  async paginate (perPage = 15, columns = ['*'], page = 1) {
+    const total = await this.getCountForPagination()
+
+    const results = total ? await this.forPage(page, perPage).get(columns) : collect()
+
+    return this.paginator(results, total, perPage, page)
+  }
+
+  /**
+   * Create a new length-aware paginator instance.
+   *
+   * @param  {\Illuminate\Support\Collection}  items
+   * @param  {number}  total
+   * @param  {number}  perPage
+   * @param  {number}  currentPage
+   * @return {object}
+   */
+  paginator (items, total, perPage, currentPage, options) {
+    return {
+      items, total, perPage, currentPage
+    }
   }
 
   /**
@@ -1758,6 +2033,21 @@ export class Builder {
     }
 
     return query
+  }
+
+  /**
+   * Get an array with all orders with a given column removed.
+   *
+   * @param  {string}  column
+   * @return {Array}
+   */
+  removeExistingOrdersFor (column) {
+    return collect(this.orders)
+      .reject((order) => {
+        return order.column !== undefined
+          ? order.column === column
+          : false
+      }).values().all()
   }
 
   /**
@@ -1919,7 +2209,6 @@ export class Builder {
     if (this.groups.length === 0) {
       this.orders = []
 
-      // this.bindings.order = []
       this.bindings.set('order', [])
     }
 
@@ -2475,6 +2764,64 @@ export class Builder {
   }
 
   /**
+   * Add a "where JSON contains" clause to the query.
+   *
+   * @param  {string}  column
+   * @param  {*}  value
+   * @param  {string}  boolean
+   * @param  {boolean}  not
+   * @return {this}
+   */
+  whereJsonContains (column, value, boolean = 'and', not = false) {
+    const type = 'JsonContains'
+
+    this.wheres.push({ type, column, value, boolean, not })
+
+    if (!(value instanceof Expression)) {
+      this.addBinding(this.grammar.prepareBindingForJsonContains(value))
+    }
+
+    return this
+  }
+
+  /**
+   * Add a "where JSON not contains" clause to the query.
+   *
+   * @param  {string}  column
+   * @param  {*}  value
+   * @param  {string}  boolean
+   * @return {this}
+   */
+  whereJsonDoesntContain (column, value, boolean = 'and') {
+    return this.whereJsonContains(column, value, boolean, true)
+  }
+
+  /**
+   * Add a "where JSON length" clause to the query.
+   *
+   * @param  {string}  column
+   * @param  {*}  operator
+   * @param  {*}  value
+   * @param  {string}  boolean
+   * @return {this}
+   */
+  whereJsonLength (column, operator, value = null, boolean = 'and') {
+    [value, operator] = this.prepareValueAndOperator(
+      value, operator, arguments.length === 2
+    )
+
+    const type = 'JsonLength'
+
+    this.wheres.push({ type, column, operator, value, boolean })
+
+    if (!(value instanceof Expression)) {
+      this.addBinding(parseInt(this.flattenValue(value)))
+    }
+
+    return this
+  }
+
+  /**
    * Add a "where month" statement to the query.
    *
    * @param  {string}  column
@@ -2604,6 +2951,31 @@ export class Builder {
     this.wheres.push({ type: 'Raw', sql, boolean })
 
     this.addBinding(bindings, 'where')
+
+    return this
+  }
+
+  /**
+   * Adds a where condition using row values.
+   *
+   * @param  {array}  columns
+   * @param  {string}  operator
+   * @param  {Array}  values
+   * @param  {string}  boolean
+   * @return {this}
+   *
+   * @throws {\InvalidArgumentException}
+   */
+  whereRowValues (columns, operator, values, boolean = 'and') {
+    if (columns.length !== values.length) {
+      throw new Error('InvalidArgumentException: The number of columns must match the number of values')
+    }
+
+    const type = 'RowValues'
+
+    this.wheres.push({ type, columns, operator, values, boolean })
+
+    this.addBinding(this.cleanBindings(values))
 
     return this
   }

@@ -64,6 +64,20 @@ export class SQLiteGrammar extends Grammar {
   }
 
   /**
+   * Compile a "JSON length" statement into SQL.
+   *
+   * @param  {string}  column
+   * @param  {string}  operator
+   * @param  {string}  value
+   * @return {string}
+   */
+  compileJsonLength (column, operator, value) {
+    const [field, path] = this.wrapJsonFieldAndPath(column)
+
+    return `json_array_length(${field}${path}) ${operator} ${value}`
+  }
+
+  /**
   * Compile a "JSON" patch statement into SQL.
   *
   * @param {string} column

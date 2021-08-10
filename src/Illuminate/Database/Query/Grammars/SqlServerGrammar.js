@@ -1,4 +1,4 @@
-import { clone } from 'lodash'
+import { clone, isBoolean, isString } from 'lodash'
 import { isNumeric } from '@devnetic/utils'
 
 import { Arr } from './../../../Collections/Arr'
@@ -115,6 +115,54 @@ export class SqlServerGrammar extends Grammar {
   }
 
   /**
+   * Compile the "from" portion of the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {string}  table
+   * @return {string}
+   */
+  compileFrom (query, table) {
+    const from = super.compileFrom(query, table)
+
+    if (isString(query.lockProperty)) {
+      return from + ' ' + query.lockProperty
+    }
+
+    if (query.lockProperty !== undefined) {
+      return from + ' with(rowlock,' + (query.lockProperty ? 'updlock,' : '') + 'holdlock)'
+    }
+
+    return from
+  }
+
+  /**
+   * Compile a "JSON contains" statement into SQL.
+   *
+   * @param  {string}  column
+   * @param  {string}  value
+   * @return {string}
+   */
+  compileJsonContains (column, value) {
+    const [field, path] = this.wrapJsonFieldAndPath(column)
+
+    return `${value} in (select [value] from openjson(${field}${path}))`
+  }
+
+  /**
+   * Compile a "JSON length" statement into SQL.
+   *
+   * @param  {string}  column
+   * @param  {string}  operator
+   * @param  {string}  value
+   * @return {string}
+   */
+  compileJsonLength (column, operator, value) {
+    const [field, path] = this.wrapJsonFieldAndPath(column)
+
+    return `(select count(*) from openjson(${field}${path})) ${operator} ${value}`
+  }
+
+  /**
    * Compile the "limit" portions of the query.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -122,6 +170,17 @@ export class SqlServerGrammar extends Grammar {
    * @return {string}
    */
   compileLimit (query, limit) {
+    return ''
+  }
+
+  /**
+   * Compile the lock into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {boolean|string}  value
+   * @return {string}
+   */
+  compileLock (query, value) {
     return ''
   }
 
@@ -274,6 +333,16 @@ export class SqlServerGrammar extends Grammar {
   }
 
   /**
+   * Prepare the binding for a "JSON contains" statement.
+   *
+   * @param  {*}  binding
+   * @return {string}
+   */
+  prepareBindingForJsonContains (binding) {
+    return isBoolean(binding) ? JSON.stringify(binding) : binding
+  }
+
+  /**
    * Determine if the query's order by clauses contain a subquery.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -372,7 +441,7 @@ export class SqlServerGrammar extends Grammar {
   wrapTableValuedFunction (table) {
     const matches = [...table.matchAll(/^(.+?)(\(.*?\))]/g)]
     if (matches.length > 0) {
-      table = matches[1] + ']' + matches[2]
+      table = matches[0][1] + ']' + matches[0][2]
     }
 
     return table

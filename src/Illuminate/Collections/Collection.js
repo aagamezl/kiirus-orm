@@ -23,6 +23,10 @@ export class Collection {
     this.items = this.getArrayableItems(items)
   }
 
+  valueOf () {
+    return this.items
+  }
+
   /**
    * Get all of the items in the collection.
    *
@@ -30,6 +34,21 @@ export class Collection {
    */
   all () {
     return this.items
+  }
+
+  /**
+   * Count the number of items in the collection.
+   *
+   * @return {number}
+   */
+  count () {
+    if (Array.isArray(this.items)) {
+      return this.items.length
+    }
+
+    if (this.items instanceof Map) {
+      return this.items.size
+    }
   }
 
   /**
@@ -130,6 +149,17 @@ export class Collection {
     const finalItem = collection.pop()
 
     return collection.implode(glue) + finalGlue + finalItem
+  }
+
+  /**
+   * Get the last item from the collection.
+   *
+   * @param  {Function|undefined}  callback
+   * @param  {*}  defaultValue
+   * @return {*}
+   */
+  last (callback = undefined, defaultValue = undefined) {
+    return Arr.last(this.items, callback, defaultValue)
   }
 
   /**
@@ -259,5 +289,14 @@ export class Collection {
     return (item) => {
       return dataGet(item, value)
     }
+  }
+
+  /**
+   * Reset the keys on the underlying array.
+   *
+   * @return {this}
+   */
+  values () {
+    return new this.constructor([...this.items.values()])
   }
 }

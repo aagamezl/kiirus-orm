@@ -1,8 +1,8 @@
-import { isObject, isPlainObject } from 'lodash'
+import { isEmpty, isObject, isPlainObject, last } from 'lodash'
 
 import { Collection } from './Collection'
 
-import { dataGet, value as getValue } from './helpers'
+import { dataGet, value as getValue, value } from './helpers'
 
 export class Arr {
   /**
@@ -163,6 +163,22 @@ export class Arr {
 
       return result
     }, [])
+  }
+
+  /**
+   * Return the last element in an array passing a given truth test.
+   *
+   * @param  {Array}  array
+   * @param  {Function|undefined}  callback
+   * @param  {*}  defaultValue
+   * @return {*}
+   */
+  static last (array, callback = null, defaultValue = null) {
+    if (callback === undefined) {
+      return isEmpty(array) ? value(defaultValue) : last(array)
+    }
+
+    return this.first(array.reverse(), callback, defaultValue)
   }
 
   /**

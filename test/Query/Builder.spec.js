@@ -1,80 +1,19 @@
 const test = require('ava')
 
-const { mock } = require('../tools/mock')
+const { mock } = require('./../tools/mock')
 
-const { Builder } = require('./../../lib/Illuminate/Database/Query')
 const { Builder: EloquentBuilder } = require('./../../lib/Illuminate/Database/Eloquent/Builder')
-const { Connection } = require('./../../lib/Illuminate/Database')
 const { Expression: Raw } = require('../../lib/Illuminate/Database/Query/internal')
-const { Grammar } = require('./../../lib/Illuminate/Database/Query/Grammars')
-const { MySqlGrammar } = require('./../../lib/Illuminate/Database/Query/Grammars/MySqlGrammar')
-const { MySqlProcessor } = require('./../../lib/Illuminate/Database/Query/Processors/MySqlProcessor')
-const { PostgresGrammar } = require('./../../lib/Illuminate/Database/Query/Grammars/PostgresGrammar')
-const { Processor } = require('./../../lib/Illuminate/Database/Query/Processors')
-const { SQLiteGrammar } = require('./../../lib/Illuminate/Database/Query/Grammars/SQLiteGrammar')
-const { SqlServerGrammar } = require('./../../lib/Illuminate/Database/Query/Grammars/SqlServerGrammar')
-
-const config = {
-  driver: 'mysql',
-  host: '127.0.0.1',
-  database: 'test',
-  username: 'root',
-  password: 'root'
-}
-
-/**
- * Returns a Connection instance
- *
- * @returns Connection
- */
-const getConnection = () => new Connection(config)
-
-/**
- * Return a Builder instance
- *
- * @return Builder
- */
-const getBuilder = () => {
-  const grammar = new Grammar()
-  const processor = new Processor()
-
-  return new Builder(getConnection(), grammar, processor)
-}
-
-const getMySqlBuilderWithProcessor = () => {
-  const grammar = new MySqlGrammar()
-  const processor = new MySqlProcessor()
-
-  return new Builder(getConnection(), grammar, processor)
-}
-
-const getMySqlBuilder = () => {
-  const grammar = new MySqlGrammar()
-  const processor = new Processor()
-
-  return new Builder(getConnection(), grammar, processor)
-}
-
-const getPostgresBuilder = () => {
-  const grammar = new PostgresGrammar()
-  const processor = new Processor()
-
-  return new Builder(getConnection(), grammar, processor)
-}
-
-const getSQLiteBuilder = () => {
-  const grammar = new SQLiteGrammar()
-  const processor = new Processor()
-
-  return new Builder(getConnection(), grammar, processor)
-}
-
-const getSqlServerBuilder = () => {
-  const grammar = new SqlServerGrammar()
-  const processor = new Processor()
-
-  return new Builder(getConnection(), grammar, processor)
-}
+const { SQLiteGrammar } = require('../../lib/Illuminate/Database/Query/Grammars/SQLiteGrammar')
+const { collect } = require('./../../lib/Illuminate/Collections/helpers')
+const {
+  getBuilder,
+  getMySqlBuilderWithProcessor,
+  getPostgresBuilder,
+  getSQLiteBuilder,
+  getSqlServerBuilder,
+  getMySqlBuilder
+} = require('./common')
 
 test('testBasicSelect', (t) => {
   const builder = getBuilder()
@@ -403,6 +342,10 @@ test('testDateBasedWheresAcceptsTwoArguments', (t) => {
 
   builder = getMySqlBuilder()
   builder.select('*').from('users').whereYear('created_at', 1)
+  t.is('select * from `users` where year(`created_at`) = ?', builder.toSql())
+
+  builder = getMySqlBuilder()
+  builder.select('*').from('users').whereYear('created_at', new Date('2021/08/07'))
   t.is('select * from `users` where year(`created_at`) = ?', builder.toSql())
 })
 
@@ -1031,6 +974,7 @@ test('testUnionAggregate', (t) => {
   builder.from('posts').union(getSqlServerBuilder().from('videos')).count()
 
   verifyMock()
+
   t.pass()
 })
 
@@ -1053,6 +997,7 @@ test('testHavingAggregate', async (t) => {
   await builder.count()
 
   verifyMock()
+
   t.pass()
 })
 
@@ -2242,9 +2187,9 @@ test('testInsertGetIdWithEmptyValues', (t) => {
   createMock(builder.getProcessor()).expects('processInsertGetId').once().withArgs(builder, 'insert into [users] default values', [], undefined)
   builder.from('users').insertGetId([])
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 test('testInsertMethodRespectsRawBindings', async (t) => {
@@ -2703,9 +2648,9 @@ test('testPreservedAreAppliedByInsert', async (t) => {
   })
   await builder.insert({ email: 'foo' })
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 test('testPreservedAreAppliedByInsertGetId', async (t) => {
@@ -2718,9 +2663,9 @@ test('testPreservedAreAppliedByInsertGetId', async (t) => {
   })
   await builder.insertGetId({ email: 'foo' }, 'id')
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 test('testPreservedAreAppliedByInsertUsing', async (t) => {
@@ -2733,9 +2678,9 @@ test('testPreservedAreAppliedByInsertUsing', async (t) => {
   })
   await builder.insertUsing([], getBuilder())
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 test('testPreservedAreAppliedByUpsert', async (t) => {
@@ -2748,9 +2693,9 @@ test('testPreservedAreAppliedByUpsert', async (t) => {
   })
   await builder.upsert({ email: 'foo' }, 'id')
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 test('testPreservedAreAppliedByUpdate', async (t) => {
@@ -2763,9 +2708,9 @@ test('testPreservedAreAppliedByUpdate', async (t) => {
   })
   await builder.update({ email: 'foo' })
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 test('testPreservedAreAppliedByDelete', async (t) => {
@@ -2778,9 +2723,9 @@ test('testPreservedAreAppliedByDelete', async (t) => {
   })
   await builder.delete()
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 test('testPreservedAreAppliedByTruncate', async (t) => {
@@ -2793,9 +2738,9 @@ test('testPreservedAreAppliedByTruncate', async (t) => {
   })
   await builder.truncate()
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 test('testPreservedAreAppliedByExists', (t) => {
@@ -2808,9 +2753,9 @@ test('testPreservedAreAppliedByExists', (t) => {
   })
   builder.exists()
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 test('testPostgresInsertGetId', async (t) => {
@@ -2842,9 +2787,9 @@ test('testMySqlUpdateWrappingJson', async (t) => {
 
   await builder.from('users').where('active', '=', 1).update({ 'name->first_name': 'John', 'name->last_name': 'Doe' })
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 test('testMySqlUpdateWrappingNestedJson', async (t) => {
@@ -2859,9 +2804,9 @@ test('testMySqlUpdateWrappingNestedJson', async (t) => {
 
   await builder.from('users').where('active', '=', 1).update({ 'meta->name->first_name': 'John', 'meta->name->last_name': 'Doe' })
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 test('testMySqlUpdateWrappingJsonArray', async (t) => {
@@ -2886,9 +2831,9 @@ test('testMySqlUpdateWrappingJsonArray', async (t) => {
     created_at: new Date('2019-08-06')
   })
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 test('testMySqlUpdateWithJsonPreparesBindingsCorrectly', async (t) => {
@@ -2921,9 +2866,9 @@ test('testMySqlUpdateWithJsonPreparesBindingsCorrectly', async (t) => {
   createMock(builder.getConnection()).expects('update').once().withArgs('update `users` set `options` = json_set(`options`, \'$."size"\', 45)', [])
   await builder.from('users').update({ 'options->size': new Raw('45') })
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 test('testPostgresUpdateWrappingJson', async (t) => {
@@ -2939,9 +2884,9 @@ test('testPostgresUpdateWrappingJson', async (t) => {
     .withArgs('update "users" set "options" = jsonb_set("options"::jsonb, \'{"language"}\', \'null\')', [])
   await builder.from('users').update({ 'options->language': new Raw("'null'") })
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 test('testPostgresUpdateWrappingJsonArray', async (t) => {
@@ -2962,9 +2907,9 @@ test('testPostgresUpdateWrappingJsonArray', async (t) => {
     created_at: new Date('2019-08-06')
   })
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 test('testSQLiteUpdateWrappingJsonArray', async (t) => {
@@ -2984,9 +2929,9 @@ test('testSQLiteUpdateWrappingJsonArray', async (t) => {
     created_at: new Date('2019-08-06')
   })
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 test('testSQLiteUpdateWrappingNestedJsonArray', async (t) => {
@@ -3007,9 +2952,9 @@ test('testSQLiteUpdateWrappingNestedJsonArray', async (t) => {
     created_at: new Date('2019-08-06')
   })
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 test('testMySqlWrappingJsonWithString', (t) => {
@@ -3252,9 +3197,9 @@ test('testDynamicWhereIsNotGreedy', (t) => {
 
   builder.dynamicWhere(method, parameters)
 
-  t.pass()
-
   verifyMock()
+
+  t.pass()
 })
 
 // test('testCallTriggersDynamicWhere', (t) => {
@@ -3308,8 +3253,807 @@ test('testPostgresLock', (t) => {
   t.deepEqual(['baz'], builder.getBindings())
 })
 
-// test('test_name', (t) => {
-//   const { createMock, verifyMock } = mock()
+test('testSqlServerLock', (t) => {
+  let builder = getSqlServerBuilder()
+  builder.select('*').from('foo').where('bar', '=', 'baz').lock()
+  t.is('select * from [foo] with(rowlock,updlock,holdlock) where [bar] = ?', builder.toSql())
+  t.deepEqual(['baz'], builder.getBindings())
 
-//   verifyMock()
-// })
+  builder = getSqlServerBuilder()
+  builder.select('*').from('foo').where('bar', '=', 'baz').lock(false)
+  t.is('select * from [foo] with(rowlock,holdlock) where [bar] = ?', builder.toSql())
+  t.deepEqual(['baz'], builder.getBindings())
+
+  builder = getSqlServerBuilder()
+  builder.select('*').from('foo').where('bar', '=', 'baz').lock('with(holdlock)')
+  t.is('select * from [foo] with(holdlock) where [bar] = ?', builder.toSql())
+  t.deepEqual(['baz'], builder.getBindings())
+})
+
+test('testSelectWithLockUsesWritePdo', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  let builder = getMySqlBuilder()
+  createMock(builder.getConnection()).expects('select').once().withArgs()
+  await builder.select('*').from('foo').where('bar', '=', 'baz').lock().get()
+
+  builder = getMySqlBuilder()
+  createMock(builder.getConnection()).expects('select').once().withArgs()
+  await builder.select('*').from('foo').where('bar', '=', 'baz').lock(false).get()
+
+  verifyMock()
+
+  t.pass()
+})
+
+test('testBindingOrder', (t) => {
+  const expectedSql = 'select * from "users" inner join "othertable" on "bar" = ? where "registered" = ? group by "city" having "population" > ? order by match ("foo") against(?)'
+  const expectedBindings = ['foo', 1, 3, 'bar']
+
+  let builder = getBuilder()
+  builder.select('*').from('users').join('othertable', (join) => {
+    join.where('bar', '=', 'foo')
+  }).where('registered', 1).groupBy('city').having('population', '>', 3).orderByRaw('match ("foo") against(?)', ['bar'])
+  t.is(expectedSql, builder.toSql())
+  t.deepEqual(expectedBindings, builder.getBindings())
+
+  // order of statements reversed
+  builder = getBuilder()
+  builder.select('*').from('users').orderByRaw('match ("foo") against(?)', ['bar']).having('population', '>', 3).groupBy('city').where('registered', 1).join('othertable', (join) => {
+    join.where('bar', '=', 'foo')
+  })
+  t.is(expectedSql, builder.toSql())
+  t.deepEqual(expectedBindings, builder.getBindings())
+})
+
+test('testAddBindingWithArrayMergesBindings', (t) => {
+  const builder = getBuilder()
+  builder.addBinding(['foo', 'bar'])
+  builder.addBinding(['baz'])
+
+  t.deepEqual(['foo', 'bar', 'baz'], builder.getBindings())
+})
+
+test('testAddBindingWithArrayMergesBindingsInCorrectOrder', (t) => {
+  const builder = getBuilder()
+  builder.addBinding(['bar', 'baz'], 'having')
+  builder.addBinding(['foo'], 'where')
+
+  t.deepEqual(['foo', 'bar', 'baz'], builder.getBindings())
+})
+
+test('testMergeBuilders', (t) => {
+  const builder = getBuilder()
+  builder.addBinding(['foo', 'bar'])
+
+  const otherBuilder = getBuilder()
+  otherBuilder.addBinding(['baz'])
+  builder.mergeBindings(otherBuilder)
+
+  t.deepEqual(['foo', 'bar', 'baz'], builder.getBindings())
+})
+
+test('testMergeBuildersBindingOrder', (t) => {
+  const builder = getBuilder()
+  builder.addBinding('foo', 'where')
+  builder.addBinding('baz', 'having')
+
+  const otherBuilder = getBuilder()
+  otherBuilder.addBinding('bar', 'where')
+  builder.mergeBindings(otherBuilder)
+  t.deepEqual(['foo', 'bar', 'baz'], builder.getBindings())
+})
+
+test('testSubSelect', (t) => {
+  const expectedSql = 'select "foo", "bar", (select "baz" from "two" where "subkey" = ?) as "sub" from "one" where "key" = ?'
+  const expectedBindings = ['subval', 'val']
+
+  let builder = getPostgresBuilder()
+  builder.from('one').select(['foo', 'bar']).where('key', '=', 'val')
+  builder.selectSub((query) => {
+    query.from('two').select('baz').where('subkey', '=', 'subval')
+  }, 'sub')
+  t.is(expectedSql, builder.toSql())
+  t.deepEqual(expectedBindings, builder.getBindings())
+
+  builder = getPostgresBuilder()
+  builder.from('one').select(['foo', 'bar']).where('key', '=', 'val')
+
+  const subBuilder = getPostgresBuilder()
+  subBuilder.from('two').select('baz').where('subkey', '=', 'subval')
+
+  builder.selectSub(subBuilder, 'sub')
+  t.is(expectedSql, builder.toSql())
+  t.deepEqual(expectedBindings, builder.getBindings())
+
+  const error = t.throws(() => {
+    builder = getPostgresBuilder()
+    builder.selectSub(['foo'], 'sub')
+  }, { instanceOf: Error })
+
+  t.true(error.message.includes('InvalidArgumentException'))
+})
+
+test('testSubSelectResetBindings', (t) => {
+  const builder = getPostgresBuilder()
+  builder.from('one').selectSub((query) => {
+    query.from('two').select('baz').where('subkey', '=', 'subval')
+  }, 'sub')
+
+  t.is('select (select "baz" from "two" where "subkey" = ?) as "sub" from "one"', builder.toSql())
+  t.deepEqual(['subval'], builder.getBindings())
+
+  builder.select('*')
+
+  t.is('select * from "one"', builder.toSql())
+  t.deepEqual([], builder.getBindings())
+})
+
+test('testSqlServerWhereDate', (t) => {
+  const builder = getSqlServerBuilder()
+  builder.select('*').from('users').whereDate('created_at', '=', '2015-09-23')
+  t.is('select * from [users] where cast([created_at] as date) = ?', builder.toSql())
+  t.deepEqual(['2015-09-23'], builder.getBindings())
+})
+
+test('testUppercaseLeadingBooleansAreRemoved', (t) => {
+  const builder = getBuilder()
+  builder.select('*').from('users').where('name', '=', 'Taylor', 'AND')
+  t.is('select * from "users" where "name" = ?', builder.toSql())
+})
+
+test('testLowercaseLeadingBooleansAreRemoved', (t) => {
+  const builder = getBuilder()
+  builder.select('*').from('users').where('name', '=', 'Taylor', 'and')
+  t.is('select * from "users" where "name" = ?', builder.toSql())
+})
+
+test('testCaseInsensitiveLeadingBooleansAreRemoved', (t) => {
+  const builder = getBuilder()
+  builder.select('*').from('users').where('name', '=', 'Taylor', 'And')
+  t.is('select * from "users" where "name" = ?', builder.toSql())
+})
+
+test('testTableValuedFunctionAsTableInSqlServer', (t) => {
+  let builder = getSqlServerBuilder()
+  builder.select('*').from('users()')
+  t.is('select * from [users]()', builder.toSql())
+
+  builder = getSqlServerBuilder()
+  builder.select('*').from('users(1,2)')
+  t.is('select * from [users](1,2)', builder.toSql())
+})
+
+test('testChunkWithLastChunkComplete', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getBuilder()
+  builder.orders.push({ column: 'foobar', direction: 'asc' })
+
+  const chunk1 = collect(['foo1', 'foo2'])
+  const chunk2 = collect(['foo3', 'foo4'])
+  const chunk3 = collect([])
+  const builderMock = createMock(builder)
+  builderMock.expects('forPage').once().withArgs(1, 2).returnsThis()
+  builderMock.expects('forPage').once().withArgs(2, 2).returnsThis()
+  builderMock.expects('forPage').once().withArgs(3, 2).returnsThis()
+  builderMock.expects('get').once().resolves(chunk1)
+  builderMock.expects('get').once().resolves(chunk2)
+  builderMock.expects('get').once().resolves(chunk3)
+
+  const callbackAssertor = { doSomething () {} }
+  const callbackAssertorMock = createMock(callbackAssertor)
+  callbackAssertorMock.expects('doSomething').once().withArgs(chunk1)
+  callbackAssertorMock.expects('doSomething').once().withArgs(chunk2)
+  callbackAssertorMock.expects('doSomething').never().withArgs(chunk3)
+
+  await builder.chunk(2, (results) => {
+    callbackAssertor.doSomething(results)
+  })
+
+  verifyMock()
+
+  t.pass()
+})
+
+test('testChunkWithLastChunkPartial', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getBuilder()
+  builder.orders.push({ column: 'foobar', direction: 'asc' })
+
+  const chunk1 = collect(['foo1', 'foo2'])
+  const chunk2 = collect(['foo3'])
+  const builderMock = createMock(builder)
+  builderMock.expects('forPage').once().withArgs(1, 2).returnsThis()
+  builderMock.expects('forPage').once().withArgs(2, 2).returnsThis()
+  builderMock.expects('get').once().resolves(chunk1)
+  builderMock.expects('get').once().resolves(chunk2)
+
+  const callbackAssertor = { doSomething () { } }
+  const callbackAssertorMock = createMock(callbackAssertor)
+  callbackAssertorMock.expects('doSomething').once().withArgs(chunk1)
+  callbackAssertorMock.expects('doSomething').once().withArgs(chunk2)
+
+  await builder.chunk(2, (results) => {
+    callbackAssertor.doSomething(results)
+  })
+
+  verifyMock()
+
+  t.pass()
+})
+
+test('testChunkCanBeStoppedByReturningFalse', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getBuilder()
+  builder.orders.push({ column: 'foobar', direction: 'asc' })
+
+  const chunk1 = collect(['foo1', 'foo2'])
+  const chunk2 = collect(['foo3'])
+  const builderMock = createMock(builder)
+  builderMock.expects('forPage').once().withArgs(1, 2).returnsThis()
+  builderMock.expects('forPage').never().withArgs(2, 2)
+  builderMock.expects('get').once().resolves(chunk1)
+
+  const callbackAssertor = { doSomething () { } }
+  const callbackAssertorMock = createMock(callbackAssertor)
+  callbackAssertorMock.expects('doSomething').once().withArgs(chunk1)
+  callbackAssertorMock.expects('doSomething').never().withArgs(chunk2)
+
+  await builder.chunk(2, (results) => {
+    callbackAssertor.doSomething(results)
+
+    return false
+  })
+
+  verifyMock()
+
+  t.pass()
+})
+
+test('testChunkWithCountZero', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getBuilder()
+  builder.orders.push({ column: 'foobar', direction: 'asc' })
+
+  const chunk = collect([])
+  const builderMock = createMock(builder)
+  builderMock.expects('forPage').once().withArgs(1, 0).returnsThis()
+  builderMock.expects('get').once().resolves(chunk)
+
+  const callbackAssertor = { doSomething () { } }
+  const callbackAssertorMock = createMock(callbackAssertor)
+  callbackAssertorMock.expects('doSomething').never()
+
+  await builder.chunk(0, (results) => {
+    callbackAssertor.doSomething(results)
+  })
+
+  verifyMock()
+
+  t.pass()
+})
+
+test('testChunkPaginatesUsingIdWithLastChunkComplete', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getBuilder()
+  builder.orders.push({ column: 'foobar', direction: 'asc' })
+
+  const chunk1 = collect([{ someIdField: 1 }, { someIdField: 2 }])
+  const chunk2 = collect([{ someIdField: 10 }, { someIdField: 11 }])
+  const chunk3 = collect([])
+
+  const builderMock = createMock(builder)
+  builderMock.expects('forPageAfterId').once().withArgs(2, null, 'someIdField').returnsThis()
+  builderMock.expects('forPageAfterId').once().withArgs(2, 2, 'someIdField').returnsThis()
+  builderMock.expects('forPageAfterId').once().withArgs(2, 11, 'someIdField').returnsThis()
+  builderMock.expects('get').once().resolves(chunk1)
+  builderMock.expects('get').once().resolves(chunk2)
+  builderMock.expects('get').once().resolves(chunk3)
+
+  const callbackAssertor = { doSomething () { } }
+  const callbackAssertorMock = createMock(callbackAssertor)
+  callbackAssertorMock.expects('doSomething').once().withArgs(chunk1)
+  callbackAssertorMock.expects('doSomething').once().withArgs(chunk2)
+  callbackAssertorMock.expects('doSomething').never().withArgs(chunk3)
+
+  await builder.chunkById(2, (results) => {
+    callbackAssertor.doSomething(results)
+  }, 'someIdField')
+
+  verifyMock()
+
+  t.pass()
+})
+
+test('testChunkPaginatesUsingIdWithLastChunkPartial', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getBuilder()
+  builder.orders.push({ column: 'foobar', direction: 'asc' })
+
+  const builderMock = createMock(builder)
+  const chunk1 = collect([{ someIdField: 1 }, { someIdField: 2 }])
+  const chunk2 = collect([{ someIdField: 10 }])
+  builderMock.expects('forPageAfterId').once().withArgs(2, null, 'someIdField').returnsThis()
+  builderMock.expects('forPageAfterId').once().withArgs(2, 2, 'someIdField').returnsThis()
+  builderMock.expects('get').once().resolves(chunk1)
+  builderMock.expects('get').once().resolves(chunk2)
+
+  const callbackAssertor = { doSomething () { } }
+  const callbackAssertorMock = createMock(callbackAssertor)
+  callbackAssertorMock.expects('doSomething').once().withArgs(chunk1)
+  callbackAssertorMock.expects('doSomething').once().withArgs(chunk2)
+
+  await builder.chunkById(2, (results) => {
+    callbackAssertor.doSomething(results)
+  }, 'someIdField')
+
+  verifyMock()
+
+  t.pass()
+})
+
+test('testChunkPaginatesUsingIdWithCountZero', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getBuilder()
+  builder.orders.push({ column: 'foobar', direction: 'asc' })
+
+  const builderMock = createMock(builder)
+  const chunk = collect([])
+  builderMock.expects('forPageAfterId').once().withArgs(0, null, 'someIdField').returnsThis()
+  builderMock.expects('get').once().resolves(chunk)
+
+  const callbackAssertor = { doSomething () { } }
+  const callbackAssertorMock = createMock(callbackAssertor)
+  callbackAssertorMock.expects('doSomething').never()
+
+  await builder.chunkById(0, (results) => {
+    callbackAssertor.doSomething(results)
+  }, 'someIdField')
+
+  verifyMock()
+
+  t.pass()
+})
+
+test('testChunkPaginatesUsingIdWithAlias', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const builder = getBuilder()
+  builder.orders.push({ column: 'foobar', direction: 'asc' })
+
+  const builderMock = createMock(builder)
+  const chunk1 = collect([{ table_id: 1 }, { table_id: 10 }])
+  const chunk2 = collect([])
+  builderMock.expects('forPageAfterId').once().withArgs(2, null, 'table.id').returnsThis()
+  builderMock.expects('forPageAfterId').once().withArgs(2, 10, 'table.id').returnsThis()
+  builderMock.expects('get').once().resolves(chunk1)
+  builderMock.expects('get').once().resolves(chunk2)
+
+  const callbackAssertor = { doSomething () { } }
+  const callbackAssertorMock = createMock(callbackAssertor)
+  callbackAssertorMock.expects('doSomething').once().withArgs(chunk1)
+  callbackAssertorMock.expects('doSomething').never().withArgs(chunk2)
+
+  await builder.chunkById(2, (results) => {
+    callbackAssertor.doSomething(results)
+  }, 'table.id', 'table_id')
+
+  verifyMock()
+
+  t.pass()
+})
+
+test('testPaginate', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const perPage = 16
+  const columns = ['test']
+  const page = 1
+  const builder = getBuilder()
+
+  const results = collect([{ test: 'foo' }, { test: 'bar' }])
+
+  const mockBuilder = createMock(builder)
+  mockBuilder.expects('getCountForPagination').once().resolves(2)
+  mockBuilder.expects('forPage').once().withArgs(page, perPage).returnsThis()
+  mockBuilder.expects('get').once().resolves(results)
+
+  const result = await builder.paginate(perPage, columns, page)
+  t.deepEqual({ items: results, total: 2, perPage, currentPage: page }, result)
+
+  verifyMock()
+})
+
+test('testPaginateWithDefaultArguments', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const perPage = 15
+  const page = 1
+  const builder = getBuilder()
+
+  const results = collect([{ test: 'foo' }, { test: 'bar' }])
+
+  const mockBuilder = createMock(builder)
+  mockBuilder.expects('getCountForPagination').once().resolves(2)
+  mockBuilder.expects('forPage').once().withArgs(page, perPage).returnsThis()
+  mockBuilder.expects('get').once().resolves(results)
+
+  const result = await builder.paginate()
+
+  t.deepEqual({ items: results, total: 2, perPage, currentPage: page }, result)
+
+  verifyMock()
+})
+
+test('testPaginateWhenNoResults', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const perPage = 15
+  const page = 1
+  const builder = getBuilder()
+
+  const results = collect([])
+
+  const mockBuilder = createMock(builder)
+  mockBuilder.expects('getCountForPagination').once().resolves(0)
+  mockBuilder.expects('forPage').never()
+  mockBuilder.expects('get').never()
+
+  const result = await builder.paginate()
+
+  t.deepEqual({ items: results, total: 0, perPage, currentPage: page }, result)
+
+  verifyMock()
+})
+
+test('testPaginateWithSpecificColumns', async (t) => {
+  const { createMock, verifyMock } = mock()
+
+  const perPage = 16
+  const columns = ['id', 'name']
+  const page = 1
+  const builder = getBuilder()
+  const builderMock = createMock(builder)
+
+  const results = collect([{ id: 3, name: 'Taylor' }, { id: 5, name: 'Mohamed' }])
+
+  builderMock.expects('getCountForPagination').once().resolves(2)
+  builderMock.expects('forPage').once().withArgs(page, perPage).returnsThis()
+  builderMock.expects('get').once().resolves(results)
+
+  const result = await builder.paginate(perPage, columns, page)
+
+  t.deepEqual({ items: results, total: 2, perPage, currentPage: page }, result)
+
+  verifyMock()
+})
+
+test('testWhereRowValues', (t) => {
+  let builder = getBuilder()
+  builder.select('*').from('orders').whereRowValues(['last_update', 'order_number'], '<', [1, 2])
+  t.is('select * from "orders" where ("last_update", "order_number") < (?, ?)', builder.toSql())
+
+  builder = getBuilder()
+  builder.select('*').from('orders').where('company_id', 1).orWhereRowValues(['last_update', 'order_number'], '<', [1, 2])
+  t.is('select * from "orders" where "company_id" = ? or ("last_update", "order_number") < (?, ?)', builder.toSql())
+
+  builder = getBuilder()
+  builder.select('*').from('orders').whereRowValues(['last_update', 'order_number'], '<', [1, new Raw('2')])
+  t.is('select * from "orders" where ("last_update", "order_number") < (?, 2)', builder.toSql())
+  t.deepEqual([1], builder.getBindings())
+})
+
+test('testWhereRowValuesArityMismatch', (t) => {
+  const error = t.throws(() => {
+    const builder = getBuilder()
+    builder.select('*').from('orders').whereRowValues(['last_update'], '<', [1, 2])
+  }, { instanceOf: Error })
+
+  t.true(error.message.includes('InvalidArgumentException'))
+  t.true(error.message.includes('The number of columns must match the number of values'))
+})
+
+test('testWhereJsonContainsMySql', (t) => {
+  let builder = getMySqlBuilder()
+  builder.select('*').from('users').whereJsonContains('options', ['en'])
+  t.is('select * from `users` where json_contains(`options`, ?)', builder.toSql())
+  t.deepEqual(['["en"]'], builder.getBindings())
+
+  builder = getMySqlBuilder()
+  builder.select('*').from('users').whereJsonContains('users.options->languages', ['en'])
+  t.is('select * from `users` where json_contains(`users`.`options`, ?, \'$."languages"\')', builder.toSql())
+  t.deepEqual(['["en"]'], builder.getBindings())
+
+  builder = getMySqlBuilder()
+  builder.select('*').from('users').where('id', '=', 1).orWhereJsonContains('options->languages', new Raw("'[\"en\"]'"))
+  t.is('select * from `users` where `id` = ? or json_contains(`options`, \'["en"]\', \'$."languages"\')', builder.toSql())
+  t.deepEqual([1], builder.getBindings())
+})
+
+test('testWhereJsonContainsPostgres', (t) => {
+  let builder = getPostgresBuilder()
+  builder.select('*').from('users').whereJsonContains('options', ['en'])
+  t.is('select * from "users" where ("options")::jsonb @> ?', builder.toSql())
+  t.deepEqual(['["en"]'], builder.getBindings())
+
+  builder = getPostgresBuilder()
+  builder.select('*').from('users').whereJsonContains('users.options->languages', ['en'])
+  t.is('select * from "users" where ("users"."options"->\'languages\')::jsonb @> ?', builder.toSql())
+  t.deepEqual(['["en"]'], builder.getBindings())
+
+  builder = getPostgresBuilder()
+  builder.select('*').from('users').where('id', '=', 1).orWhereJsonContains('options->languages', new Raw("'[\"en\"]'"))
+  t.is('select * from "users" where "id" = ? or ("options"->\'languages\')::jsonb @> \'["en"]\'', builder.toSql())
+  t.deepEqual([1], builder.getBindings())
+})
+
+test('testWhereJsonContainsSqlite', (t) => {
+  const error = t.throws(() => {
+    const builder = getSQLiteBuilder()
+    builder.select('*').from('users').whereJsonContains('options->languages', ['en']).toSql()
+  }, { instanceOf: Error })
+
+  t.true(error.message.includes('RuntimeException'))
+})
+
+test('testWhereJsonContainsSqlServer', (t) => {
+  let builder = getSqlServerBuilder()
+  builder.select('*').from('users').whereJsonContains('options', true)
+  t.is('select * from [users] where ? in (select [value] from openjson([options]))', builder.toSql())
+  t.deepEqual(['true'], builder.getBindings())
+
+  builder = getSqlServerBuilder()
+  builder.select('*').from('users').whereJsonContains('users.options->languages', 'en')
+  t.is('select * from [users] where ? in (select [value] from openjson([users].[options], \'$."languages"\'))', builder.toSql())
+  t.deepEqual(['en'], builder.getBindings())
+
+  builder = getSqlServerBuilder()
+  builder.select('*').from('users').where('id', '=', 1).orWhereJsonContains('options->languages', new Raw("'en'"))
+  t.is('select * from [users] where [id] = ? or \'en\' in (select [value] from openjson([options], \'$."languages"\'))', builder.toSql())
+  t.deepEqual([1], builder.getBindings())
+})
+
+test('testWhereJsonDoesntContainMySql', (t) => {
+  let builder = getMySqlBuilder()
+  builder.select('*').from('users').whereJsonDoesntContain('options->languages', ['en'])
+  t.is('select * from `users` where not json_contains(`options`, ?, \'$."languages"\')', builder.toSql())
+  t.deepEqual(['["en"]'], builder.getBindings())
+
+  builder = getMySqlBuilder()
+  builder.select('*').from('users').where('id', '=', 1).orWhereJsonDoesntContain('options->languages', new Raw("'[\"en\"]'"))
+  t.is('select * from `users` where `id` = ? or not json_contains(`options`, \'["en"]\', \'$."languages"\')', builder.toSql())
+  t.deepEqual([1], builder.getBindings())
+})
+
+test('testWhereJsonDoesntContainPostgres', (t) => {
+  let builder = getPostgresBuilder()
+  builder.select('*').from('users').whereJsonDoesntContain('options->languages', ['en'])
+  t.is('select * from "users" where not ("options"->\'languages\')::jsonb @> ?', builder.toSql())
+  t.deepEqual(['["en"]'], builder.getBindings())
+
+  builder = getPostgresBuilder()
+  builder.select('*').from('users').where('id', '=', 1).orWhereJsonDoesntContain('options->languages', new Raw("'[\"en\"]'"))
+  t.is('select * from "users" where "id" = ? or not ("options"->\'languages\')::jsonb @> \'["en"]\'', builder.toSql())
+  t.deepEqual([1], builder.getBindings())
+})
+
+test('testWhereJsonDoesntContainSqlite', (t) => {
+  const error = t.throws(() => {
+    const builder = getSQLiteBuilder()
+    builder.select('*').from('users').whereJsonDoesntContain('options->languages', ['en']).toSql()
+  }, { instanceOf: Error })
+
+  t.true(error.message.includes('RuntimeException'))
+})
+
+test('testWhereJsonDoesntContainSqlServer', (t) => {
+  let builder = getSqlServerBuilder()
+  builder.select('*').from('users').whereJsonDoesntContain('options->languages', 'en')
+  t.is('select * from [users] where not ? in (select [value] from openjson([options], \'$."languages"\'))', builder.toSql())
+  t.deepEqual(['en'], builder.getBindings())
+
+  builder = getSqlServerBuilder()
+  builder.select('*').from('users').where('id', '=', 1).orWhereJsonDoesntContain('options->languages', new Raw("'en'"))
+  t.is('select * from [users] where [id] = ? or not \'en\' in (select [value] from openjson([options], \'$."languages"\'))', builder.toSql())
+  t.deepEqual([1], builder.getBindings())
+})
+
+test('testWhereJsonLengthMySql', (t) => {
+  let builder = getMySqlBuilder()
+  builder.select('*').from('users').whereJsonLength('options', 0)
+  t.is('select * from `users` where json_length(`options`) = ?', builder.toSql())
+  t.deepEqual([0], builder.getBindings())
+
+  builder = getMySqlBuilder()
+  builder.select('*').from('users').whereJsonLength('users.options->languages', '>', 0)
+  t.is('select * from `users` where json_length(`users`.`options`, \'$."languages"\') > ?', builder.toSql())
+  t.deepEqual([0], builder.getBindings())
+
+  builder = getMySqlBuilder()
+  builder.select('*').from('users').where('id', '=', 1).orWhereJsonLength('options->languages', new Raw('0'))
+  t.is('select * from `users` where `id` = ? or json_length(`options`, \'$."languages"\') = 0', builder.toSql())
+  t.deepEqual([1], builder.getBindings())
+
+  builder = getMySqlBuilder()
+  builder.select('*').from('users').where('id', '=', 1).orWhereJsonLength('options->languages', '>', new Raw('0'))
+  t.is('select * from `users` where `id` = ? or json_length(`options`, \'$."languages"\') > 0', builder.toSql())
+  t.deepEqual([1], builder.getBindings())
+})
+
+test('testWhereJsonLengthPostgres', (t) => {
+  let builder = getPostgresBuilder()
+  builder.select('*').from('users').whereJsonLength('options', 0)
+  t.is('select * from "users" where json_array_length(("options")::json) = ?', builder.toSql())
+  t.deepEqual([0], builder.getBindings())
+
+  builder = getPostgresBuilder()
+  builder.select('*').from('users').whereJsonLength('users.options->languages', '>', 0)
+  t.is('select * from "users" where json_array_length(("users"."options"->\'languages\')::json) > ?', builder.toSql())
+  t.deepEqual([0], builder.getBindings())
+
+  builder = getPostgresBuilder()
+  builder.select('*').from('users').where('id', '=', 1).orWhereJsonLength('options->languages', new Raw('0'))
+  t.is('select * from "users" where "id" = ? or json_array_length(("options"->\'languages\')::json) = 0', builder.toSql())
+  t.deepEqual([1], builder.getBindings())
+
+  builder = getPostgresBuilder()
+  builder.select('*').from('users').where('id', '=', 1).orWhereJsonLength('options->languages', '>', new Raw('0'))
+  t.is('select * from "users" where "id" = ? or json_array_length(("options"->\'languages\')::json) > 0', builder.toSql())
+  t.deepEqual([1], builder.getBindings())
+})
+
+test('testWhereJsonLengthSqlite', (t) => {
+  let builder = getSQLiteBuilder()
+  builder.select('*').from('users').whereJsonLength('options', 0)
+  t.is('select * from "users" where json_array_length("options") = ?', builder.toSql())
+  t.deepEqual([0], builder.getBindings())
+
+  builder = getSQLiteBuilder()
+  builder.select('*').from('users').whereJsonLength('users.options->languages', '>', 0)
+  t.is('select * from "users" where json_array_length("users"."options", \'$."languages"\') > ?', builder.toSql())
+  t.deepEqual([0], builder.getBindings())
+
+  builder = getSQLiteBuilder()
+  builder.select('*').from('users').where('id', '=', 1).orWhereJsonLength('options->languages', new Raw('0'))
+  t.is('select * from "users" where "id" = ? or json_array_length("options", \'$."languages"\') = 0', builder.toSql())
+  t.deepEqual([1], builder.getBindings())
+
+  builder = getSQLiteBuilder()
+  builder.select('*').from('users').where('id', '=', 1).orWhereJsonLength('options->languages', '>', new Raw('0'))
+  t.is('select * from "users" where "id" = ? or json_array_length("options", \'$."languages"\') > 0', builder.toSql())
+  t.deepEqual([1], builder.getBindings())
+})
+
+test('testWhereJsonLengthSqlServer', (t) => {
+  let builder = getSqlServerBuilder()
+  builder.select('*').from('users').whereJsonLength('options', 0)
+  t.is('select * from [users] where (select count(*) from openjson([options])) = ?', builder.toSql())
+  t.deepEqual([0], builder.getBindings())
+
+  builder = getSqlServerBuilder()
+  builder.select('*').from('users').whereJsonLength('users.options->languages', '>', 0)
+  t.is('select * from [users] where (select count(*) from openjson([users].[options], \'$."languages"\')) > ?', builder.toSql())
+  t.deepEqual([0], builder.getBindings())
+
+  builder = getSqlServerBuilder()
+  builder.select('*').from('users').where('id', '=', 1).orWhereJsonLength('options->languages', new Raw('0'))
+  t.is('select * from [users] where [id] = ? or (select count(*) from openjson([options], \'$."languages"\')) = 0', builder.toSql())
+  t.deepEqual([1], builder.getBindings())
+
+  builder = getSqlServerBuilder()
+  builder.select('*').from('users').where('id', '=', 1).orWhereJsonLength('options->languages', '>', new Raw('0'))
+  t.is('select * from [users] where [id] = ? or (select count(*) from openjson([options], \'$."languages"\')) > 0', builder.toSql())
+  t.deepEqual([1], builder.getBindings())
+})
+
+test('testFromSub', (t) => {
+  const builder = getBuilder()
+  builder.fromSub((query) => {
+    query.select(new Raw('max(last_seen_at) as last_seen_at')).from('user_sessions').where('foo', '=', '1')
+  }, 'sessions').where('bar', '<', '10')
+  t.is('select * from (select max(last_seen_at) as last_seen_at from "user_sessions" where "foo" = ?) as "sessions" where "bar" < ?', builder.toSql())
+  t.deepEqual(['1', '10'], builder.getBindings())
+
+  const error = t.throws(() => {
+    const builder = getBuilder()
+    builder.fromSub(['invalid'], 'sessions').where('bar', '<', '10')
+  }, { instanceOf: Error })
+
+  t.true(error.message.includes('InvalidArgumentException'))
+})
+
+test('testFromSubWithPrefix', (t) => {
+  const builder = getBuilder()
+  builder.getGrammar().setTablePrefix('prefix_')
+  builder.fromSub((query) => {
+    query.select(new Raw('max(last_seen_at) as last_seen_at')).from('user_sessions').where('foo', '=', '1')
+  }, 'sessions').where('bar', '<', '10')
+  t.is('select * from (select max(last_seen_at) as last_seen_at from "prefix_user_sessions" where "foo" = ?) as "prefix_sessions" where "bar" < ?', builder.toSql())
+  t.deepEqual(['1', '10'], builder.getBindings())
+})
+
+test('testFromSubWithoutBindings', (t) => {
+  const builder = getBuilder()
+  builder.fromSub((query) => {
+    query.select(new Raw('max(last_seen_at) as last_seen_at')).from('user_sessions')
+  }, 'sessions')
+  t.is('select * from (select max(last_seen_at) as last_seen_at from "user_sessions") as "sessions"', builder.toSql())
+
+  const error = t.throws(() => {
+    const builder = getBuilder()
+    builder.fromSub(['invalid'], 'sessions')
+  }, { instanceOf: Error })
+
+  t.true(error.message.includes('InvalidArgumentException'))
+})
+
+test('testFromRaw', (t) => {
+  const builder = getBuilder()
+  builder.fromRaw(new Raw('(select max(last_seen_at) as last_seen_at from "user_sessions") as "sessions"'))
+  t.is('select * from (select max(last_seen_at) as last_seen_at from "user_sessions") as "sessions"', builder.toSql())
+})
+
+test('testFromRawOnSqlServer', (t) => {
+  const builder = getSqlServerBuilder()
+  builder.fromRaw('dbo.[SomeNameWithRoundBrackets (test)]')
+  t.is('select * from dbo.[SomeNameWithRoundBrackets (test)]', builder.toSql())
+})
+
+test('testFromRawWithWhereOnTheMainQuery', (t) => {
+  const builder = getBuilder()
+  builder.fromRaw(new Raw('(select max(last_seen_at) as last_seen_at from "sessions") as "last_seen_at"')).where('last_seen_at', '>', '1520652582')
+  t.is('select * from (select max(last_seen_at) as last_seen_at from "sessions") as "last_seen_at" where "last_seen_at" > ?', builder.toSql())
+  t.deepEqual(['1520652582'], builder.getBindings())
+})
+
+test('testFromQuestionMarkOperatorOnPostgres', (t) => {
+  let builder = getPostgresBuilder()
+  builder.select('*').from('users').where('roles', '?', 'superuser')
+  t.is('select * from "users" where "roles" ?? ?', builder.toSql())
+
+  builder = getPostgresBuilder()
+  builder.select('*').from('users').where('roles', '?|', 'superuser')
+  t.is('select * from "users" where "roles" ??| ?', builder.toSql())
+
+  builder = getPostgresBuilder()
+  builder.select('*').from('users').where('roles', '?&', 'superuser')
+  t.is('select * from "users" where "roles" ??& ?', builder.toSql())
+})
+
+test('testClone', (t) => {
+  const builder = getBuilder()
+  builder.select('*').from('users')
+  const clone = builder.clone().where('email', 'foo')
+
+  t.notDeepEqual(builder, clone)
+  t.is('select * from "users"', builder.toSql())
+  t.is('select * from "users" where "email" = ?', clone.toSql())
+})
+
+test('testCloneWithout', (t) => {
+  const builder = getBuilder()
+  builder.select('*').from('users').where('email', 'foo').orderBy('email')
+  const clone = builder.cloneWithout(['orders'])
+
+  t.is('select * from "users" where "email" = ? order by "email" asc', builder.toSql())
+  t.is('select * from "users" where "email" = ?', clone.toSql())
+})
+
+test('testCloneWithoutBindings', (t) => {
+  const builder = getBuilder()
+  builder.select('*').from('users').where('email', 'foo').orderBy('email')
+  const clone = builder.cloneWithout(['wheres']).cloneWithoutBindings(['where'])
+
+  t.is('select * from "users" where "email" = ? order by "email" asc', builder.toSql())
+  t.deepEqual(['foo'], builder.getBindings())
+
+  t.is('select * from "users" order by "email" asc', clone.toSql())
+  t.deepEqual([], clone.getBindings())
+})

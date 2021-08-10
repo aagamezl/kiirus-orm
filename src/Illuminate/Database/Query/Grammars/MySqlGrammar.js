@@ -68,6 +68,33 @@ export class MySqlGrammar extends Grammar {
   }
 
   /**
+   * Compile a "JSON contains" statement into SQL.
+   *
+   * @param  {string}  column
+   * @param  {string}  value
+   * @return {string}
+   */
+  compileJsonContains (column, value) {
+    const [field, path] = this.wrapJsonFieldAndPath(column)
+
+    return `json_contains(${field}, ${value}${path})`
+  }
+
+  /**
+   * Compile a "JSON length" statement into SQL.
+   *
+   * @param  string  column
+   * @param  string  operator
+   * @param  string  value
+   * @return string
+   */
+  compileJsonLength (column, operator, value) {
+    const [field, path] = this.wrapJsonFieldAndPath(column)
+
+    return `json_length(${field}${path}) ${operator} ${value}`
+  }
+
+  /**
    * Prepare a JSON column being updated using the JSON_SET function.
    *
    * @param  {string}  key
