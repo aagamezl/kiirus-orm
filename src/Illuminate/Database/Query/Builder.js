@@ -34,7 +34,7 @@ export class Builder {
    * @param  {\Illuminate\Database\ConnectionInterface}  connection
    * @param  {\Illuminate\Database\Query\Grammars\Grammar|undefined}  [grammar]
    * @param  {\Illuminate\Database\Query\Processors\Processor|undefined}  [processor]
-   * @return void
+   * @return {void}
    */
   constructor (connection, grammar = undefined, processor = undefined) {
     /**
@@ -2036,6 +2036,16 @@ export class Builder {
   }
 
   /**
+   * Create a raw database expression.
+   *
+   * @param  {*}  value
+   * @return {\Illuminate\Database\Query\Expression}
+   */
+  raw (value) {
+    return this.connection.raw(value)
+  }
+
+  /**
    * Get an array with all orders with a given column removed.
    *
    * @param  {string}  column
@@ -2651,7 +2661,7 @@ export class Builder {
     value = this.flattenValue(value)
 
     if (value instanceof Date) {
-      value = dateFormat(value, 'Y-m-d')
+      value = dateFormat(value, 'YYYY-MM-dd')
     }
 
     return this.addDateBasedWhere('Date', column, operator, value, boolean)
@@ -2675,7 +2685,7 @@ export class Builder {
     value = this.flattenValue(value)
 
     if (value instanceof Date) {
-      value = dateFormat(value, 'd')
+      value = dateFormat(value, 'dd')
     }
 
     return this.addDateBasedWhere('Day', column, operator, value, boolean)
@@ -2838,12 +2848,12 @@ export class Builder {
     value = this.flattenValue(value)
 
     if (value instanceof Date) {
-      value = dateFormat(value, 'm')
+      value = dateFormat(value, 'MM')
     }
 
-    // if (!(value instanceof Expression)) {
-    //   value = String(value).padStart(2, '0')
-    // }
+    if (!(value instanceof Expression)) {
+      value = String(value).padStart(2, '0')
+    }
 
     return this.addDateBasedWhere('Month', column, operator, value, boolean)
   }
@@ -3024,7 +3034,7 @@ export class Builder {
     value = this.flattenValue(value)
 
     if (value instanceof Date) {
-      value = dateFormat(value, 'H:i:s')
+      value = dateFormat(value, 'HH:mm:ss')
     }
 
     return this.addDateBasedWhere('Time', column, operator, value, boolean)
@@ -3047,7 +3057,7 @@ export class Builder {
     value = this.flattenValue(value)
 
     if (value instanceof Date) {
-      value = dateFormat(value, 'Y')
+      value = dateFormat(value, 'YYYY')
     }
 
     return this.addDateBasedWhere('Year', column, operator, value, boolean)

@@ -97,4 +97,4 @@ export const reset = (array) => {
  * @param {Array} args
  * @return {*}
  */
-export const value = (target, ...args) => target instanceof Function ? target(...args) : value
+export const value = (target, ...args) => target instanceof Function ? target(...args) : target

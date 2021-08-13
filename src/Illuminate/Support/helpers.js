@@ -1,6 +1,14 @@
 import { HigherOrderTapProxy } from './HigherOrderTapProxy'
 
 /**
+ * Quote string with slashes.
+ *
+ * @param {string} value
+ * @returns {string}
+ */
+export const addslashes = (value) => value.replace(/'/g, "\\'")
+
+/**
  * Returns an array with all keys from array lowercased or uppercased.
  *
  * @param {object} value
@@ -66,4 +74,8 @@ export const throwException = (type, message) => {
     case 'concrete-method':
       throw new Error(`RuntimeException: Implement ${message} method on concrete class.`)
   }
+}
+
+export const lcfirst = (string) => {
+  return string.charAt(0).toLowerCase() + string.slice(1)
 }

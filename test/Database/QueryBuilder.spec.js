@@ -3,8 +3,8 @@ const test = require('ava')
 const { mock } = require('./../tools/mock')
 
 const { Builder: EloquentBuilder } = require('./../../lib/Illuminate/Database/Eloquent/Builder')
-const { Expression: Raw } = require('../../lib/Illuminate/Database/Query/internal')
-const { SQLiteGrammar } = require('../../lib/Illuminate/Database/Query/Grammars/SQLiteGrammar')
+const { Expression: Raw } = require('./../../lib/Illuminate/Database/Query/internal')
+const { SQLiteGrammar } = require('./../../lib/Illuminate/Database/Query/Grammars/SQLiteGrammar')
 const { collect } = require('./../../lib/Illuminate/Collections/helpers')
 const {
   getBuilder,
@@ -294,6 +294,13 @@ test('testBasicWheres', (t) => {
   t.deepEqual([1], builder.getBindings())
 })
 
+test('testBasicWheresInvalidOperator', (t) => {
+  const builder = getBuilder()
+  builder.select('*').from('users').where('id', '#', 1)
+  t.is('select * from "users" where "id" = ?', builder.toSql())
+  t.deepEqual(['#'], builder.getBindings())
+})
+
 test('testWheresWithArrayValue', (t) => {
   let builder = getBuilder()
   builder.select('*').from('users').where('id', [12])
@@ -333,8 +340,18 @@ test('testDateBasedWheresAcceptsTwoArguments', (t) => {
   t.is('select * from `users` where date(`created_at`) = ?', builder.toSql())
 
   builder = getMySqlBuilder()
+  builder.select('*').from('users').whereDate('created_at', new Date('2021/08/07'))
+  t.is('select * from `users` where date(`created_at`) = ?', builder.toSql())
+  t.deepEqual(['2021-08-07'], builder.getBindings())
+
+  builder = getMySqlBuilder()
   builder.select('*').from('users').whereDay('created_at', 1)
   t.is('select * from `users` where day(`created_at`) = ?', builder.toSql())
+
+  builder = getMySqlBuilder()
+  builder.select('*').from('users').whereDay('created_at', new Date('2021/08/07'))
+  t.is('select * from `users` where day(`created_at`) = ?', builder.toSql())
+  t.deepEqual(['07'], builder.getBindings())
 
   builder = getMySqlBuilder()
   builder.select('*').from('users').whereMonth('created_at', 1)
@@ -347,6 +364,7 @@ test('testDateBasedWheresAcceptsTwoArguments', (t) => {
   builder = getMySqlBuilder()
   builder.select('*').from('users').whereYear('created_at', new Date('2021/08/07'))
   t.is('select * from `users` where year(`created_at`) = ?', builder.toSql())
+  t.deepEqual(['2021'], builder.getBindings())
 })
 
 test('testDateBasedOrWheresAcceptsTwoArguments', (t) => {
@@ -411,17 +429,22 @@ test('testOrWhereDayMySql', (t) => {
 })
 
 test('testWhereMonthMySql', (t) => {
-  const builder = getMySqlBuilder()
+  let builder = getMySqlBuilder()
   builder.select('*').from('users').whereMonth('created_at', '=', 5)
   t.is('select * from `users` where month(`created_at`) = ?', builder.toSql())
-  t.deepEqual([5], builder.getBindings())
+  t.deepEqual(['05'], builder.getBindings())
+
+  builder = getMySqlBuilder()
+  builder.select('*').from('users').whereMonth('created_at', '=', new Date('2021/08/10'))
+  t.is('select * from `users` where month(`created_at`) = ?', builder.toSql())
+  t.deepEqual(['08'], builder.getBindings())
 })
 
 test('testOrWhereMonthMySql', (t) => {
   const builder = getMySqlBuilder()
   builder.select('*').from('users').whereMonth('created_at', '=', 5).orWhereMonth('created_at', '=', 6)
   t.is('select * from `users` where month(`created_at`) = ? or month(`created_at`) = ?', builder.toSql())
-  t.deepEqual([5, 6], builder.getBindings())
+  t.deepEqual(['05', '06'], builder.getBindings())
 })
 
 test('testWhereYearMySql', (t) => {
@@ -439,10 +462,15 @@ test('testOrWhereYearMySql', (t) => {
 })
 
 test('testWhereTimeMySql', (t) => {
-  const builder = getMySqlBuilder()
+  let builder = getMySqlBuilder()
   builder.select('*').from('users').whereTime('created_at', '>=', '22:00')
   t.is('select * from `users` where time(`created_at`) >= ?', builder.toSql())
   t.deepEqual(['22:00'], builder.getBindings())
+
+  builder = getMySqlBuilder()
+  builder.select('*').from('users').whereTime('created_at', '>=', new Date('2021-08-10T22:00:09'))
+  t.is('select * from `users` where time(`created_at`) >= ?', builder.toSql())
+  t.deepEqual(['22:00:09'], builder.getBindings())
 })
 
 test('testWhereTimeOperatorOptionalMySql', (t) => {
@@ -481,7 +509,7 @@ test('testWhereMonthPostgres', (t) => {
   const builder = getPostgresBuilder()
   builder.select('*').from('users').whereMonth('created_at', '=', 5)
   t.is('select * from "users" where extract(month from "created_at") = ?', builder.toSql())
-  t.deepEqual([5], builder.getBindings())
+  t.deepEqual(['05'], builder.getBindings())
 })
 
 test('testWhereYearPostgres', (t) => {
@@ -547,7 +575,7 @@ test('testWhereMonthSqlite', (t) => {
   const builder = getSQLiteBuilder()
   builder.select('*').from('users').whereMonth('created_at', '=', 5)
   t.is('select * from "users" where strftime(\'%m\', "created_at") = cast(? as text)', builder.toSql())
-  t.deepEqual([5], builder.getBindings())
+  t.deepEqual(['05'], builder.getBindings())
 })
 
 test('testWhereYearSqlite', (t) => {
@@ -605,7 +633,7 @@ test('testWhereMonthSqlServer', (t) => {
   const builder = getSqlServerBuilder()
   builder.select('*').from('users').whereMonth('created_at', '=', 5)
   t.is('select * from [users] where month([created_at]) = ?', builder.toSql())
-  t.deepEqual([5], builder.getBindings())
+  t.deepEqual(['05'], builder.getBindings())
 })
 
 test('testWhereYearSqlServer', (t) => {

@@ -5,6 +5,8 @@ import { Grammar as QueryGrammar } from './Query/Grammars'
 import { Processor } from './Query/Processors'
 import { QueryExecuted, StatementPrepared } from './Events'
 import { Statement } from './Statements'
+import { Builder as SchemaBuilder } from './Schema/Builder'
+import { Expression } from './Query/Expression'
 
 /**
  *
@@ -119,6 +121,13 @@ export class Connection {
      * @member boolean
      */
     this.recordsModified = false
+
+    /**
+     * The schema grammar implementation.
+     *
+     * @member {\Illuminate\Database\Schema\Grammars\Grammar}
+     */
+    this.schemaGrammar = undefined
 
     /**
      * The table prefix for the connection.
@@ -291,6 +300,14 @@ export class Connection {
     return getData(this.config, option)
   }
 
+  /**
+   * Get the default schema grammar instance.
+   *
+   * @return {\Illuminate\Database\Schema\Grammars\Grammar}
+   */
+  getDefaultSchemaGrammar () {
+  }
+
   getNdo () {
     if (isFunction(this.ndo)) {
       this.ndo = this.ndo()
@@ -421,6 +438,28 @@ export class Connection {
   }
 
   /**
+   * Get the schema grammar used by the connection.
+   *
+   * @return {\Illuminate\Database\Schema\Grammars\Grammar}
+   */
+  getSchemaGrammar () {
+    return this.schemaGrammar
+  }
+
+  /**
+   * Get a schema builder instance for the connection.
+   *
+   * @return {\Illuminate\Database\Schema\Builder}
+   */
+  getSchemaBuilder () {
+    if (this.schemaGrammar === undefined) {
+      this.useDefaultSchemaGrammar()
+    }
+
+    return new SchemaBuilder(this)
+  }
+
+  /**
    * Handle a query exception.
    *
    * @param  {Error}  error
@@ -515,6 +554,16 @@ export class Connection {
    */
   pretending () {
     return this.pretendingConnection === true
+  }
+
+  /**
+   * Get a new raw query expression.
+   *
+   * @param  {*}  value
+   * @return {\Illuminate\Database\Query\Expression}
+   */
+  raw (value) {
+    return new Expression(value)
   }
 
   /**
@@ -724,6 +773,15 @@ export class Connection {
    */
   useDefaultQueryGrammar () {
     this.queryGrammar = this.getDefaultQueryGrammar()
+  }
+
+  /**
+   * Set the schema grammar to the default implementation.
+   *
+   * @return {void}
+   */
+  useDefaultSchemaGrammar () {
+    this.schemaGrammar = this.getDefaultSchemaGrammar()
   }
 
   /**

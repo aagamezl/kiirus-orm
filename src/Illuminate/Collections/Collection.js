@@ -37,6 +37,28 @@ export class Collection {
   }
 
   /**
+   * Determine if an item exists in the collection.
+   *
+   * @param  {*}  key
+   * @param  {*}  operator
+   * @param  {*}  value
+   * @return {boolean}
+   */
+  contains (key, operator = null, value = null) {
+    if (arguments.length === 1) {
+      if (this.useAsCallable(key)) {
+        const placeholder = {}
+
+        return this.first(key, placeholder) !== placeholder
+      }
+
+      return this.items.includes(key)
+    }
+
+    return this.contains(this.operatorForWhere(...arguments))
+  }
+
+  /**
    * Count the number of items in the collection.
    *
    * @return {number}
@@ -199,6 +221,76 @@ export class Collection {
 
       return item
     }))
+  }
+
+  /**
+   * Run an associative map over each of the items.
+   *
+   * The callback should return an associative array with a single key/value pair.
+   *
+   * @param  {Function}  callback
+   * @return {this}
+   */
+  mapWithKeys (callback) {
+    const result = []
+
+    for (const [key, value] of Object.entries(this.items)) {
+      const assoc = callback(value, key)
+
+      for (const [mapKey, mapValue] of Object.entries(assoc)) {
+        result[mapKey] = mapValue
+      }
+    }
+
+    return new this.constructor(result)
+  }
+
+  /**
+   * Get an operator checker callback.
+   *
+   * @param  {string}  key
+   * @param  {string|null}  operator
+   * @param  {*}  value
+   * @return {Function}
+   */
+  operatorForWhere (key, operator = null, value = null) {
+    if (arguments.length === 1) {
+      value = true
+
+      operator = '='
+    }
+
+    if (arguments.length === 2) {
+      value = operator
+
+      operator = '='
+    }
+
+    return (item) => {
+      const retrieved = dataGet(item, key)
+
+      const strings = [retrieved, value].filter((value) => {
+        return isString(value) || (isPlainObject(value) && Reflect.has(value, 'toString'))
+      })
+
+      if (strings.length < 2 && [retrieved, value].filter(isPlainObject).length === 1) {
+        return ['!=', '<>', '!=='].includes(operator)
+      }
+
+      switch (operator) {
+        case '=':
+        case '==': return retrieved == value // eslint-disable-line
+        case '!=':
+        case '<>': return retrieved != value // eslint-disable-line
+        case '<': return retrieved < value
+        case '>': return retrieved > value
+        case '<=': return retrieved <= value
+        case '>=': return retrieved >= value
+        case '===': return retrieved === value
+        case '!==': return retrieved !== value
+        default: return '=='
+      }
+    }
   }
 
   /**

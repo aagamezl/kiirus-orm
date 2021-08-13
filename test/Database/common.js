@@ -1,12 +1,12 @@
-const { Builder } = require('./../../lib/Illuminate/Database/Query')
-const { Connection } = require('./../../lib/Illuminate/Database')
-const { Grammar } = require('./../../lib/Illuminate/Database/Query/Grammars')
-const { MySqlGrammar } = require('./../../lib/Illuminate/Database/Query/Grammars/MySqlGrammar')
-const { MySqlProcessor } = require('./../../lib/Illuminate/Database/Query/Processors/MySqlProcessor')
-const { PostgresGrammar } = require('./../../lib/Illuminate/Database/Query/Grammars/PostgresGrammar')
-const { Processor } = require('./../../lib/Illuminate/Database/Query/Processors')
-const { SQLiteGrammar } = require('./../../lib/Illuminate/Database/Query/Grammars/SQLiteGrammar')
-const { SqlServerGrammar } = require('./../../lib/Illuminate/Database/Query/Grammars/SqlServerGrammar')
+const { Builder } = require('../../lib/Illuminate/Database/Query')
+const { Connection } = require('../../lib/Illuminate/Database')
+const { Grammar } = require('../../lib/Illuminate/Database/Query/Grammars')
+const { MySqlGrammar } = require('../../lib/Illuminate/Database/Query/Grammars/MySqlGrammar')
+const { MySqlProcessor } = require('../../lib/Illuminate/Database/Query/Processors/MySqlProcessor')
+const { PostgresGrammar } = require('../../lib/Illuminate/Database/Query/Grammars/PostgresGrammar')
+const { Processor } = require('../../lib/Illuminate/Database/Query/Processors')
+const { SQLiteGrammar } = require('../../lib/Illuminate/Database/Query/Grammars/SQLiteGrammar')
+const { SqlServerGrammar } = require('../../lib/Illuminate/Database/Query/Grammars/SqlServerGrammar')
 
 const config = {
   driver: 'mysql',
