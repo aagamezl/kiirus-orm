@@ -79,3 +79,13 @@ export const throwException = (type, message) => {
 export const lcfirst = (string) => {
   return string.charAt(0).toLowerCase() + string.slice(1)
 }
+
+/**
+ * Make a string's first character uppercase
+ *
+ * @param  {string}  value
+ * @return {string}
+ */
+export const ucfirst = (value) => {
+  return value.charAt(0).toUpperCase() + value.substr(1)
+}

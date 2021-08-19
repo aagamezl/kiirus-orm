@@ -69,6 +69,20 @@ export class Grammar {
   }
 
   /**
+ * Quote the given string literal.
+ *
+ * @param  {string|Array}  value
+ * @return {string}
+ */
+  quoteString (value) {
+    if (Array.isArray(value)) {
+      return value.map(this.quoteString).join(', ')
+    }
+
+    return `'${value}'`
+  }
+
+  /**
    * Set the grammar's table prefix.
    *
    * @param  {string}  prefix
@@ -120,6 +134,16 @@ export class Grammar {
     }
 
     return this.wrap(segments[0]) + ' as ' + this.wrapValue(segments[1])
+  }
+
+  /**
+   * Wrap an array of values.
+   *
+   * @param  {Array}  values
+   * @return {Array}
+   */
+  wrapArray (values) {
+    return values.map(item => this.wrap(item))
   }
 
   /**

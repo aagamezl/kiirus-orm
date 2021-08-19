@@ -238,7 +238,7 @@ export class Collection {
       const assoc = callback(value, key)
 
       for (const [mapKey, mapValue] of Object.entries(assoc)) {
-        result[mapKey] = mapValue
+        result.push([mapKey, mapValue])
       }
     }
 

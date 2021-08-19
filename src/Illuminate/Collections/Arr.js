@@ -69,7 +69,6 @@ export class Arr {
 
     const entries = array instanceof Map ? array.entries() : Object.entries(array)
 
-    // for (let [, item] of Object.entries(array)) {
     for (let [, item] of entries) {
       item = item instanceof Collection ? item.all() : item
 

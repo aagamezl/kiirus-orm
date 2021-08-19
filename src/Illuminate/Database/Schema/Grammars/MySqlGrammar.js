@@ -164,9 +164,53 @@ export class MySqlGrammar extends Grammar {
    * @return {Array}
    */
   compileCreateTable (blueprint, command, connection) {
-    const create = blueprint.temporary ? 'create temporary' : 'create'
+    const create = blueprint.temporaryProperty ? 'create temporary' : 'create'
 
     return `${create} table ${this.wrapTable(blueprint)} (${this.getColumns(blueprint).join(', ')})`.trim()
+  }
+
+  /**
+   * Compile a drop table command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @return {string}
+   */
+  compileDrop (blueprint, command) {
+    return `drop table ${this.wrapTable(blueprint)}`
+  }
+
+  /**
+   * Compile the SQL needed to drop all tables.
+   *
+   * @param  {Array}  tables
+   * @return {string}
+   */
+  compileDropAllTables (tables) {
+    return `drop table ${this.wrapArray(tables).join(',')}`
+  }
+
+  /**
+   * Compile the SQL needed to drop all views.
+   *
+   * @param  {Array}  views
+   * @return {string}
+   */
+  compileDropAllViews (views) {
+    return `drop view ${this.wrapArray(views).join(',')}`
+  }
+
+  /**
+   * Compile a drop column command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @return {string}
+   */
+  compileDropColumn (blueprint, command) {
+    const columns = this.prefixArray('drop', this.wrapArray(command.get('columns')))
+
+    return `alter table ${this.wrapTable(blueprint)} ${columns.join(', ')}`
   }
 
   /**
@@ -177,6 +221,160 @@ export class MySqlGrammar extends Grammar {
    */
   compileDropDatabaseIfExists (name) {
     return `drop database if exists ${this.wrapValue(name)}`
+  }
+
+  /**
+   * Compile a drop foreign key command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @return {string}
+   */
+  compileDropForeign (blueprint, command) {
+    const index = this.wrap(command.get('index'))
+
+    return `alter table ${this.wrapTable(blueprint)} drop foreign key ${index}`
+  }
+
+  /**
+   * Compile a drop table (if exists) command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @return {string}
+   */
+  compileDropIfExists (blueprint, command) {
+    return `drop table if exists ${this.wrapTable(blueprint)}`
+  }
+
+  /**
+   * Compile a drop index command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @return {string}
+   */
+  compileDropIndex (blueprint, command) {
+    const index = this.wrap(command.get('index'))
+
+    return `alter table ${this.wrapTable(blueprint)} drop index ${index}`
+  }
+
+  /**
+   * Compile a drop primary key command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @return {string}
+   */
+  compileDropPrimary (blueprint, command) {
+    return `alter table ${this.wrapTable(blueprint)} drop primary key`
+  }
+
+  /**
+   * Compile a drop spatial index command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @return {string}
+   */
+  compileDropSpatialIndex (blueprint, command) {
+    return this.compileDropIndex(blueprint, command)
+  }
+
+  /**
+   * Compile a drop unique key command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @return {string}
+   */
+  compileDropUnique (blueprint, command) {
+    const index = this.wrap(command.get('index'))
+
+    return `alter table ${this.wrapTable(blueprint)} drop index ${index}`
+  }
+
+  /**
+   * Compile a plain index key command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @return {string}
+   */
+  compileIndex (blueprint, command) {
+    return this.compileKey(blueprint, command, 'index')
+  }
+
+  /**
+   * Compile an index creation command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @param  string  type
+   * @return string
+   */
+  compileKey (blueprint, command, type) {
+    return `alter table ${this.wrapTable(blueprint)} add ${type} ${this.wrap(command.get('index'))}${command.get('algorithm') ? ` using ${command.get('algorithm')}` : ''}(${this.columnize(command.get('columns'))})`
+  }
+
+  /**
+   * Compile a primary key command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @return string
+   */
+  compilePrimary (blueprint, command) {
+    command.set('name', undefined)
+
+    return this.compileKey(blueprint, command, 'primary key')
+  }
+
+  /**
+   * Compile a rename table command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @return {string}
+   */
+  compileRename (blueprint, command) {
+    const from = this.wrapTable(blueprint)
+
+    return `rename table ${from} to ${this.wrapTable(command.get('to'))}`
+  }
+
+  /**
+   * Compile a rename index command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @return {string}
+   */
+  compileRenameIndex (blueprint, command) {
+    return `alter table ${this.wrapTable(blueprint)} rename index ${this.wrap(command.get('from'))} to ${this.wrap(command.get('to'))}`
+  }
+
+  /**
+   * Compile a spatial index key command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @return {string}
+   */
+  compileSpatialIndex (blueprint, command) {
+    return this.compileKey(blueprint, command, 'spatial index')
+  }
+
+  /**
+   * Compile a unique key command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @return {string}
+   */
+  compileUnique (blueprint, command) {
+    return this.compileKey(blueprint, command, 'unique')
   }
 
   /**
@@ -340,6 +538,116 @@ export class MySqlGrammar extends Grammar {
   }
 
   /**
+   * Create the column definition for a big integer type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeBigInteger (column) {
+    return 'bigint'
+  }
+
+  /**
+   * Create the column definition for a binary type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeBinary (column) {
+    return 'blob'
+  }
+
+  /**
+   * Create the column definition for a boolean type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeBoolean (column) {
+    return 'tinyint(1)'
+  }
+
+  /**
+   * Create the column definition for a date type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeDate (column) {
+    return 'date'
+  }
+
+  /**
+   * Create the column definition for a date-time type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeDateTime (column) {
+    let columnType = column.get('precision') ? `datetime(${column.get('precision')})` : 'datetime'
+
+    const current = column.get('precision') ? `CURRENT_TIMESTAMP(${column.get('precision')})` : 'CURRENT_TIMESTAMP'
+
+    columnType = column.get('useCurrent') ? `${columnType} default ${current}` : columnType
+
+    return column.get('useCurrentOnUpdate') ? `${columnType} on update ${current}` : columnType
+  }
+
+  /**
+   * Create the column definition for a date-time (with time zone) type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeDateTimeTz (column) {
+    return this.typeDateTime(column)
+  }
+
+  /**
+   * Create the column definition for a decimal type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeDecimal (column) {
+    return `decimal(${column.get('total')}, ${column.get('places')})`
+  }
+
+  /**
+   * Create the column definition for a double type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeDouble (column) {
+    if (column.get('total') && column.get('places')) {
+      return `double(${column.get('total')}, ${column.get('places')})`
+    }
+
+    return 'double'
+  }
+
+  /**
+   * Create the column definition for an enumeration type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeEnum (column) {
+    return `enum(${this.quoteString(column.get('allowed'))})`
+  }
+
+  /**
+   * Create the column definition for a float type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeFloat (column) {
+    return this.typeDouble(column)
+  }
+
+  /**
    * Create the column definition for an integer type.
    *
    * @param  {\Illuminate\Support\Fluent}  column
@@ -350,6 +658,156 @@ export class MySqlGrammar extends Grammar {
   }
 
   /**
+   * Create the column definition for an IP address type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeIpAddress (column) {
+    return 'varchar(45)'
+  }
+
+  /**
+   * Create the column definition for a MAC address type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeMacAddress (column) {
+    return 'varchar(17)'
+  }
+
+  /**
+   * Create the column definition for a spatial Geometry type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeGeometry (column) {
+    return 'geometry'
+  }
+
+  /**
+   * Create the column definition for a spatial GeometryCollection type.
+   *
+   * @param  {\Illuminate\Support\Fluent } column
+   * @return {string}
+   */
+  typeGeometryCollection (column) {
+    return 'geometrycollection'
+  }
+
+  /**
+   * Create the column definition for a json type.
+   *
+   * @param  {\Illuminate\Support\Fluent} column
+   * @return {string}
+   */
+  typeJson (column) {
+    return 'json'
+  }
+
+  /**
+   * Create the column definition for a jsonb type.
+   *
+   * @param  {\Illuminate\Support\Fluent} column
+   * @return {string}
+   */
+  typeJsonb (column) {
+    return 'json'
+  }
+
+  /**
+   * Create the column definition for a spatial LineString type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  $column
+   * @return {string}
+   */
+  typeLineString (column) {
+    return 'linestring'
+  }
+
+  /**
+   * Create the column definition for a medium integer type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeMediumInteger (column) {
+    return 'mediumint'
+  }
+
+  /**
+   * Create the column definition for a spatial MultiLineString type.
+   *
+   * @param  {\Illuminate\Support\Fluent } column
+   * @return {string}
+   */
+  typeMultiLineString (column) {
+    return 'multilinestring'
+  }
+
+  /**
+   * Create the column definition for a spatial MultiPoint type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeMultiPoint (column) {
+    return 'multipoint'
+  }
+
+  /**
+   * Create the column definition for a spatial MultiPolygon type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeMultiPolygon (column) {
+    return 'multipolygon'
+  }
+
+  /**
+   * Create the column definition for a spatial Point type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typePoint (column) {
+    return 'point'
+  }
+
+  /**
+   * Create the column definition for a spatial Polygon type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  $column
+   * @return {string}
+   */
+  typePolygon (column) {
+    return 'polygon'
+  }
+
+  /**
+   * Create the column definition for a set enumeration type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeSet (column) {
+    return `set(${this.quoteString(column.get('allowed'))})`
+  }
+
+  /**
+   * Create the column definition for a small integer type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeSmallInteger (column) {
+    return 'smallint'
+  }
+
+  /**
    * Create the column definition for a string type.
    *
    * @param  {\Illuminate\Support\Fluent}  column
@@ -357,6 +815,92 @@ export class MySqlGrammar extends Grammar {
    */
   typeString (column) {
     return `varchar(${column.get('length')})`
+  }
+
+  /**
+   * Create the column definition for a time type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeTime (column) {
+    return column.get('precision') ? `time(${column.get('precision')})` : 'time'
+  }
+
+  /**
+   * Create the column definition for a time (with time zone) type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeTimeTz (column) {
+    return this.typeTime(column)
+  }
+
+  /**
+   * Create the column definition for a timestamp type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeTimestamp (column) {
+    let columnType = column.get('precision') ? `timestamp(${column.get('precision')})` : 'timestamp'
+
+    const current = column.get('precision') ? `CURRENT_TIMESTAMP(${column.get('precision')})` : 'CURRENT_TIMESTAMP'
+
+    columnType = column.get('useCurrent') ? `${columnType} default ${current}` : columnType
+
+    return column.get('useCurrentOnUpdate') ? `${columnType} on update ${current}` : columnType
+  }
+
+  /**
+   * Create the column definition for a timestamp (with time zone) type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeTimestampTz (column) {
+    return this.typeTimestamp(column)
+  }
+
+  /**
+   * Create the column definition for a text type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeText (column) {
+    return 'text'
+  }
+
+  /**
+   * Create the column definition for a tiny integer type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeTinyInteger (column) {
+    return 'tinyint'
+  }
+
+  /**
+   * Create the column definition for a uuid type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeUuid (column) {
+    return 'char(36)'
+  }
+
+  /**
+   * Create the column definition for a year type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeYear (column) {
+    return 'year'
   }
 
   /**
