@@ -1,10 +1,21 @@
 import { Expression } from './Query/Expression'
 
+import { Macroable } from './../Macroable/Traits/Macroable'
 import { collect } from './../Collections/helpers'
 import { throwException } from './../Support'
+import { use } from './../Macroable/Traits/Trait'
 
 export class Grammar {
   constructor () {
+    const proxy = use(this, Macroable)
+
+    /**
+     * The registered string macros.
+     *
+     * @var {Array}
+     */
+    // this.macros = []
+
     /**
      * The grammar table prefix.
      *
@@ -15,6 +26,8 @@ export class Grammar {
     if (new.target === Grammar) {
       throwException('abstract')
     }
+
+    return proxy
   }
 
   /**

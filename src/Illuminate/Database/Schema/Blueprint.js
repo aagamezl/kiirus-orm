@@ -114,11 +114,11 @@ export class Blueprint {
       for (const commandName of grammar.getFluentCommands()) {
         const attributeName = lcfirst(commandName)
 
-        if (column[attributeName] === undefined) {
+        if (column.get(attributeName) === undefined) {
           continue
         }
 
-        const value = column[attributeName]
+        const value = column.get(attributeName)
 
         this.addCommand(
           commandName, { value, column }

@@ -7,6 +7,7 @@ import { collect } from './../../../Collections/helpers'
 export class MySqlGrammar extends Grammar {
   constructor () {
     super()
+
     /**
      * The possible column modifiers.
      *
@@ -51,6 +52,15 @@ export class MySqlGrammar extends Grammar {
     return collect(blueprint.autoIncrementingStartingValues()).map((value, column) => {
       return 'alter table ' + this.wrapTable(blueprint.getTable()) + ' auto_increment = ' + value
     }).all()
+  }
+
+  /**
+   * Compile the query to determine the list of columns.
+   *
+   * @return {string}
+   */
+  compileColumnListing () {
+    return 'select column_name as `column_name` from information_schema.columns where table_schema = ? and table_name = ?'
   }
 
   /**
@@ -167,6 +177,15 @@ export class MySqlGrammar extends Grammar {
     const create = blueprint.temporaryProperty ? 'create temporary' : 'create'
 
     return `${create} table ${this.wrapTable(blueprint)} (${this.getColumns(blueprint).join(', ')})`.trim()
+  }
+
+  /**
+   * Compile the command to disable foreign key constraints.
+   *
+   * @return {string}
+   */
+  compileDisableForeignKeyConstraints () {
+    return 'SET FOREIGN_KEY_CHECKS=0;'
   }
 
   /**
@@ -296,6 +315,33 @@ export class MySqlGrammar extends Grammar {
   }
 
   /**
+   * Compile the command to enable foreign key constraints.
+   *
+   * @return {string}
+   */
+  compileEnableForeignKeyConstraints () {
+    return 'SET FOREIGN_KEY_CHECKS=1;'
+  }
+
+  /**
+   * Compile the SQL needed to retrieve all table names.
+   *
+   * @return {string}
+   */
+  compileGetAllTables () {
+    return 'SHOW FULL TABLES WHERE table_type = \'BASE TABLE\''
+  }
+
+  /**
+   * Compile the SQL needed to retrieve all view names.
+   *
+   * @return {string}
+   */
+  compileGetAllViews () {
+    return 'SHOW FULL TABLES WHERE table_type = \'VIEW\''
+  }
+
+  /**
    * Compile a plain index key command.
    *
    * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
@@ -364,6 +410,15 @@ export class MySqlGrammar extends Grammar {
    */
   compileSpatialIndex (blueprint, command) {
     return this.compileKey(blueprint, command, 'spatial index')
+  }
+
+  /**
+   * Compile the query to determine the list of tables.
+   *
+   * @return {string}
+   */
+  compileTableExists () {
+    return "select * from information_schema.tables where table_schema = ? and table_name = ? and table_type = 'BASE TABLE'"
   }
 
   /**
@@ -568,6 +623,28 @@ export class MySqlGrammar extends Grammar {
   }
 
   /**
+   * Create the column definition for a char type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeChar (column) {
+    return `char(${column.get('length')})`
+  }
+
+  /**
+   * Create the column definition for a generated, computed column type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {void}
+   *
+   * @throws {\RuntimeException}
+   */
+  typeComputed (column) {
+    throw new Error('RuntimeException: This database driver requires a type, see the virtualAs / storedAs modifiers.')
+  }
+
+  /**
    * Create the column definition for a date type.
    *
    * @param  {\Illuminate\Support\Fluent}  column
@@ -648,36 +725,6 @@ export class MySqlGrammar extends Grammar {
   }
 
   /**
-   * Create the column definition for an integer type.
-   *
-   * @param  {\Illuminate\Support\Fluent}  column
-   * @return {string}
-   */
-  typeInteger (column) {
-    return 'int'
-  }
-
-  /**
-   * Create the column definition for an IP address type.
-   *
-   * @param  {\Illuminate\Support\Fluent}  column
-   * @return {string}
-   */
-  typeIpAddress (column) {
-    return 'varchar(45)'
-  }
-
-  /**
-   * Create the column definition for a MAC address type.
-   *
-   * @param  {\Illuminate\Support\Fluent}  column
-   * @return {string}
-   */
-  typeMacAddress (column) {
-    return 'varchar(17)'
-  }
-
-  /**
    * Create the column definition for a spatial Geometry type.
    *
    * @param  {\Illuminate\Support\Fluent}  column
@@ -695,6 +742,26 @@ export class MySqlGrammar extends Grammar {
    */
   typeGeometryCollection (column) {
     return 'geometrycollection'
+  }
+
+  /**
+   * Create the column definition for an integer type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeInteger (column) {
+    return 'int'
+  }
+
+  /**
+   * Create the column definition for an IP address type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeIpAddress (column) {
+    return 'varchar(45)'
   }
 
   /**
@@ -728,6 +795,26 @@ export class MySqlGrammar extends Grammar {
   }
 
   /**
+   * Create the column definition for a long text type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeLongText (column) {
+    return 'longtext'
+  }
+
+  /**
+   * Create the column definition for a MAC address type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeMacAddress (column) {
+    return 'varchar(17)'
+  }
+
+  /**
    * Create the column definition for a medium integer type.
    *
    * @param  {\Illuminate\Support\Fluent}  column
@@ -735,6 +822,16 @@ export class MySqlGrammar extends Grammar {
    */
   typeMediumInteger (column) {
     return 'mediumint'
+  }
+
+  /**
+   * Create the column definition for a medium text type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeMediumText (column) {
+    return 'mediumtext'
   }
 
   /**
@@ -818,6 +915,16 @@ export class MySqlGrammar extends Grammar {
   }
 
   /**
+   * Create the column definition for a text type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeText (column) {
+    return 'text'
+  }
+
+  /**
    * Create the column definition for a time type.
    *
    * @param  {\Illuminate\Support\Fluent}  column
@@ -825,16 +932,6 @@ export class MySqlGrammar extends Grammar {
    */
   typeTime (column) {
     return column.get('precision') ? `time(${column.get('precision')})` : 'time'
-  }
-
-  /**
-   * Create the column definition for a time (with time zone) type.
-   *
-   * @param  {\Illuminate\Support\Fluent}  column
-   * @return {string}
-   */
-  typeTimeTz (column) {
-    return this.typeTime(column)
   }
 
   /**
@@ -864,13 +961,13 @@ export class MySqlGrammar extends Grammar {
   }
 
   /**
-   * Create the column definition for a text type.
+   * Create the column definition for a time (with time zone) type.
    *
    * @param  {\Illuminate\Support\Fluent}  column
    * @return {string}
    */
-  typeText (column) {
-    return 'text'
+  typeTimeTz (column) {
+    return this.typeTime(column)
   }
 
   /**
@@ -881,6 +978,16 @@ export class MySqlGrammar extends Grammar {
    */
   typeTinyInteger (column) {
     return 'tinyint'
+  }
+
+  /**
+   * Create the column definition for a tiny text type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeTinyText (column) {
+    return 'tinytext'
   }
 
   /**

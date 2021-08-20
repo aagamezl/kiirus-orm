@@ -1,3 +1,5 @@
+import { isNil } from 'lodash'
+
 import { HigherOrderTapProxy } from './HigherOrderTapProxy'
 
 /**
@@ -88,4 +90,15 @@ export const lcfirst = (string) => {
  */
 export const ucfirst = (value) => {
   return value.charAt(0).toUpperCase() + value.substr(1)
+}
+
+/**
+ * Return the given value, optionally passed through the given callback.
+ *
+ * @param  {*}  value
+ * @param  {Function|undefined}  callback
+ * @return {*}
+ */
+export const withGiven = (value, callbackFunction = undefined) => {
+  return isNil(callbackFunction) ? value : callbackFunction(value)
 }

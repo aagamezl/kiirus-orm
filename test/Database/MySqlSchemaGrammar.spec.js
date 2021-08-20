@@ -1121,9 +1121,16 @@ test('testDropAllViews', (t) => {
   t.is('drop view `alpha`,`beta`,`gamma`', statement)
 })
 
-// test('testGrammarsAreMacroable', (t) => {
+test('testGrammarsAreMacroable', (t) => {
+  // compileReplace macro.
+  getGrammar().macro('compileReplace', () => {
+    return true
+  })
 
-// })
+  const compiled = getGrammar().compileReplace()
+
+  t.true(compiled)
+})
 
 test('testCreateDatabase', (t) => {
   const { createMock, verifyMock } = mock()
