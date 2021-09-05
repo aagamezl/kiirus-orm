@@ -26,16 +26,9 @@ export class Connection {
    */
   constructor (ndo, database = '', tablePrefix = '', config = {}) {
     /**
-     * The active NDO connection.
-     *
-     * @member {object|Function}
-     */
-    this.ndo = ndo
-
-    /**
      * The database connection configuration options.
      *
-     * @member object
+     * @member {object}
      */
     this.config = config
 
@@ -48,30 +41,44 @@ export class Connection {
     /**
      * The name of the connected database.
      *
-     * @member string
+     * @member {string}
      */
     this.database = database
 
     /**
      * The event dispatcher instance.
      *
-     * @member \Illuminate\Contracts\Events\Dispatcher
+     * @member {\Illuminate\Contracts\Events\Dispatcher}
      */
     this.events = undefined
 
     /**
      * The default fetch mode of the connection.
      *
-     * @member string
+     * @member {string}
      */
     this.fetchMode = undefined
 
     /**
      * Indicates whether queries are being logged.
      *
-     * @member boolean
+     * @member {boolean}
      */
     this.loggingQueries = false
+
+    /**
+     * The active NDO connection.
+     *
+     * @member {object|Function}
+     */
+    this.ndo = ndo
+
+    /**
+     * The query post processor implementation.
+     *
+     * @var {\Illuminate\Database\Query\Processors\Processor}
+     */
+    this.postProcessor = undefined
 
     /**
      * Indicates if the connection is in a "dry run".
@@ -88,39 +95,44 @@ export class Connection {
     this.queryGrammar = undefined
 
     /**
-     * The query post processor implementation.
-     *
-     * @var {\Illuminate\Database\Query\Processors\Processor}
-     */
-    this.postProcessor = undefined
-
-    /**
      * All of the queries run against the connection.
      *
-     * @member array
+     * @member {Array}
      */
     this.queryLog = []
 
     /**
      * The active PDO connection used for reads.
      *
-     * @member object|Function
+     * @member {object|Function}
      */
     this.readNdo = undefined
 
     /**
      * Indicates if the connection should use the "write" PDO connection.
      *
-     * @member boolean
+     * @member {boolean}
      */
     this.readOnWriteConnection = false
 
     /**
+     * The reconnector instance for the connection.
+     *
+     * @var {Function}
+     */
+    this.reconnector = undefined
+
+    /**
      * Indicates if changes have been made to the database.
      *
-     * @member boolean
+     * @member {boolean}
      */
     this.recordsModified = false
+
+    /**
+     * @member {string|undefined}
+     */
+    this.readWriteType = undefined
 
     /**
      * The schema grammar implementation.
@@ -132,14 +144,14 @@ export class Connection {
     /**
      * The table prefix for the connection.
      *
-     * @member string
+     * @member {string}
      */
     this.tablePrefix = tablePrefix
 
     /**
      * The number of active transactions.
      *
-     * @member number
+     * @member {number}
      */
     this.transactions = 0
 
@@ -154,7 +166,7 @@ export class Connection {
   /**
    * The connection resolvers.
    *
-   * @member {array}
+   * @member {Array}
    */
   static get resolvers () {
     if (this.constructor.resolvers === undefined) {
@@ -199,7 +211,7 @@ export class Connection {
    *
    * @param  {\Illuminate\Database\Statements\Statement}  statement
    * @param  {object}  bindings
-   * @return void
+   * @return {void}
    */
   bindValues (statement, bindings) {
     for (const [key, value] of Object.entries(bindings)) {
@@ -214,7 +226,7 @@ export class Connection {
    * Determine if the given exception was caused by a lost connection.
    *
    * @param  {Error}  error
-   * @return boolean
+   * @return {boolean}
    */
   causedByLostConnection (error) {
     const message = error.message
@@ -272,17 +284,26 @@ export class Connection {
    *
    * @param  {string}  query
    * @param  {Array}  bindings
-   * @return {Number}
+   * @return {number}
    */
   delete (query, bindings = []) {
     return this.affectingStatement(query, bindings)
   }
 
   /**
+   * Disconnect from the underlying PDO connection.
+   *
+   * @return {void}
+   */
+  disconnect () {
+    this.setNdo(undefined).setReadNdo(undefined)
+  }
+
+  /**
    * Fire the given event if possible.
    *
    * @param  {*}  event
-   * @return void
+   * @return {void}
    */
   event (event) {
     if (this.events) {
@@ -306,26 +327,6 @@ export class Connection {
    * @return {\Illuminate\Database\Schema\Grammars\Grammar}
    */
   getDefaultSchemaGrammar () {
-  }
-
-  getNdo () {
-    if (isFunction(this.ndo)) {
-      this.ndo = this.ndo()
-
-      return this.ndo
-    }
-
-    return this.ndo
-  }
-
-  /**
-   * Get the NDO connection to use for a select query.
-   *
-   * @param  {boolean}  [useReadNdo=true]
-   * @return {object}
-   */
-  getNdoForSelect (useReadNdo = true) {
-    return useReadNdo ? this.getReadNdo() : this.getNdo()
   }
 
   /**
@@ -372,6 +373,35 @@ export class Connection {
    */
   getName () {
     return this.getConfig('name')
+  }
+
+  /**
+   * Get the database connection full name.
+   *
+   * @return {string|undefined}
+   */
+  getNameWithReadWriteType () {
+    return this.getName() + (this.readWriteType ? '::' + this.readWriteType : '')
+  }
+
+  getNdo () {
+    if (isFunction(this.ndo)) {
+      this.ndo = this.ndo()
+
+      return this.ndo
+    }
+
+    return this.ndo
+  }
+
+  /**
+   * Get the NDO connection to use for a select query.
+   *
+   * @param  {boolean}  [useReadNdo=true]
+   * @return {object}
+   */
+  getNdoForSelect (useReadNdo = true) {
+    return useReadNdo ? this.getReadNdo() : this.getNdo()
   }
 
   /**
@@ -698,6 +728,56 @@ export class Connection {
 
       return statement.fetchAll()
     })
+  }
+
+  /**
+   * Set the PDO connection.
+   *
+   * @param  {object|Function|undefined}  ndo
+   * @return {this}
+   */
+  setNdo (ndo) {
+    this.transactions = 0
+
+    this.ndo = ndo
+
+    return this
+  }
+
+  /**
+   * Set the PDO connection used for reading.
+   *
+   * @param  {object|\Closure|undefined}  ndo
+   * @return {this}
+   */
+  setReadNdo (ndo) {
+    this.readNdo = ndo
+
+    return this
+  }
+
+  /**
+   * Set the read / write type of the connection.
+   *
+   * @param  {string|undefined}  readWriteType
+   * @return {this}
+   */
+  setReadWriteType (readWriteType) {
+    this.readWriteType = readWriteType
+
+    return this
+  }
+
+  /**
+ * Set the reconnect instance on the connection.
+ *
+ * @param  {callable}  $reconnector
+ * @return {this}
+ */
+  setReconnector (reconnector) {
+    this.reconnector = reconnector
+
+    return this
   }
 
   /**

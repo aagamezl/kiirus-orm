@@ -1,5 +1,9 @@
+import { isNil } from 'lodash'
+
 import { Connection } from './Connection'
+import { PostgresBuilder } from './Schema/PostgresBuilder'
 import { PostgresGrammar as QueryGrammar } from './../Database/Query/Grammars'
+import { PostgresGrammar as SchemaGrammar } from './Schema/Grammars'
 import { PostgresProcessor } from './../Database/Query/Processors'
 import { PostgresStatement } from './../Database/Statements'
 
@@ -23,6 +27,15 @@ export class PostgresConnection extends Connection {
   }
 
   /**
+   * Get the default schema grammar instance.
+   *
+   * @return {\Illuminate\Database\Schema\Grammars\PostgresGrammar}
+   */
+  getDefaultSchemaGrammar () {
+    return this.withTablePrefix(new SchemaGrammar())
+  }
+
+  /**
    *
    *
    * @param {string} query
@@ -31,5 +44,18 @@ export class PostgresConnection extends Connection {
    */
   getPrepareStatement (connection, query) {
     return new PostgresStatement(connection, query)
+  }
+
+  /**
+   * Get a schema builder instance for the connection.
+   *
+   * @return \Illuminate\Database\Schema\PostgresBuilder
+   */
+  getSchemaBuilder () {
+    if (isNil(this.schemaGrammar)) {
+      this.useDefaultSchemaGrammar()
+    }
+
+    return new PostgresBuilder(this)
   }
 }

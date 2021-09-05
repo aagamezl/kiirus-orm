@@ -1,11 +1,11 @@
 import fs from 'fs'
 import { join } from 'path'
 
-import { ConnectionFactory } from './../../Database/Connectors/ConnectionFactory'
 import { Builder as QueryBuilder } from './../../Database/Query'
-
+import { ConnectionFactory } from './../../Database/Connectors/ConnectionFactory'
 import { Facade } from './Facade'
 
+// export class DB extends Facade {
 export class DB extends Facade {
   constructor () {
     super()
@@ -38,7 +38,7 @@ export class DB extends Facade {
    *
    * @return string
    */
-  getFacadeAccessor () {
+  static getFacadeAccessor () {
     return 'db'
   }
 

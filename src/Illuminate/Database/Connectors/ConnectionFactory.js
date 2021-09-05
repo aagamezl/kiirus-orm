@@ -1,3 +1,5 @@
+import { omit, set } from 'lodash'
+
 import { Arr } from './../../Collections/Arr'
 import { Connection } from './../Connection'
 import { MySqlConnection } from './../MySqlConnection'
@@ -34,7 +36,7 @@ export class ConnectionFactory {
     switch (driver) {
       case 'mysql':
         return new MySqlConnection(connection, database, prefix, config)
-      case 'postgresql':
+      case 'pgsql':
         return new PostgresConnection(connection, database, prefix, config)
       case 'sqlite':
         return new SQLiteConnection(connection, database, prefix, config)
@@ -61,7 +63,7 @@ export class ConnectionFactory {
     switch (config.driver) {
       case 'mysql':
         return new MySqlConnector()
-      case 'postgresql':
+      case 'pgsql':
         return new PostgresConnector()
       case 'sqlite':
         return new SQLiteConnector()
@@ -70,6 +72,28 @@ export class ConnectionFactory {
     }
 
     throw new Error(`InvalidArgumentException: Unsupported driver [${config.driver}].`)
+  }
+
+  /**
+   * Create a new PDO instance for reading.
+   *
+   * @param  {object}  config
+   * @return {Function}
+   */
+  createReadNdo (config) {
+    return this.createPdoResolver(this.getReadConfig(config))
+  }
+
+  /**
+   * Create a read / write database connection instance.
+   *
+   * @param  {object}  config
+   * @return {\Illuminate\Database\Connection}
+   */
+  createReadWriteConnection (config) {
+    const connection = this.createSingleConnection(this.getWriteConfig(config))
+
+    return connection.setReadNdo(this.createReadNdo(config))
   }
 
   /**
@@ -133,6 +157,57 @@ export class ConnectionFactory {
     return this.createConnection(
       config.driver, resolver, config.database, config.prefix, config
     )
+  }
+
+  /**
+   * Get the write configuration for a read / write connection.
+   *
+   * @param  {object}  config
+   * @return {object}
+   */
+  getWriteConfig (config) {
+    return this.mergeReadWriteConfig(
+      config, this.getReadWriteConfig(config, 'write')
+    )
+  }
+
+  /**
+   * Establish a PDO connection based on the configuration.
+   *
+   * @param  {object}  config
+   * @param  {string|undefined}  [name=undefined]
+   * @return {\Illuminate\Database\Connection}
+   */
+  make (config, name = undefined) {
+    config = this.parseConfig(config, name)
+
+    if (config.read !== undefined) {
+      return this.createReadWriteConnection(config)
+    }
+
+    return this.createSingleConnection(config)
+  }
+
+  /**
+   * Merge a configuration for a read / write connection.
+   *
+   * @param  {object}  config
+   * @param  {object}  merge
+   * @return {object}
+   */
+  mergeReadWriteConfig (config, merge) {
+    return omit({ ...config, ...merge }, ['read', 'write'])
+  }
+
+  /**
+ * Parse and prepare the database configuration.
+ *
+ * @param  {object}  config
+ * @param  {string}  name
+ * @return {object}
+ */
+  parseConfig (config, name) {
+    return set(set(config, 'prefix', ''), 'name', name)
   }
 
   /**

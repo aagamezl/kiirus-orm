@@ -285,6 +285,19 @@ export class Blueprint {
   }
 
   /**
+   * Execute the blueprint against the database.
+   *
+   * @param  {\Illuminate\Database\Connection}  connection
+   * @param  {\Illuminate\Database\Schema\Grammars\Grammar}  grammar
+   * @return {void}
+   */
+  build (connection, grammar) {
+    for (const statement of this.toSql(connection, grammar)) {
+      connection.statement(statement)
+    }
+  }
+
+  /**
    * Indicate that the table needs to be created.
    *
    * @return {\Illuminate\Support\Fluent}

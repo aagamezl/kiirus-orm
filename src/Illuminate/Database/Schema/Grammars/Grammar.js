@@ -135,7 +135,7 @@ export class Grammar extends BaseGrammar {
     }
 
     return isBoolean(value)
-      ? `'${parseInt(value, 10)}'`
+      ? `'${Number(value)}'`
       : `'${String(value)}'`
   }
 
