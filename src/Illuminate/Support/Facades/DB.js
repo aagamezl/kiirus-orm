@@ -1,12 +1,13 @@
 import fs from 'fs'
 import { join } from 'path'
 
-import { ConnectionFactory } from './../../Database/Connectors/ConnectionFactory'
 import { Builder as QueryBuilder } from './../../Database/Query'
-
+import { ConnectionFactory } from './../../Database/Connectors/ConnectionFactory'
 import { Facade } from './Facade'
+import { StaticProxy } from './StaticProxy'
 
-export class DB extends Facade {
+// export class DB extends Facade {
+export const DB = StaticProxy(class DB extends Facade {
   constructor () {
     super()
 
@@ -38,7 +39,7 @@ export class DB extends Facade {
    *
    * @return string
    */
-  getFacadeAccessor () {
+  static getFacadeAccessor () {
     return 'db'
   }
 
@@ -69,4 +70,4 @@ export class DB extends Facade {
     // this.connection = ConnectionFactory.createConnection(driver, database, prefix, this.config)
     this.connection = connectionFactory.createSingleConnection(this.config)
   }
-}
+})

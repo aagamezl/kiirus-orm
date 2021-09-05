@@ -31,11 +31,31 @@ export const changeKeyCase = (value, changeCase = 'CASE_LOWER') => {
   }
 }
 
+export const isSubclassOf = (child, parent) => {
+  if (child === parent) {
+    return true
+  }
+
+  if (child.prototype instanceof parent) {
+    return true
+  }
+
+  if (child === Object) {
+    return false
+  }
+
+  return isSubclassOf(Object.getPrototypeOf(child), parent)
+}
+
 export const ksort = (value) => Object.keys(value).sort().reduce((result, key) => {
   result[key] = value[key]
 
   return result
 }, {})
+
+export const lcfirst = (string) => {
+  return string.charAt(0).toLowerCase() + string.slice(1)
+}
 
 export const objectDiffKey = (target, ...from) => {
   const keys = from.reduce((result, current) => {
@@ -76,10 +96,6 @@ export const throwException = (type, message) => {
     case 'concrete-method':
       throw new Error(`RuntimeException: Implement ${message} method on concrete class.`)
   }
-}
-
-export const lcfirst = (string) => {
-  return string.charAt(0).toLowerCase() + string.slice(1)
 }
 
 /**

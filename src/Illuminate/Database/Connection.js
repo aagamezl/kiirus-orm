@@ -74,6 +74,13 @@ export class Connection {
     this.loggingQueries = false
 
     /**
+     * The query post processor implementation.
+     *
+     * @var {\Illuminate\Database\Query\Processors\Processor}
+     */
+    this.postProcessor = undefined
+
+    /**
      * Indicates if the connection is in a "dry run".
      *
      * @member {boolean}
@@ -86,13 +93,6 @@ export class Connection {
      * @member {\Illuminate\Database\Query\Grammars\Grammar}
      */
     this.queryGrammar = undefined
-
-    /**
-     * The query post processor implementation.
-     *
-     * @var {\Illuminate\Database\Query\Processors\Processor}
-     */
-    this.postProcessor = undefined
 
     /**
      * All of the queries run against the connection.
@@ -121,6 +121,11 @@ export class Connection {
      * @member boolean
      */
     this.recordsModified = false
+
+    /**
+     * @member {string|undefined}
+     */
+    this.readWriteType = undefined
 
     /**
      * The schema grammar implementation.
@@ -279,6 +284,15 @@ export class Connection {
   }
 
   /**
+   * Disconnect from the underlying PDO connection.
+   *
+   * @return {void}
+   */
+  disconnect () {
+    this.setNdo(undefined).setReadNdo(undefined)
+  }
+
+  /**
    * Fire the given event if possible.
    *
    * @param  {*}  event
@@ -306,26 +320,6 @@ export class Connection {
    * @return {\Illuminate\Database\Schema\Grammars\Grammar}
    */
   getDefaultSchemaGrammar () {
-  }
-
-  getNdo () {
-    if (isFunction(this.ndo)) {
-      this.ndo = this.ndo()
-
-      return this.ndo
-    }
-
-    return this.ndo
-  }
-
-  /**
-   * Get the NDO connection to use for a select query.
-   *
-   * @param  {boolean}  [useReadNdo=true]
-   * @return {object}
-   */
-  getNdoForSelect (useReadNdo = true) {
-    return useReadNdo ? this.getReadNdo() : this.getNdo()
   }
 
   /**
@@ -372,6 +366,35 @@ export class Connection {
    */
   getName () {
     return this.getConfig('name')
+  }
+
+  /**
+   * Get the database connection full name.
+   *
+   * @return {string|undefined}
+   */
+  getNameWithReadWriteType () {
+    return this.getName() + (this.readWriteType ? '::' + this.readWriteType : '')
+  }
+
+  getNdo () {
+    if (isFunction(this.ndo)) {
+      this.ndo = this.ndo()
+
+      return this.ndo
+    }
+
+    return this.ndo
+  }
+
+  /**
+   * Get the NDO connection to use for a select query.
+   *
+   * @param  {boolean}  [useReadNdo=true]
+   * @return {object}
+   */
+  getNdoForSelect (useReadNdo = true) {
+    return useReadNdo ? this.getReadNdo() : this.getNdo()
   }
 
   /**
@@ -698,6 +721,44 @@ export class Connection {
 
       return statement.fetchAll()
     })
+  }
+
+  /**
+   * Set the PDO connection.
+   *
+   * @param  {object|Function|undefined}  ndo
+   * @return {this}
+   */
+  setNdo (ndo) {
+    this.transactions = 0
+
+    this.ndo = ndo
+
+    return this
+  }
+
+  /**
+   * Set the PDO connection used for reading.
+   *
+   * @param  {object|\Closure|undefined}  ndo
+   * @return {this}
+   */
+  setReadNdo (ndo) {
+    this.readNdo = ndo
+
+    return this
+  }
+
+  /**
+   * Set the read / write type of the connection.
+   *
+   * @param  {string|undefined}  readWriteType
+   * @return {this}
+   */
+  setReadWriteType (readWriteType) {
+    this.readWriteType = readWriteType
+
+    return this
   }
 
   /**

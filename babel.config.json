@@ -15,7 +15,8 @@
       {
         "loose": true
       }
-    ]
+    ],
+    "@babel/plugin-proposal-class-static-block"
   ],
   "retainLines": true
 }

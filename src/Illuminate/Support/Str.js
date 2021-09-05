@@ -1,3 +1,5 @@
+import { castArray, endsWith } from 'lodash'
+
 export class Str {
   /**
    * Return the remainder of a string after the first occurrence of a given value.
@@ -31,6 +33,23 @@ export class Str {
     }
 
     return subject.substr(0, pos)
+  }
+
+  /**
+   * Determine if a given string ends with a given substring.
+   *
+   * @param  {string}  haystack
+   * @param  {string|string[]}  needles
+   * @return {boolean}
+   */
+  static endsWith (haystack, needles) {
+    for (const needle of castArray(needles)) {
+      if (needle !== '' && needle !== undefined && endsWith(haystack, needle)) {
+        return true
+      }
+    }
+
+    return false
   }
 
   /**
