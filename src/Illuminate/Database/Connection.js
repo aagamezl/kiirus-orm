@@ -769,11 +769,11 @@ export class Connection {
   }
 
   /**
- * Set the reconnect instance on the connection.
- *
- * @param  {callable}  $reconnector
- * @return {this}
- */
+   * Set the reconnect instance on the connection.
+   *
+   * @param  {callable}  $reconnector
+   * @return {this}
+   */
   setReconnector (reconnector) {
     this.reconnector = reconnector
 

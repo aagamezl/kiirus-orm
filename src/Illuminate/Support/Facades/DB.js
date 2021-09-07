@@ -4,6 +4,7 @@ import { join } from 'path'
 import { Builder as QueryBuilder } from './../../Database/Query'
 import { ConnectionFactory } from './../../Database/Connectors/ConnectionFactory'
 import { Facade } from './Facade'
+import { StaticProxy } from './StaticProxy'
 
 // export class DB extends Facade {
 export class DB extends Facade {
@@ -69,4 +70,4 @@ export class DB extends Facade {
     // this.connection = ConnectionFactory.createConnection(driver, database, prefix, this.config)
     this.connection = connectionFactory.createSingleConnection(this.config)
   }
-}
+})

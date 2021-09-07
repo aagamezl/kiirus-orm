@@ -3,8 +3,9 @@ import { isObject } from 'lodash'
 import { Application } from './../../Foundation/Application'
 import { instanceProxy } from './../Proxies/InstanceProxy'
 import { throwException } from './../helpers'
+// import { StaticProxy } from './StaticProxy'
 
-export class Facade {
+export /* const Facade = StaticProxy( */class Facade {
   constructor () {
     if (new.target === this) {
       throwException('abstract')
@@ -37,6 +38,25 @@ export class Facade {
    * @throws {\RuntimeException}
    */
   call (method, ...args) {
+    const instance = this.getFacadeRoot()
+
+    if (!instance) {
+      throw new Error('RuntimeException: A facade root has not been set.')
+    }
+
+    return instance[method](...args)
+  }
+
+  /**
+   * Handle dynamic, static calls to the object.
+   *
+   * @param  {string}  method
+   * @param  {Array}  args
+   * @return {*}
+   *
+   * @throws {\RuntimeException}
+   */
+  static callStatic (method, args) {
     const instance = this.getFacadeRoot()
 
     if (!instance) {
