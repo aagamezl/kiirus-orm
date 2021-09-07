@@ -8,6 +8,9 @@ export const instanceProxy = (instance, handler) => {
       return (...args) => {
         return receiver.call(property, ...args)
       }
+    },
+    getPrototypeOf (target) {
+      return Object.getPrototypeOf(target)
     }
   }
 

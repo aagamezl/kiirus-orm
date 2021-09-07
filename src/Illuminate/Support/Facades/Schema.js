@@ -16,8 +16,7 @@ export class Schema extends Facade {
    *
    * @return {\Illuminate\Database\Schema\Builder}
    */
-  getFacadeAccessor () {
+  static getFacadeAccessor () {
     return this.resolveFacadeInstance('db').connection().getSchemaBuilder()
-    // return this.app['db'].connection().getSchemaBuilder()
   }
 }

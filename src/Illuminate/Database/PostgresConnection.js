@@ -40,7 +40,7 @@ export class PostgresConnection extends Connection {
    *
    * @param {string} query
    * @return {object}
-   * @memberof PostgresConnection
+   * @memberof {PostgresConnection}
    */
   getPrepareStatement (connection, query) {
     return new PostgresStatement(connection, query)
@@ -49,7 +49,7 @@ export class PostgresConnection extends Connection {
   /**
    * Get a schema builder instance for the connection.
    *
-   * @return \Illuminate\Database\Schema\PostgresBuilder
+   * @return {\Illuminate\Database\Schema\PostgresBuilder}
    */
   getSchemaBuilder () {
     if (isNil(this.schemaGrammar)) {

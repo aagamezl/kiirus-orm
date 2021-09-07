@@ -3,8 +3,9 @@ import { isObject } from 'lodash'
 import { Application } from './../../Foundation/Application'
 import { instanceProxy } from './../Proxies/InstanceProxy'
 import { throwException } from './../helpers'
+import { StaticProxy } from './StaticProxy'
 
-export class Facade {
+class FacadeClass {
   constructor () {
     if (new.target === this) {
       throwException('abstract')
@@ -28,7 +29,7 @@ export class Facade {
   }
 
   /**
-   * Handle dynamic, calls to the object.
+   * Handle dynamic, static calls to the object.
    *
    * @param  {string}  method
    * @param  {Array}  args
@@ -36,7 +37,7 @@ export class Facade {
    *
    * @throws {\RuntimeException}
    */
-  call (method, ...args) {
+  static callStatic (method, ...args) {
     const instance = this.getFacadeRoot()
 
     if (!instance) {
@@ -53,7 +54,7 @@ export class Facade {
    *
    * @throws \RuntimeException
    */
-  getFacadeAccessor () {
+  static getFacadeAccessor () {
     throw new Error('RuntimeException": Facade does not implement getFacadeAccessor method.')
   }
 
@@ -62,7 +63,7 @@ export class Facade {
    *
    * @return {*}
    */
-  getFacadeRoot () {
+  static getFacadeRoot () {
     return this.resolveFacadeInstance(this.getFacadeAccessor())
   }
 
@@ -72,7 +73,7 @@ export class Facade {
    * @param  {object|string}  name
    * @return {*}
    */
-  resolveFacadeInstance (name) {
+  static resolveFacadeInstance (name) {
     if (isObject(name)) {
       return name
     }
@@ -99,7 +100,12 @@ export class Facade {
    * @param  {\Illuminate\Contracts\Foundation\Application}  app
    * @return {void}
    */
-  setFacadeApplication (app) {
+  static setFacadeApplication (app) {
     this.app = app
   }
 }
+
+FacadeClass.app = undefined
+FacadeClass.resolvedInstance = {}
+
+export const Facade = StaticProxy(FacadeClass)

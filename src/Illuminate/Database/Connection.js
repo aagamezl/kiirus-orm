@@ -6,6 +6,7 @@ import { Processor } from './Query/Processors'
 import { QueryExecuted, StatementPrepared } from './Events'
 import { Statement } from './Statements'
 import { Builder as SchemaBuilder } from './Schema/Builder'
+import { Builder as QueryBuilder } from './Query/Builder'
 import { Expression } from './Query/Expression'
 
 /**
@@ -587,6 +588,17 @@ export class Connection {
   }
 
   /**
+   * Get a new query builder instance.
+   *
+   * @return {\Illuminate\Database\Query\Builder}
+   */
+  query () {
+    return new QueryBuilder(
+      this, this.getQueryGrammar(), this.getPostProcessor()
+    )
+  }
+
+  /**
    * Get a new raw query expression.
    *
    * @param  {*}  value
@@ -769,11 +781,11 @@ export class Connection {
   }
 
   /**
- * Set the reconnect instance on the connection.
- *
- * @param  {callable}  $reconnector
- * @return {this}
- */
+   * Set the reconnect instance on the connection.
+   *
+   * @param  {callable}  $reconnector
+   * @return {this}
+   */
   setReconnector (reconnector) {
     this.reconnector = reconnector
 

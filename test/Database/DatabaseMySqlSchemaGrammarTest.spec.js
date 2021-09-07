@@ -1,8 +1,8 @@
 const test = require('ava')
 
-const { Blueprint } = require('./../../lib/Illuminate/Database/Schema/Blueprint')
+const { Blueprint } = require('../../lib/Illuminate/Database/Schema/Blueprint')
 const { Expression } = require('../../lib/Illuminate/Database/Query/Expression')
-const { ForeignIdColumnDefinition } = require('./../../lib/Illuminate/Database/Schema/ForeignIdColumnDefinition')
+const { ForeignIdColumnDefinition } = require('../../lib/Illuminate/Database/Schema/ForeignIdColumnDefinition')
 const { MySqlGrammar } = require('../../lib/Illuminate/Database/Schema/Grammars/MySqlGrammar')
 const { getConnection } = require('./common')
 const { mock } = require('../tools/mock')

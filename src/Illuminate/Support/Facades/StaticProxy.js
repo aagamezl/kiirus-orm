@@ -1,10 +1,10 @@
 export const StaticProxy = (facade) => {
   return new Proxy(facade, {
     get (target, method, receiver) {
-      if (method in receiver) {
-      // if (Reflect.has(target, method)) {
-        // return target[method]
-        return Reflect.get(receiver, method)
+      // if (method in receiver) {
+      if (Reflect.has(target, method)) {
+        return target[method]
+        // return Reflect.get(receiver, method)
       } else {
         // return (...args) => {
         //   return Reflect.apply(target[propKey], target, args)
@@ -13,6 +13,7 @@ export const StaticProxy = (facade) => {
 
         return (...args) => {
           return receiver.callStatic(method, ...args)
+          // return target.callStatic(method, ...args)
           // const instance = target.getFacadeRoot()
 
           // if (!instance) {
