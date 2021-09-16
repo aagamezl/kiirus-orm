@@ -19,7 +19,27 @@ export class Fluent {
       this.attributes[key] = value
     }
 
-    // return new Proxy(this, this)
+    const handler = {
+      get (target, method, receiver) {
+        if (Reflect.has(target, method)) {
+          return target[method]
+        }
+
+        return new Proxy(() => { }, {
+          get: handler.get,
+          apply: (target, thisArg, parameters) => {
+            thisArg.attributes[method] = parameters.length > 0 ? parameters[0] : true
+
+            return thisArg
+          }
+        })
+      },
+      getPrototypeOf (target) {
+        return Object.getPrototypeOf(target)
+      }
+    }
+
+    return new Proxy(this, handler)
   }
 
   /**
@@ -38,6 +58,15 @@ export class Fluent {
   }
 
   /**
+   * Get the attributes from the fluent instance.
+   *
+   * @return {Array}
+   */
+  getAttributes () {
+    return this.attributes
+  }
+
+  /**
    * Set the value at the given offset.
    *
    * @param  {string}  offset
@@ -46,18 +75,11 @@ export class Fluent {
    */
   offsetSet (offset, value) {
     this.attributes[offset] = value
+
+    return this
   }
 
-  // get (target, method) {
-  //   if (Reflect.has(target, method)) {
-  //     return Reflect.get(target, method)
-  //   }
-
-  //   console.log(arguments)
-  //   // return (...parameters) => {
-  //   //   this.attributes[method] = parameters.length > 0 ? parameters[0] : true
-
-  //   //   return this
-  //   // }
-  // }
+  set (key, value = true) {
+    return this.offsetSet(key, value)
+  }
 }

@@ -1,45 +1,55 @@
-import { isInteger, isNil } from 'lodash'
+import { isBoolean, isEmpty, isNil } from 'lodash'
 
 import { Grammar } from './Grammar'
-import { addslashes } from './../../../Support'
-import { collect } from './../../../Collections/helpers'
+import { collect } from '../../../../../lib/Illuminate/Collections/helpers'
+import { withGiven } from './../../../Support'
 
-export class MySqlGrammar extends Grammar {
+export class PostgresGrammar extends Grammar {
   constructor () {
     super()
+    /**
+     * The commands to be executed outside of create or alter command.
+     *
+     * @member {string[]}
+     */
+    this.fluentCommands = ['Comment']
 
     /**
      * The possible column modifiers.
      *
      * @member {string[]}
      */
-    this.modifiers = [
-      'Unsigned', 'Charset', 'Collate', 'VirtualAs', 'StoredAs', 'Nullable',
-      'Srid', 'Default', 'Increment', 'Comment', 'After', 'First'
-    ]
+    this.modifiers = ['Collate', 'Increment', 'Nullable', 'Default', 'VirtualAs', 'StoredAs']
 
     /**
-     * The possible column serials.
+     * The columns available as serials.
      *
      * @member {string[]}
      */
     this.serials = ['bigInteger', 'integer', 'mediumInteger', 'smallInteger', 'tinyInteger']
+
+    /**
+     * If this Grammar supports schema changes wrapped in a transaction.
+     *
+     * @member {bool}
+     */
+    this.transactions = true
   }
 
   /**
-   * Compile an add column command.
+   * Compile a column addition command.
    *
    * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
    * @param  {\Illuminate\Support\Fluent}  command
-   * @return {Array}
+   * @return {string}
    */
   compileAdd (blueprint, command) {
-    const columns = this.prefixArray('add', this.getColumns(blueprint))
+    const sql = `alter table ${this.wrapTable(blueprint)} ${this.prefixArray('add column', this.getColumns(blueprint)).join(', ')}`
 
     return Array.from([
-      ...['alter table ' + this.wrapTable(blueprint) + ' ' + columns.join(', ')],
-      ...this.compileAutoIncrementStartingValues(blueprint)
-    ].values())
+      ...[sql],
+      ...this.compileAutoIncrementStartingValues(blueprint)].filter(item => item).values()
+    )
   }
 
   /**
@@ -50,7 +60,7 @@ export class MySqlGrammar extends Grammar {
    */
   compileAutoIncrementStartingValues (blueprint) {
     return collect(blueprint.autoIncrementingStartingValues()).map((value, column) => {
-      return 'alter table ' + this.wrapTable(blueprint.getTable()) + ' auto_increment = ' + value
+      return `alter sequence ${blueprint.getTable()}_${column}_seq restart with ${value}`
     }).all()
   }
 
@@ -60,7 +70,18 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   compileColumnListing () {
-    return 'select column_name as `column_name` from information_schema.columns where table_schema = ? and table_name = ?'
+    return 'select column_name from information_schema.columns where table_schema = ? and table_name = ?'
+  }
+
+  /**
+   * Compile a comment command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @return {string}
+   */
+  compileComment (blueprint, command) {
+    return `comment on column ${this.wrapTable(blueprint)}.${this.wrap(command.get('column').get('name'))} is ${`'${command.get('value').replace("'", "''")}'`}`
   }
 
   /**
@@ -68,27 +89,12 @@ export class MySqlGrammar extends Grammar {
    *
    * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
    * @param  {\Illuminate\Support\Fluent}  command
-   * @param  {\Illuminate\Database\Connection}  connection
    * @return {Array}
    */
-  compileCreate (blueprint, command, connection) {
-    let sql = this.compileCreateTable(
-      blueprint, command, connection
-    )
+  compileCreate (blueprint, command) {
+    const sql = `${blueprint.temporaryProperty ? 'create temporary' : 'create'} table ${this.wrapTable(blueprint)} (${this.getColumns(blueprint).join(', ')})`
 
-    // Once we have the primary SQL, we can add the encoding option to the SQL for
-    // the table.  Then, we can check if a storage engine has been supplied for
-    // the table. If so, we will add the engine declaration to the SQL query.
-    sql = this.compileCreateEncoding(
-      sql, connection, blueprint
-    )
-
-    // Finally, we will append the engine configuration onto this SQL statement as
-    // the final thing we do before returning this finished SQL. Once this gets
-    // added the query will be ready to execute against the real connections.
-    return Array.from([...[this.compileCreateEngine(sql, connection, blueprint)],
-      ...this.compileAutoIncrementStartingValues(blueprint)].filter(item => item).values()
-    )
+    return Array.from([...[sql], ...this.compileAutoIncrementStartingValues(blueprint)].filter(item => item).values())
   }
 
   /**
@@ -99,84 +105,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   compileCreateDatabase (name, connection) {
-    const charset = this.wrapValue(connection.getConfig('charset'))
-    const collation = this.wrapValue(connection.getConfig('collation'))
-
-    return `create database ${this.wrapValue(name)} default character set ${charset} default collate ${collation}`
-  }
-
-  /**
-   * Append the character set specifications to a command.
-   *
-   * @param  {string}  sql
-   * @param  {\Illuminate\Database\Connection}  connection
-   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
-   * @return {string}
-   */
-  compileCreateEncoding (sql, connection, blueprint) {
-    // First we will set the character set if one has been set on either the create
-    // blueprint itself or on the root configuration for the connection that the
-    // table is being created on. We will add these to the create table query.
-    if (blueprint.charset !== undefined) {
-      sql += ' default character set ' + blueprint.charset
-    } else {
-      const charset = connection.getConfig('charset')
-
-      if (!isNil(charset)) {
-        sql += ' default character set ' + charset
-      }
-    }
-
-    // Next we will add the collation to the create table statement if one has been
-    // added to either this create table blueprint or the configuration for this
-    // connection that the query is targeting. We'll add it to this SQL query.
-    if (blueprint.collation !== undefined) {
-      sql += ` collate '${blueprint.collation}'`
-    } else {
-      const collation = connection.getConfig('collation')
-
-      if (!isNil(collation)) {
-        sql += ` collate '${collation}'`
-      }
-    }
-
-    return sql
-  }
-
-  /**
-   * Append the engine specifications to a command.
-   *
-   * @param  {string}  sql
-   * @param  {\Illuminate\Database\Connection}  connection
-   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
-   * @return {string}
-   */
-  compileCreateEngine (sql, connection, blueprint) {
-    if (blueprint.engine !== undefined) {
-      return sql + ' engine = ' + blueprint.engine
-    } else {
-      const engine = connection.getConfig('engine')
-
-      if (!isNil(engine)) {
-        return sql + ' engine = ' + engine
-      }
-    }
-
-    return sql
-  }
-
-  /**
-   * Create the main create table clause.
-   *
-   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
-   * @param  {\Illuminate\Support\Fluent}  command
-   * @param  {\Illuminate\Database\Connection}  connection
-   * @return {Array}
-   */
-  compileCreateTable (blueprint, command, connection) {
-    const create = blueprint.temporaryProperty ? 'create temporary' : 'create'
-
-    return `${create} table ${this.wrapTable(blueprint)} (${this.getColumns(blueprint).join(', ')})`.trim()
+    return `create database ${this.wrapValue(name)} encoding ${this.wrapValue(connection.getConfig('charset'))}`
   }
 
   /**
@@ -185,7 +114,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   compileDisableForeignKeyConstraints () {
-    return 'SET FOREIGN_KEY_CHECKS=0;'
+    return 'SET CONSTRAINTS ALL DEFERRED;'
   }
 
   /**
@@ -206,7 +135,17 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   compileDropAllTables (tables) {
-    return `drop table ${this.wrapArray(tables).join(',')}`
+    return `drop table "${tables.join('","')}" cascade`
+  }
+
+  /**
+   * Compile the SQL needed to drop all types.
+   *
+   * @param  {Array}  types
+   * @return {string}
+   */
+  compileDropAllTypes (types) {
+    return `drop type "${types.join('","')}" cascade`
   }
 
   /**
@@ -216,7 +155,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   compileDropAllViews (views) {
-    return `drop view ${this.wrapArray(views).join(',')}`
+    return `drop view "${views.join('","')}" cascade`
   }
 
   /**
@@ -227,7 +166,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   compileDropColumn (blueprint, command) {
-    const columns = this.prefixArray('drop', this.wrapArray(command.get('columns')))
+    const columns = this.prefixArray('drop column', this.wrapArray(command.get('columns')))
 
     return `alter table ${this.wrapTable(blueprint)} ${columns.join(', ')}`
   }
@@ -252,7 +191,7 @@ export class MySqlGrammar extends Grammar {
   compileDropForeign (blueprint, command) {
     const index = this.wrap(command.get('index'))
 
-    return `alter table ${this.wrapTable(blueprint)} drop foreign key ${index}`
+    return `alter table ${this.wrapTable(blueprint)} drop constraint ${index}`
   }
 
   /**
@@ -274,9 +213,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   compileDropIndex (blueprint, command) {
-    const index = this.wrap(command.get('index'))
-
-    return `alter table ${this.wrapTable(blueprint)} drop index ${index}`
+    return `drop index ${this.wrap(command.get('index'))}`
   }
 
   /**
@@ -287,7 +224,9 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   compileDropPrimary (blueprint, command) {
-    return `alter table ${this.wrapTable(blueprint)} drop primary key`
+    const index = this.wrap(`${blueprint.getTable()}_pkey`)
+
+    return `alter table ${this.wrapTable(blueprint)} drop constraint ${index}`
   }
 
   /**
@@ -311,7 +250,7 @@ export class MySqlGrammar extends Grammar {
   compileDropUnique (blueprint, command) {
     const index = this.wrap(command.get('index'))
 
-    return `alter table ${this.wrapTable(blueprint)} drop index ${index}`
+    return `alter table ${this.wrapTable(blueprint)} drop constraint ${index}`
   }
 
   /**
@@ -320,25 +259,65 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   compileEnableForeignKeyConstraints () {
-    return 'SET FOREIGN_KEY_CHECKS=1;'
+    return 'SET CONSTRAINTS ALL IMMEDIATE;'
+  }
+
+  /**
+   * Compile a foreign key command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @return {string}
+   */
+  compileForeign (blueprint, command) {
+    let sql = super.compileForeign(blueprint, command)
+
+    if (!isNil(command.get('deferrable'))) {
+      sql += command.get('deferrable') ? ' deferrable' : ' not deferrable'
+    }
+
+    if (command.get('deferrable') && !isNil(command.get('initiallyImmediate'))) {
+      sql += command.get('initiallyImmediate') ? ' initially immediate' : ' initially deferred'
+    }
+
+    if (!isNil(command.get('notValid'))) {
+      sql += ' not valid'
+    }
+
+    return sql
   }
 
   /**
    * Compile the SQL needed to retrieve all table names.
    *
+   * @param  {string|Array}  schema
    * @return {string}
    */
-  compileGetAllTables () {
-    return 'SHOW FULL TABLES WHERE table_type = \'BASE TABLE\''
+  compileGetAllTables (schema) {
+    schema = Array.isArray(schema) ? schema : [schema]
+
+    return `select tablename from pg_catalog.pg_tables where schemaname in ('${schema.join("','")}')`
+  }
+
+  /**
+   * Compile the SQL needed to retrieve all type names.
+   *
+   * @return {string}
+   */
+  compileGetAllTypes () {
+    return 'select distinct pg_type.typname from pg_type inner join pg_enum on pg_enum.enumtypid = pg_type.oid'
   }
 
   /**
    * Compile the SQL needed to retrieve all view names.
    *
+   * @param  {string|Array}  schema
    * @return {string}
    */
-  compileGetAllViews () {
-    return 'SHOW FULL TABLES WHERE table_type = \'VIEW\''
+  compileGetAllViews (schema) {
+    schema = Array.isArray(schema) ? schema : [schema]
+
+    return `select viewname from pg_catalog.pg_views where schemaname in ('${schema.join("','")}')`
   }
 
   /**
@@ -349,32 +328,20 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   compileIndex (blueprint, command) {
-    return this.compileKey(blueprint, command, 'index')
-  }
-
-  /**
-   * Compile an index creation command.
-   *
-   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
-   * @param  {\Illuminate\Support\Fluent}  command
-   * @param  string  type
-   * @return string
-   */
-  compileKey (blueprint, command, type) {
-    return `alter table ${this.wrapTable(blueprint)} add ${type} ${this.wrap(command.get('index'))}${command.get('algorithm') ? ` using ${command.get('algorithm')}` : ''}(${this.columnize(command.get('columns'))})`
+    return `create index ${this.wrap(command.get('index'))} on ${this.wrapTable(blueprint)}${command.get('algorithm') ? ` using ${command.get('algorithm')}` : ''} (${this.columnize(command.get('columns'))})`
   }
 
   /**
    * Compile a primary key command.
    *
-   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Database\Schema\Blueprint  }blueprint
    * @param  {\Illuminate\Support\Fluent}  command
-   * @return string
+   * @return {string}
    */
   compilePrimary (blueprint, command) {
-    command.set('name', undefined)
+    const columns = this.columnize(command.get('columns'))
 
-    return this.compileKey(blueprint, command, 'primary key')
+    return `alter table ${this.wrapTable(blueprint)} add primary key (${columns})`
   }
 
   /**
@@ -387,7 +354,7 @@ export class MySqlGrammar extends Grammar {
   compileRename (blueprint, command) {
     const from = this.wrapTable(blueprint)
 
-    return `rename table ${from} to ${this.wrapTable(command.get('to'))}`
+    return `alter table ${from} rename to ${this.wrapTable(command.get('to'))}`
   }
 
   /**
@@ -398,7 +365,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   compileRenameIndex (blueprint, command) {
-    return `alter table ${this.wrapTable(blueprint)} rename index ${this.wrap(command.get('from'))} to ${this.wrap(command.get('to'))}`
+    return `alter index ${this.wrap(command.get('from'))} rename to ${this.wrap(command.get('to'))}`
   }
 
   /**
@@ -409,16 +376,18 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   compileSpatialIndex (blueprint, command) {
-    return this.compileKey(blueprint, command, 'spatial index')
+    command.set('algorithm', 'gist')
+
+    return this.compileIndex(blueprint, command)
   }
 
   /**
-   * Compile the query to determine the list of tables.
+   * Compile the query to determine if a table exists.
    *
    * @return {string}
    */
   compileTableExists () {
-    return "select * from information_schema.tables where table_schema = ? and table_name = ? and table_type = 'BASE TABLE'"
+    return 'select * from information_schema.tables where table_schema = ? and table_name = ? and table_type = \'BASE TABLE\''
   }
 
   /**
@@ -429,33 +398,55 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   compileUnique (blueprint, command) {
-    return this.compileKey(blueprint, command, 'unique')
+    return `alter table ${this.wrapTable(blueprint)} add constraint ${this.wrap(command.get('index'))} unique (${this.columnize(command.get('columns'))})`
   }
 
   /**
-   * Get the SQL for an "after" column modifier.
+   * Format the column definition for a PostGIS spatial type.
    *
-   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
-   * @param  {\Illuminate\Support\Fluent}  column
-   * @return {string|undefined}
-   */
-  modifyAfter (blueprint, column) {
-    if (!isNil(column.get('after'))) {
-      return ` after ${this.wrap(column.get('after'))}`
-    }
-  }
-
-  /**
-   * Get the SQL for a character set column modifier.
-   *
-   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {string}  type
    * @param  {\Illuminate\Support\Fluent}  column
    * @return {string}
    */
-  modifyCharset (blueprint, column) {
-    if (column.get('charset') !== undefined) {
-      return ' character set ' + column.get('charset')
+  formatPostGisType (type, column) {
+    if (column.get('isGeometry') === undefined) {
+      return `geography(${type}, ${column.get('projection') ?? '4326'})`
     }
+
+    if (column.get('projection') !== undefined) {
+      return `geometry(${type}, ${column.get('projection')})`
+    }
+
+    return `geometry(${type})`
+  }
+
+  /**
+   * Create the column definition for a generatable column.
+   *
+   * @param  {string}  type
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  generatableColumn (type, column) {
+    if (!column.get('autoIncrement') && isNil(column.get('generatedAs'))) {
+      return type
+    }
+
+    if (column.autoIncrement && isNil(column.get('generatedAs'))) {
+      return withGiven({
+        integer: 'serial',
+        bigint: 'bigserial',
+        smallint: 'smallserial'
+      })[type]
+    }
+
+    let options = ''
+
+    if (!isBoolean(column.get('generatedAs')) && !isEmpty(column.get('generatedAs'))) {
+      options = ` (${column.get('generatedAs')})`
+    }
+
+    return `${type} generated ${column.get('always') ? 'always' : 'by default'} as identity${options}`
   }
 
   /**
@@ -467,20 +458,7 @@ export class MySqlGrammar extends Grammar {
    */
   modifyCollate (blueprint, column) {
     if (!isNil(column.get('collation'))) {
-      return ` collate '${column.get('collation')}'`
-    }
-  }
-
-  /**
-   * Get the SQL for a "comment" column modifier.
-   *
-   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
-   * @param  {\Illuminate\Support\Fluent}  column
-   * @return {string|undefined}
-   */
-  modifyComment (blueprint, column) {
-    if (!isNil(column.get('comment'))) {
-      return " comment '" + addslashes(column.get('comment')) + "'"
+      return ` collate ${this.wrapValue(column.get('collation'))}`
     }
   }
 
@@ -498,19 +476,6 @@ export class MySqlGrammar extends Grammar {
   }
 
   /**
-   * Get the SQL for a "first" column modifier.
-   *
-   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
-   * @param  {\Illuminate\Support\Fluent}  column
-   * @return {string|undefined}
-   */
-  modifyFirst (blueprint, column) {
-    if (!isNil(column.get('first'))) {
-      return ' first'
-    }
-  }
-
-  /**
    * Get the SQL for an auto-increment column modifier.
    *
    * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
@@ -518,8 +483,11 @@ export class MySqlGrammar extends Grammar {
    * @return {string|undefined}
    */
   modifyIncrement (blueprint, column) {
-    if (this.serials.includes(column.get('type')) && column.get('autoIncrement')) {
-      return ' auto_increment primary key'
+    if ((this.serials.includes(column.get('type')) ||
+      (column.get('generatedAs') !== undefined)) &&
+      column.get('autoIncrement')
+    ) {
+      return ' primary key'
     }
   }
 
@@ -531,26 +499,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string|undefined}
    */
   modifyNullable (blueprint, column) {
-    if (isNil(column.get('virtualAs')) && isNil(column.get('storedAs'))) {
-      return column.get('nullable') ? ' null' : ' not null'
-    }
-
-    if (column.get('nullable') === false) {
-      return ' not null'
-    }
-  }
-
-  /**
-   * Get the SQL for a SRID column modifier.
-   *
-   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
-   * @param  {\Illuminate\Support\Fluent}  column
-   * @return {string|undefined}
-   */
-  modifySrid (blueprint, column) {
-    if (!isNil(column.srid) && isInteger(column.get('srid')) && column.get('srid') > 0) {
-      return ` srid ${column.get('srid')}`
-    }
+    return column.get('nullable') ? ' null' : ' not null'
   }
 
   /**
@@ -561,21 +510,8 @@ export class MySqlGrammar extends Grammar {
    * @return {string|undefined}
    */
   modifyStoredAs (blueprint, column) {
-    if (!isNil(column.get('storedAs'))) {
-      return ` as (${column.get('storedAs')}) stored`
-    }
-  }
-
-  /**
-   * Get the SQL for an unsigned column modifier.
-   *
-   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
-   * @param  {\Illuminate\Support\Fluent}  column
-   * @return {string|undefined}
-   */
-  modifyUnsigned (blueprint, column) {
-    if (column.get('unsigned')) {
-      return ' unsigned'
+    if (column.get('storedAs') !== undefined) {
+      return ` generated always as (${column.get('storedAs')}) stored`
     }
   }
 
@@ -587,8 +523,8 @@ export class MySqlGrammar extends Grammar {
    * @return {string|undefined}
    */
   modifyVirtualAs (blueprint, column) {
-    if (!isNil(column.get('virtualAs'))) {
-      return ` as (${column.get('virtualAs')})`
+    if (column.get('virtualAs') !== undefined) {
+      return ` generated always as (${column.get('virtualAs')})`
     }
   }
 
@@ -599,7 +535,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeBigInteger (column) {
-    return 'bigint'
+    return this.generatableColumn('bigint', column)
   }
 
   /**
@@ -609,7 +545,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeBinary (column) {
-    return 'blob'
+    return 'bytea'
   }
 
   /**
@@ -619,7 +555,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeBoolean (column) {
-    return 'tinyint(1)'
+    return 'boolean'
   }
 
   /**
@@ -630,18 +566,6 @@ export class MySqlGrammar extends Grammar {
    */
   typeChar (column) {
     return `char(${column.get('length')})`
-  }
-
-  /**
-   * Create the column definition for a generated, computed column type.
-   *
-   * @param  {\Illuminate\Support\Fluent}  column
-   * @return {void}
-   *
-   * @throws {\RuntimeException}
-   */
-  typeComputed (column) {
-    throw new Error('RuntimeException: This database driver requires a type, see the virtualAs / storedAs modifiers.')
   }
 
   /**
@@ -661,13 +585,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeDateTime (column) {
-    let columnType = column.get('precision') ? `datetime(${column.get('precision')})` : 'datetime'
-
-    const current = column.get('precision') ? `CURRENT_TIMESTAMP(${column.get('precision')})` : 'CURRENT_TIMESTAMP'
-
-    columnType = column.get('useCurrent') ? `${columnType} default ${current}` : columnType
-
-    return column.get('useCurrentOnUpdate') ? `${columnType} on update ${current}` : columnType
+    return this.typeTimestamp(column)
   }
 
   /**
@@ -677,7 +595,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeDateTimeTz (column) {
-    return this.typeDateTime(column)
+    return this.typeTimestampTz(column)
   }
 
   /**
@@ -697,11 +615,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeDouble (column) {
-    if (column.get('total') && column.get('places')) {
-      return `double(${column.get('total')}, ${column.get('places')})`
-    }
-
-    return 'double'
+    return 'double precision'
   }
 
   /**
@@ -711,7 +625,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeEnum (column) {
-    return `enum(${this.quoteString(column.get('allowed'))})`
+    return `varchar(255) check ("${column.get('name')}" in (${this.quoteString(column.get('allowed'))}))`
   }
 
   /**
@@ -731,17 +645,17 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeGeometry (column) {
-    return 'geometry'
+    return this.formatPostGisType('geometry', column)
   }
 
   /**
    * Create the column definition for a spatial GeometryCollection type.
    *
-   * @param  {\Illuminate\Support\Fluent } column
+   * @param  {\Illuminate\Support\Fluent}  column
    * @return {string}
    */
   typeGeometryCollection (column) {
-    return 'geometrycollection'
+    return this.formatPostGisType('geometrycollection', column)
   }
 
   /**
@@ -751,7 +665,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeInteger (column) {
-    return 'int'
+    return this.generatableColumn('integer', column)
   }
 
   /**
@@ -761,13 +675,13 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeIpAddress (column) {
-    return 'varchar(45)'
+    return 'inet'
   }
 
   /**
    * Create the column definition for a json type.
    *
-   * @param  {\Illuminate\Support\Fluent} column
+   * @param  {\Illuminate\Support\Fluent}  column
    * @return {string}
    */
   typeJson (column) {
@@ -777,21 +691,21 @@ export class MySqlGrammar extends Grammar {
   /**
    * Create the column definition for a jsonb type.
    *
-   * @param  {\Illuminate\Support\Fluent} column
+   * @param  {\Illuminate\Support\Fluent}  column
    * @return {string}
    */
   typeJsonb (column) {
-    return 'json'
+    return 'jsonb'
   }
 
   /**
    * Create the column definition for a spatial LineString type.
    *
-   * @param  {\Illuminate\Support\Fluent}  $column
+   * @param  {\Illuminate\Support\Fluent}  column
    * @return {string}
    */
   typeLineString (column) {
-    return 'linestring'
+    return this.formatPostGisType('linestring', column)
   }
 
   /**
@@ -801,7 +715,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeLongText (column) {
-    return 'longtext'
+    return 'text'
   }
 
   /**
@@ -811,7 +725,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeMacAddress (column) {
-    return 'varchar(17)'
+    return 'macaddr'
   }
 
   /**
@@ -821,7 +735,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeMediumInteger (column) {
-    return 'mediumint'
+    return this.generatableColumn('integer', column)
   }
 
   /**
@@ -831,17 +745,17 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeMediumText (column) {
-    return 'mediumtext'
+    return 'text'
   }
 
   /**
    * Create the column definition for a spatial MultiLineString type.
    *
-   * @param  {\Illuminate\Support\Fluent } column
+   * @param  {\Illuminate\Support\Fluent}  column
    * @return {string}
    */
   typeMultiLineString (column) {
-    return 'multilinestring'
+    return this.formatPostGisType('multilinestring', column)
   }
 
   /**
@@ -851,7 +765,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeMultiPoint (column) {
-    return 'multipoint'
+    return this.formatPostGisType('multipoint', column)
   }
 
   /**
@@ -861,7 +775,17 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeMultiPolygon (column) {
-    return 'multipolygon'
+    return this.formatPostGisType('multipolygon', column)
+  }
+
+  /**
+   * Create the column definition for a spatial MultiPolygonZ type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeMultiPolygonZ (column) {
+    return this.formatPostGisType('multipolygonz', column)
   }
 
   /**
@@ -871,27 +795,27 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typePoint (column) {
-    return 'point'
+    return this.formatPostGisType('point', column)
   }
 
   /**
    * Create the column definition for a spatial Polygon type.
    *
-   * @param  {\Illuminate\Support\Fluent}  $column
+   * @param  {\Illuminate\Support\Fluent}  column
    * @return {string}
    */
   typePolygon (column) {
-    return 'polygon'
+    return this.formatPostGisType('polygon', column)
   }
 
   /**
-   * Create the column definition for a set enumeration type.
+   * Create the column definition for a real type.
    *
    * @param  {\Illuminate\Support\Fluent}  column
    * @return {string}
    */
-  typeSet (column) {
-    return `set(${this.quoteString(column.get('allowed'))})`
+  typeReal (column) {
+    return 'real'
   }
 
   /**
@@ -901,7 +825,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeSmallInteger (column) {
-    return 'smallint'
+    return this.generatableColumn('smallint', column)
   }
 
   /**
@@ -931,33 +855,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeTime (column) {
-    return column.get('precision') ? `time(${column.get('precision')})` : 'time'
-  }
-
-  /**
-   * Create the column definition for a timestamp type.
-   *
-   * @param  {\Illuminate\Support\Fluent}  column
-   * @return {string}
-   */
-  typeTimestamp (column) {
-    let columnType = column.get('precision') ? `timestamp(${column.get('precision')})` : 'timestamp'
-
-    const current = column.get('precision') ? `CURRENT_TIMESTAMP(${column.get('precision')})` : 'CURRENT_TIMESTAMP'
-
-    columnType = column.get('useCurrent') ? `${columnType} default ${current}` : columnType
-
-    return column.get('useCurrentOnUpdate') ? `${columnType} on update ${current}` : columnType
-  }
-
-  /**
-   * Create the column definition for a timestamp (with time zone) type.
-   *
-   * @param  {\Illuminate\Support\Fluent}  column
-   * @return {string}
-   */
-  typeTimestampTz (column) {
-    return this.typeTimestamp(column)
+    return `time${(isNil(column.get('precision')) ? '' : `(${column.get('precision')})`)} without time zone`
   }
 
   /**
@@ -967,7 +865,31 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeTimeTz (column) {
-    return this.typeTime(column)
+    return `time${(isNil(column.get('precision')) ? '' : `(${column.get('precision')})`)} with time zone`
+  }
+
+  /**
+   * Create the column definition for a timestamp type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeTimestamp (column) {
+    const columnType = `timestamp${(isNil(column.get('precision')) ? '' : `(${column.get('precision')})`)} without time zone`
+
+    return column.get('useCurrent') ? 'columnType default CURRENT_TIMESTAMP' : columnType
+  }
+
+  /**
+   * Create the column definition for a timestamp (with time zone) type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
+  typeTimestampTz (column) {
+    const columnType = `timestamp${(isNil(column.get('precision')) ? '' : `(${column.get('precision')})`)} with time zone`
+
+    return column.get('useCurrent') ? 'columnType default CURRENT_TIMESTAMP' : columnType
   }
 
   /**
@@ -977,7 +899,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeTinyInteger (column) {
-    return 'tinyint'
+    return this.generatableColumn('smallint', column)
   }
 
   /**
@@ -987,7 +909,7 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeTinyText (column) {
-    return 'tinytext'
+    return 'varchar(255)'
   }
 
   /**
@@ -997,30 +919,16 @@ export class MySqlGrammar extends Grammar {
    * @return {string}
    */
   typeUuid (column) {
-    return 'char(36)'
+    return 'uuid'
   }
 
   /**
-   * Create the column definition for a year type.
-   *
-   * @param  {\Illuminate\Support\Fluent}  column
-   * @return {string}
-   */
+ * Create the column definition for a year type.
+ *
+ * @param  {\Illuminate\Support\Fluent}  column
+ * @return {string}
+ */
   typeYear (column) {
-    return 'year'
-  }
-
-  /**
-   * Wrap a single string in keyword identifiers.
-   *
-   * @param  {string}  value
-   * @return {string}
-   */
-  wrapValue (value) {
-    if (value !== '*') {
-      return '`' + value.replace('`', '``') + '`'
-    }
-
-    return value
+    return this.typeInteger(column)
   }
 }

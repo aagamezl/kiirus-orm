@@ -1,3 +1,5 @@
+import { get, isNil } from 'lodash'
+
 import { HigherOrderTapProxy } from './HigherOrderTapProxy'
 
 /**
@@ -29,11 +31,31 @@ export const changeKeyCase = (value, changeCase = 'CASE_LOWER') => {
   }
 }
 
+export const isSubclassOf = (child, parent) => {
+  if (child === parent) {
+    return true
+  }
+
+  if (child.prototype instanceof parent) {
+    return true
+  }
+
+  if (child === Object) {
+    return false
+  }
+
+  return isSubclassOf(Object.getPrototypeOf(child), parent)
+}
+
 export const ksort = (value) => Object.keys(value).sort().reduce((result, key) => {
   result[key] = value[key]
 
   return result
 }, {})
+
+export const lcfirst = (string) => {
+  return string.charAt(0).toLowerCase() + string.slice(1)
+}
 
 export const objectDiffKey = (target, ...from) => {
   const keys = from.reduce((result, current) => {
@@ -47,6 +69,22 @@ export const objectDiffKey = (target, ...from) => {
 
     return result
   }, {})
+}
+
+/**
+ * Get a value from the array, and remove it.
+ *
+ * @param  {object}  array
+ * @param  {string}  key
+ * @param  {*}  [defaultValue=undefined]
+ * @return {*}
+ */
+export const pull = (array, key, defaultValue = undefined) => {
+  const value = get(array, key, defaultValue)
+
+  delete array[key]
+
+  return value
 }
 
 /**
@@ -76,6 +114,23 @@ export const throwException = (type, message) => {
   }
 }
 
-export const lcfirst = (string) => {
-  return string.charAt(0).toLowerCase() + string.slice(1)
+/**
+ * Make a string's first character uppercase
+ *
+ * @param  {string}  value
+ * @return {string}
+ */
+export const ucfirst = (value) => {
+  return value.charAt(0).toUpperCase() + value.substr(1)
+}
+
+/**
+ * Return the given value, optionally passed through the given callback.
+ *
+ * @param  {*}  value
+ * @param  {Function|undefined}  callback
+ * @return {*}
+ */
+export const withGiven = (value, callbackFunction = undefined) => {
+  return isNil(callbackFunction) ? value : callbackFunction(value)
 }

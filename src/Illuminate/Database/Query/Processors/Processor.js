@@ -1,3 +1,4 @@
+import { isNumeric } from '@devnetic/utils'
 
 export class Processor {
   /**
@@ -21,7 +22,11 @@ export class Processor {
    * @return {number}
    */
   processInsertGetId (query, sql, values, sequence) {
-    throw new Error('RuntimeException: This database engine does not support get last insert id.')
+    query.getConnection().insert(sql, values)
+
+    const id = query.getConnection().getNdo().lastInsertId(sequence)
+
+    return isNumeric(id) ? Number(id) : id
   }
 
   /**

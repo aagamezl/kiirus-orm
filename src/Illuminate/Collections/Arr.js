@@ -1,4 +1,4 @@
-import { isEmpty, isObject, isPlainObject, last } from 'lodash'
+import { isEmpty, isNil, isObject, isPlainObject, last, set } from 'lodash'
 
 import { Collection } from './Collection'
 
@@ -69,7 +69,6 @@ export class Arr {
 
     const entries = array instanceof Map ? array.entries() : Object.entries(array)
 
-    // for (let [, item] of Object.entries(array)) {
     for (let [, item] of entries) {
       item = item instanceof Collection ? item.all() : item
 
@@ -137,6 +136,26 @@ export class Arr {
     }
 
     return result
+  }
+
+  /**
+   * Get an item from an array using "dot" notation.
+   *
+   * @param  {object|Array}  array
+   * @param  {string|number|undefined}  key
+   * @param  {*}  default
+   * @return {*}
+   */
+  static get (array, key, defaultValue = null) {
+    if (key === undefined) {
+      return array
+    }
+
+    if (array.includes(key)) {
+      return array[key]
+    }
+
+    return dataGet(array, key, defaultValue)
   }
 
   /**
@@ -214,6 +233,26 @@ export class Arr {
     }
 
     return results
+  }
+
+  /**
+   * Set an array item to a given value using "dot" notation.
+   *
+   * If no key is given to the method, the entire array will be replaced.
+   *
+   * @param  {Array}  array
+   * @param  {string|undefined}  key
+   * @param  {*}  value
+   * @return {Array}
+   */
+  static set (array, key, value) {
+    if (isNil(key)) {
+      array = value
+
+      return array
+    }
+
+    return set(array, key, value)
   }
 
   /**

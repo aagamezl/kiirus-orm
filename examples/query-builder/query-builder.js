@@ -1,7 +1,7 @@
-const { Builder } = require('./../lib/Illuminate/Database/Query')
-const { Connection } = require('../lib/Illuminate/Database')
-const { Grammar } = require('../lib/Illuminate/Database/Query/Grammars')
-const { Processor } = require('../lib/Illuminate/Database/Query/Processors')
+const { Builder } = require('./../../lib/Illuminate/Database/Query')
+const { Connection } = require('./../../lib/Illuminate/Database')
+const { Grammar } = require('./../../lib/Illuminate/Database/Query/Grammars')
+const { Processor } = require('./../../lib/Illuminate/Database/Query/Processors')
 // const { HigherOrderTapProxy } = require('../lib/Illuminate/Support/HigherOrderTapProxy')
 
 const config = {

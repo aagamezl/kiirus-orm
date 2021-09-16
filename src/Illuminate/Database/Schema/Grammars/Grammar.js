@@ -1,9 +1,10 @@
-import { capitalize } from 'lodash'
+import { isBoolean, isNil } from 'lodash'
 
 import { Blueprint } from './../Blueprint'
+import { Expression } from './../../Query/Expression'
 import { Fluent } from './../../../Support/Fluent'
 import { Grammar as BaseGrammar } from './../../Grammar'
-import { throwException } from './../../../Support'
+import { throwException, ucfirst } from './../../../Support'
 
 export class Grammar extends BaseGrammar {
   constructor () {
@@ -69,6 +70,51 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile a drop database if exists command.
+   *
+   * @param  {string}  name
+   * @return {void}
+   *
+   * @throws {LogicException}
+   */
+  compileDropDatabaseIfExists (name) {
+    throw new Error('LogicException: This database driver does not support dropping databases.')
+  }
+
+  /**
+   * Compile a foreign key command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @return {string}
+   */
+  compileForeign (blueprint, command) {
+    // We need to prepare several of the elements of the foreign key definition
+    // before we can create the SQL, such as wrapping the tables and convert
+    // an array of columns to comma-delimited strings for the SQL queries.
+    let sql = `alter table ${this.wrapTable(blueprint)} add constraint ${this.wrap(command.get('index'))} `
+
+    // Once we have the initial portion of the SQL statement we will add on the
+    // key name, table name, and referenced columns. These will complete the
+    // main portion of the SQL statement and this SQL will almost be done.
+    const references = Array.isArray(command.get('references')) ? command.get('references') : [command.get('references')]
+    sql += `foreign key (${this.columnize(command.get('columns'))}) references ${this.wrapTable(command.get('on'))} (${this.columnize(references)})`
+
+    // Once we have the basic foreign key creation statement constructed we can
+    // build out the syntax for what should happen on an update or delete of
+    // the affected columns, which will get something like "cascade", etc.
+    if (!isNil(command.get('onDelete'))) {
+      sql += ` on delete ${command.get('onDelete')}`
+    }
+
+    if (!isNil(command.get('onUpdate'))) {
+      sql += ` on update ${command.get('onUpdate')}`
+    }
+
+    return sql
+  }
+
+  /**
    * Compile the blueprint's column definitions.
    *
    * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
@@ -90,6 +136,22 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Format a value so that it can be used in "default" clauses.
+   *
+   * @param  {*}  value
+   * @return {string}
+   */
+  getDefaultValue (value) {
+    if (value instanceof Expression) {
+      return value
+    }
+
+    return isBoolean(value)
+      ? `'${Number(value)}'`
+      : `'${String(value)}'`
+  }
+
+  /**
    * Get the fluent commands for the grammar.
    *
    * @return {Array}
@@ -105,7 +167,7 @@ export class Grammar extends BaseGrammar {
  * @return {string}
  */
   getType (column) {
-    return this[`type${capitalize(column.get('type'))}`](column)
+    return this[`type${ucfirst(column.get('type'))}`](column)
   }
 
   /**

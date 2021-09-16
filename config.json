@@ -1,7 +1,14 @@
 {
-  "driver": "postgresql",
-  "host": "127.0.0.1",
-  "database": "postgres",
-  "username": "postgres",
-  "password": "postgres"
+  "database": {
+    "default": "pgsql",
+    "connections": {
+      "pgsql": {
+        "driver": "pgsql",
+        "host": "127.0.0.1",
+        "database": "postgres",
+        "username": "postgres",
+        "password": "postgres"
+      }
+    }
+  }
 }

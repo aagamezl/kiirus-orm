@@ -1,10 +1,21 @@
 import { Expression } from './Query/Expression'
 
+import { Macroable } from './../Macroable/Traits/Macroable'
 import { collect } from './../Collections/helpers'
 import { throwException } from './../Support'
+import { use } from './../Macroable/Traits/Trait'
 
 export class Grammar {
   constructor () {
+    const proxy = use(this, Macroable)
+
+    /**
+     * The registered string macros.
+     *
+     * @var {Array}
+     */
+    // this.macros = []
+
     /**
      * The grammar table prefix.
      *
@@ -15,6 +26,8 @@ export class Grammar {
     if (new.target === Grammar) {
       throwException('abstract')
     }
+
+    return proxy
   }
 
   /**
@@ -69,6 +82,20 @@ export class Grammar {
   }
 
   /**
+ * Quote the given string literal.
+ *
+ * @param  {string|Array}  value
+ * @return {string}
+ */
+  quoteString (value) {
+    if (Array.isArray(value)) {
+      return value.map(this.quoteString).join(', ')
+    }
+
+    return `'${value}'`
+  }
+
+  /**
    * Set the grammar's table prefix.
    *
    * @param  {string}  prefix
@@ -120,6 +147,16 @@ export class Grammar {
     }
 
     return this.wrap(segments[0]) + ' as ' + this.wrapValue(segments[1])
+  }
+
+  /**
+   * Wrap an array of values.
+   *
+   * @param  {Array}  values
+   * @return {Array}
+   */
+  wrapArray (values) {
+    return values.map(item => this.wrap(item))
   }
 
   /**
