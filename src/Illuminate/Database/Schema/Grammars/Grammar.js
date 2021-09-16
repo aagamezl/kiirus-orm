@@ -70,6 +70,18 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile a drop database if exists command.
+   *
+   * @param  {string}  name
+   * @return {void}
+   *
+   * @throws {LogicException}
+   */
+  compileDropDatabaseIfExists (name) {
+    throw new Error('LogicException: This database driver does not support dropping databases.')
+  }
+
+  /**
    * Compile a foreign key command.
    *
    * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
