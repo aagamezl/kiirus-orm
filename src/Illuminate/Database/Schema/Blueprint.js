@@ -1,4 +1,5 @@
-import { isNil, isString, merge } from 'lodash'
+import { merge } from 'lodash'
+import { isNil, isString } from '@devnetic/utils'
 
 import { Builder } from './Builder'
 import { ColumnDefinition } from './ColumnDefinition'

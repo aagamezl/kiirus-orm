@@ -1,9 +1,9 @@
-const test = require('ava')
+import test from 'ava'
 
-const { PostgresBuilder } = require('../../lib/Illuminate/Database/Schema/PostgresBuilder')
-const { PostgresGrammar } = require('../../lib/Illuminate/Database/Schema/Grammars/PostgresGrammar')
-const { getConnection } = require('./common')
-const { mock } = require('../tools/mock')
+import { PostgresBuilder } from './../../src/Illuminate/Database/Schema/PostgresBuilder'
+import { PostgresGrammar } from './../../src/Illuminate/Database/Schema/Grammars/PostgresGrammar'
+import { getConnection } from './common'
+import { mock } from './../tools/mock'
 
 const getBuilder = (connection) => {
   return new PostgresBuilder(connection)

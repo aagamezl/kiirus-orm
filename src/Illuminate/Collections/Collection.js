@@ -2,7 +2,7 @@ import {
   isFunction,
   isPlainObject,
   isString
-} from 'lodash'
+} from '@devnetic/utils'
 
 import { Arr } from './Arr'
 import { dataGet } from './helpers'

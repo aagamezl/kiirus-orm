@@ -1,6 +1,6 @@
-const test = require('ava')
+import test from 'ava'
 
-const { PostgresProcessor } = require('../../lib/Illuminate/Database/Query/Processors/PostgresProcessor')
+import { PostgresProcessor } from './../../src/Illuminate/Database/Query/Processors/PostgresProcessor'
 
 test('testProcessColumnListing', async (t) => {
   const processor = new PostgresProcessor()

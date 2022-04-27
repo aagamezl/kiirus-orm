@@ -1,19 +1,19 @@
-const test = require('ava')
+import test from 'ava'
 
-const { mock } = require('./../tools/mock')
-
-const { Builder: EloquentBuilder } = require('./../../lib/Illuminate/Database/Eloquent/Builder')
-const { Expression: Raw } = require('./../../lib/Illuminate/Database/Query/internal')
-const { SQLiteGrammar } = require('./../../lib/Illuminate/Database/Query/Grammars/SQLiteGrammar')
-const { collect } = require('./../../lib/Illuminate/Collections/helpers')
-const {
+import { Builder as EloquentBuilder } from './../../src/Illuminate/Database/Eloquent/Builder'
+import { Expression as Raw } from './../../src/Illuminate/Database/Query/internal'
+import { SQLiteGrammar } from './../../src/Illuminate/Database/Query/Grammars/SQLiteGrammar'
+import { collect } from './../../src/Illuminate/Collections/helpers'
+import {
   getBuilder,
   getMySqlBuilderWithProcessor,
   getPostgresBuilder,
   getSQLiteBuilder,
   getSqlServerBuilder,
   getMySqlBuilder
-} = require('./common')
+} from './common'
+
+import { mock } from './../tools/mock'
 
 test('testBasicSelect', (t) => {
   const builder = getBuilder()

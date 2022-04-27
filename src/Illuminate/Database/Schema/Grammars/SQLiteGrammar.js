@@ -2,6 +2,8 @@ import { castArray, isNil } from 'lodash'
 
 import { Grammar } from './Grammar'
 import { collect } from './../../../Collections/helpers'
+import { TableDiff } from './../../../../Doctrine/Schema'
+import { tap } from './../../../Support'
 
 export class SQLiteGrammar extends Grammar {
   constructor () {
@@ -25,7 +27,7 @@ export class SQLiteGrammar extends Grammar {
   /**
    * Get the foreign key syntax for a table creation statement.
    *
-   * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
    * @return {string|undefined}
    */
   addForeignKeys (blueprint) {
@@ -103,6 +105,90 @@ export class SQLiteGrammar extends Grammar {
    */
   compileDisableForeignKeyConstraints () {
     return 'PRAGMA foreign_keys = OFF;'
+  }
+
+  /**
+   * Compile the SQL needed to disable a writable schema.
+   *
+   * @return {string}
+   */
+  compileDisableWriteableSchema () {
+    return 'PRAGMA writable_schema = 0;'
+  }
+
+  /**
+   * Compile the SQL needed to drop all tables.
+   *
+   * @return {string}
+   */
+  compileDropAllTables () {
+    return 'delete from sqlite_master where type in (\'table\', \'index\', \'trigger\')'
+  }
+
+  /**
+   * Compile a drop column command.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Illuminate\Support\Fluent}  command
+   * @param  {\Illuminate\Database\Connection}  connection
+   * @return {array}
+   */
+  compileDropColumn (blueprint, command, connection) {
+    const schema = connection.getDoctrineSchemaManager()
+
+    const tableDiff = this.getDoctrineTableDiff(
+      blueprint, schema
+    )
+
+    for (const name of command.columns) {
+      tableDiff.removedColumns[name] = connection.getDoctrineColumn(
+        this.getTablePrefix().blueprint.getTable(), name
+      )
+    }
+
+    return schema.getDatabasePlatform().getAlterTableSQL(tableDiff)
+  }
+
+  /**
+   * Compile the command to enable foreign key constraints.
+   *
+   * @return {string}
+   */
+  compileEnableForeignKeyConstraints () {
+    return 'PRAGMA foreign_keys = ON;'
+  }
+
+  /**
+   * Compile the SQL needed to enable a writable schema.
+   *
+   * @return {string}
+   */
+  compileEnableWriteableSchema () {
+    return 'PRAGMA writable_schema = 1;'
+  }
+
+  /**
+   * Compile the SQL needed to rebuild the database.
+   *
+   * @return {string}
+   */
+  compileRebuild () {
+    return 'vacuum'
+  }
+
+  /**
+   * Create an empty Doctrine DBAL TableDiff from the Blueprint.
+   *
+   * @param  {\Illuminate\Database\Schema\Blueprint}  blueprint
+   * @param  {\Doctrine\DBAL\Schema\AbstractSchemaManager}  schema
+   * @return {\Doctrine\DBAL\Schema\TableDiff}
+   */
+  getDoctrineTableDiff (blueprint, schema) {
+    const table = this.getTablePrefix().blueprint.getTable()
+
+    return tap(new TableDiff(table), (tableDiff) => {
+      tableDiff.fromTable = schema.listTableDetails(table)
+    })
   }
 
   /**
@@ -198,11 +284,11 @@ export class SQLiteGrammar extends Grammar {
   }
 
   /**
- * Create the column definition for a string type.
- *
- * @param  {\Illuminate\Support\Fluent}  column
- * @return {string}
- */
+   * Create the column definition for a string type.
+   *
+   * @param  {\Illuminate\Support\Fluent}  column
+   * @return {string}
+   */
   typeString (column) {
     return 'varchar'
   }

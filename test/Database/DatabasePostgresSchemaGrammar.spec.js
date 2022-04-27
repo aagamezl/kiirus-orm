@@ -1,10 +1,10 @@
-const test = require('ava')
+import test from 'ava'
 
-const { Blueprint } = require('./../../lib/Illuminate/Database/Schema/Blueprint')
-const { ForeignIdColumnDefinition } = require('./../../lib/Illuminate/Database/Schema/ForeignIdColumnDefinition')
-const { PostgresGrammar } = require('../../lib/Illuminate/Database/Schema/Grammars/PostgresGrammar')
-const { getConnection } = require('./common')
-const { mock } = require('../tools/mock')
+import { Blueprint } from './../../src/Illuminate/Database/Schema/Blueprint'
+import { ForeignIdColumnDefinition } from './../../src/Illuminate/Database/Schema/ForeignIdColumnDefinition'
+import { PostgresGrammar } from './../../src/Illuminate/Database/Schema/Grammars/PostgresGrammar'
+import { getConnection } from './common'
+import { mock } from './../tools/mock'
 
 const getGrammar = () => new PostgresGrammar()
 

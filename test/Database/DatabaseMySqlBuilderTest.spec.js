@@ -1,9 +1,9 @@
-const test = require('ava')
+import test from 'ava'
 
-const { MySqlBuilder } = require('../../lib/Illuminate/Database/Schema/MySqlBuilder')
-const { MySqlGrammar } = require('../../lib/Illuminate/Database/Schema/Grammars/MySqlGrammar')
-const { getConnection } = require('./common')
-const { mock } = require('../tools/mock')
+import { MySqlBuilder } from './../../src/Illuminate/Database/Schema/MySqlBuilder'
+import { MySqlGrammar } from './../../src/Illuminate/Database/Schema/Grammars/MySqlGrammar'
+import { getConnection } from './common'
+import { mock } from './../tools/mock'
 
 test('testCreateDatabase', async (t) => {
   const { createMock, verifyMock } = mock()

@@ -1,4 +1,4 @@
-import { isObject } from 'lodash'
+import { isObject } from '@devnetic/utils'
 
 import { Collection } from './Collection'
 

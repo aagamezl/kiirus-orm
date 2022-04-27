@@ -1,4 +1,5 @@
-import { omit, set } from 'lodash'
+import { set } from 'lodash'
+import { omit } from '@devnetic/utils'
 
 import { Arr } from './../../Collections/Arr'
 import { Connection } from './../Connection'

@@ -1,10 +1,10 @@
-const test = require('ava')
+import test from 'ava'
 
-const { mock } = require('../tools/mock')
+import { mock } from './../tools/mock'
 
-const { Connection } = require('./../../lib/Illuminate/Database/Connection')
-const { Builder } = require('./../../lib/Illuminate/Database/Query/Builder')
-const { Processor } = require('../../lib/Illuminate/Database/Query/Processors/Processor')
+import { Connection } from './../../src/Illuminate/Database/Connection'
+import { Builder } from './../../src/Illuminate/Database/Query/Builder'
+import { Processor } from './../../src/Illuminate/Database/Query/Processors/Processor'
 
 test('testInsertGetIdProcessing', async (t) => {
   const { createMock, verifyMock } = mock()

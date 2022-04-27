@@ -7,8 +7,8 @@ export class Application extends Container {
   /**
    * Create a new Illuminate application instance.
    *
-   * @param  string|null  basePath
-   * @return void
+   * @param  {string|undefined}  basePath
+   * @return {void}
    */
   constructor (basePath = undefined) {
     super()
@@ -29,7 +29,7 @@ export class Application extends Container {
   /**
  * Register the core class aliases in the container.
  *
- * @return void
+ * @return {void}
  */
   registerCoreContainerAliases () {
     const aliases = {

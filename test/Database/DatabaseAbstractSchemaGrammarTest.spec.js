@@ -1,7 +1,7 @@
-const test = require('ava')
+import test from 'ava'
 
-const { Grammar } = require('./../../lib/Illuminate/Database/Schema/Grammars/Grammar')
-const { getConnection } = require('./common')
+import { Grammar } from './../../src/Illuminate/Database/Schema/Grammars/Grammar'
+import { getConnection } from './common'
 
 test('testBasicSelect', (t) => {
   const grammar = new (class extends Grammar { })()

@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "babel src -d lib --source-maps",
+    "build:watch": "babel src -d lib --source-maps --watch",
     "coverage": "nyc ava",
     "lint": "standard --verbose | snazzy",
     "lint:fix": "standard --fix",
@@ -14,23 +15,27 @@
   "ava": {
     "files": [
       "test/**/*.spec.js"
+    ],
+    "require": [
+      "@babel/register"
     ]
   },
   "dependencies": {
-    "@devnetic/utils": "^1.2.1",
+    "@devnetic/utils": "^2.1.0",
     "lodash": "^4.17.21"
   },
   "devDependencies": {
-    "@babel/cli": "^7.14.5",
-    "@babel/core": "^7.14.6",
-    "@babel/plugin-proposal-class-static-block": "^7.14.5",
-    "@babel/preset-env": "^7.14.7",
-    "ava": "^3.15.0",
+    "@babel/cli": "^7.17.6",
+    "@babel/core": "^7.17.9",
+    "@babel/plugin-proposal-class-static-block": "^7.17.6",
+    "@babel/preset-env": "^7.16.11",
+    "@babel/register": "^7.17.7",
+    "ava": "^4.2.0",
     "nyc": "^15.1.0",
-    "pg": "^8.6.0",
-    "sinon": "^11.1.1",
+    "pg": "^8.7.3",
+    "sinon": "^13.0.2",
     "snazzy": "^9.0.0",
-    "standard": "^16.0.3"
+    "standard": "^17.0.0"
   },
   "repository": {
     "type": "git",

@@ -3,7 +3,7 @@ import { Expression } from './Query/Expression'
 import { Macroable } from './../Macroable/Traits/Macroable'
 import { collect } from './../Collections/helpers'
 import { throwException } from './../Support'
-import { use } from './../Macroable/Traits/Trait'
+import { use } from './../Support/Traits/Trait'
 
 export class Grammar {
   constructor () {

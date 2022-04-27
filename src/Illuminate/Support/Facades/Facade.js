@@ -1,4 +1,4 @@
-import { isObject } from 'lodash'
+import { isObject } from '@devnetic/utils'
 
 import { Application } from './../../Foundation/Application'
 import { instanceProxy } from './../Proxies/InstanceProxy'
@@ -7,7 +7,7 @@ import { StaticProxy } from './StaticProxy'
 
 class FacadeClass {
   constructor () {
-    if (new.target === this) {
+    if (new.target === FacadeClass) {
       throwException('abstract')
     }
 

@@ -106,4 +106,15 @@ export class Builder {
   dropDatabaseIfExists (name) {
     throw new Error('LogicException: This database driver does not support dropping databases.')
   }
+
+  /**
+   * Enable foreign key constraints.
+   *
+   * @return {boolean}
+   */
+  enableForeignKeyConstraints () {
+    return this.connection.statement(
+      this.grammar.compileEnableForeignKeyConstraints()
+    )
+  }
 }

@@ -1,14 +1,14 @@
-const { Builder } = require('../../lib/Illuminate/Database/Query')
-const { Connection } = require('../../lib/Illuminate/Database')
-const { Grammar } = require('../../lib/Illuminate/Database/Query/Grammars')
-const { MySqlGrammar } = require('../../lib/Illuminate/Database/Query/Grammars/MySqlGrammar')
-const { MySqlProcessor } = require('../../lib/Illuminate/Database/Query/Processors/MySqlProcessor')
-const { PostgresGrammar } = require('../../lib/Illuminate/Database/Query/Grammars/PostgresGrammar')
-const { Processor } = require('../../lib/Illuminate/Database/Query/Processors')
-const { SQLiteGrammar } = require('../../lib/Illuminate/Database/Query/Grammars/SQLiteGrammar')
-const { SqlServerGrammar } = require('../../lib/Illuminate/Database/Query/Grammars/SqlServerGrammar')
+import { Builder } from '../../src/Illuminate/Database/Query'
+import { Connection } from '../../src/Illuminate/Database'
+import { Grammar } from '../../src/Illuminate/Database/Query/Grammars'
+import { MySqlGrammar } from '../../src/Illuminate/Database/Query/Grammars/MySqlGrammar'
+import { MySqlProcessor } from '../../src/Illuminate/Database/Query/Processors/MySqlProcessor'
+import { PostgresGrammar } from '../../src/Illuminate/Database/Query/Grammars/PostgresGrammar'
+import { Processor } from '../../src/Illuminate/Database/Query/Processors'
+import { SQLiteGrammar } from '../../src/Illuminate/Database/Query/Grammars/SQLiteGrammar'
+import { SqlServerGrammar } from '../../src/Illuminate/Database/Query/Grammars/SqlServerGrammar'
 
-const config = {
+export const config = {
   driver: 'mysql',
   host: '127.0.0.1',
   database: 'test',
@@ -21,62 +21,62 @@ const config = {
  *
  * @returns Connection
  */
-const getConnection = () => new Connection(config)
+export const getConnection = () => new Connection(config)
 
 /**
  * Return a Builder instance
  *
  * @return Builder
  */
-const getBuilder = () => {
+export const getBuilder = () => {
   const grammar = new Grammar()
   const processor = new Processor()
 
   return new Builder(getConnection(), grammar, processor)
 }
 
-const getMySqlBuilderWithProcessor = () => {
+export const getMySqlBuilderWithProcessor = () => {
   const grammar = new MySqlGrammar()
   const processor = new MySqlProcessor()
 
   return new Builder(getConnection(), grammar, processor)
 }
 
-const getMySqlBuilder = () => {
+export const getMySqlBuilder = () => {
   const grammar = new MySqlGrammar()
   const processor = new Processor()
 
   return new Builder(getConnection(), grammar, processor)
 }
 
-const getPostgresBuilder = () => {
+export const getPostgresBuilder = () => {
   const grammar = new PostgresGrammar()
   const processor = new Processor()
 
   return new Builder(getConnection(), grammar, processor)
 }
 
-const getSQLiteBuilder = () => {
+export const getSQLiteBuilder = () => {
   const grammar = new SQLiteGrammar()
   const processor = new Processor()
 
   return new Builder(getConnection(), grammar, processor)
 }
 
-const getSqlServerBuilder = () => {
+export const getSqlServerBuilder = () => {
   const grammar = new SqlServerGrammar()
   const processor = new Processor()
 
   return new Builder(getConnection(), grammar, processor)
 }
 
-module.exports = {
-  config,
-  getBuilder,
-  getConnection,
-  getMySqlBuilder,
-  getMySqlBuilderWithProcessor,
-  getPostgresBuilder,
-  getSQLiteBuilder,
-  getSqlServerBuilder
-}
+// module.exports = {
+//   config,
+//   getBuilder,
+//   getConnection,
+//   getMySqlBuilder,
+//   getMySqlBuilderWithProcessor,
+//   getPostgresBuilder,
+//   getSQLiteBuilder,
+//   getSqlServerBuilder
+// }

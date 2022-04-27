@@ -1,5 +1,12 @@
-import { dateFormat, isNumeric } from '@devnetic/utils'
-import { get as getData, isBoolean, isFunction } from 'lodash'
+import {
+  dateFormat,
+  getValue,
+  isBoolean,
+  isFunction,
+  isNil,
+  isNumeric,
+  remove
+} from '@devnetic/utils'
 
 import { Grammar as QueryGrammar } from './Query/Grammars'
 import { Processor } from './Query/Processors'
@@ -8,6 +15,7 @@ import { Statement } from './Statements'
 import { Builder as SchemaBuilder } from './Schema/Builder'
 import { Builder as QueryBuilder } from './Query/Builder'
 import { Expression } from './Query/Expression'
+import { ConnectionD as DoctrineConnection } from './../../Doctrine/Connection'
 
 /**
  *
@@ -45,6 +53,13 @@ export class Connection {
      * @member {string}
      */
     this.database = database
+
+    /**
+     * The instance of Doctrine connection.
+     *
+     * @member {\Doctrine\DBAL\Connection}
+     */
+    this.doctrineConnection = undefined
 
     /**
      * The event dispatcher instance.
@@ -319,7 +334,7 @@ export class Connection {
    * @return {*}
    */
   getConfig (option) {
-    return getData(this.config, option)
+    return getValue(this.config, option)
   }
 
   /**
@@ -365,6 +380,47 @@ export class Connection {
    */
   getElapsedTime (start) {
     return parseFloat(Math.fround((Date.now() - start) * 1000).toPrecision(3))
+  }
+
+  /**
+   * Get the Doctrine DBAL database connection instance.
+   *
+   * @return {\Doctrine\DBAL\Connection}
+   */
+  getDoctrineConnection () {
+    if (isNil(this.doctrineConnection)) {
+      const driver = this.getDoctrineDriver()
+
+      this.doctrineConnection = new DoctrineConnection(remove({
+        pdo: this.getPdo(),
+        dbname: this.getDatabaseName(),
+        driver: driver.getName(),
+        serverVersion: this.getConfig('server_version')
+      }, (_, value) => !value), driver)
+
+      for (const [name, type] of Object.entries(this.doctrineTypeMappings)) {
+        this.doctrineConnection
+          .getDatabasePlatform()
+          .registerDoctrineTypeMapping(type, name)
+      }
+    }
+
+    return this.doctrineConnection
+  }
+
+  /**
+   * Get the Doctrine DBAL schema manager for the connection.
+   *
+   * @return {\Doctrine\DBAL\Schema\AbstractSchemaManager}
+   */
+  getDoctrineSchemaManager () {
+    const connection = this.getDoctrineConnection()
+
+    // Doctrine v2 expects one parameter while v3 expects two. 2nd will be ignored on v2...
+    return this.getDoctrineDriver().getSchemaManager(
+      connection,
+      connection.getDatabasePlatform()
+    )
   }
 
   /**

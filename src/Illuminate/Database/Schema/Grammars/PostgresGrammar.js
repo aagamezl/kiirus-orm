@@ -1,7 +1,7 @@
 import { isBoolean, isEmpty, isNil } from 'lodash'
 
 import { Grammar } from './Grammar'
-import { collect } from '../../../../../lib/Illuminate/Collections/helpers'
+import { collect } from './../../../Collections/helpers'
 import { withGiven } from './../../../Support'
 
 export class PostgresGrammar extends Grammar {

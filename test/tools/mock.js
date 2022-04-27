@@ -1,6 +1,6 @@
-const sinon = require('sinon')
+import sinon from 'sinon'
 
-const mock = () => {
+export const mock = () => {
   const mocks = []
 
   return {
@@ -19,8 +19,8 @@ const mock = () => {
   }
 }
 
-module.exports = {
-  // autoVerify,
-  // createMock
-  mock
-}
+// module.exports = {
+//   // autoVerify,
+//   // createMock
+//   mock
+// }

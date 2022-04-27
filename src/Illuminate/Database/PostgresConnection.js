@@ -1,7 +1,8 @@
-import { isNil } from 'lodash'
+import { isNil } from '@devnetic/utils'
 
 import { Connection } from './Connection'
 import { PostgresBuilder } from './Schema/PostgresBuilder'
+import { PostgresDriver } from './../Database/PDO/PostgresDriver'
 import { PostgresGrammar as QueryGrammar } from './../Database/Query/Grammars'
 import { PostgresGrammar as SchemaGrammar } from './Schema/Grammars'
 import { PostgresProcessor } from './../Database/Query/Processors'
@@ -33,6 +34,15 @@ export class PostgresConnection extends Connection {
    */
   getDefaultSchemaGrammar () {
     return this.withTablePrefix(new SchemaGrammar())
+  }
+
+  /**
+   * Get the Doctrine DBAL driver.
+   *
+   * @return {\Illuminate\Database\PDO\PostgresDriver}
+   */
+  getDoctrineDriver () {
+    return new PostgresDriver()
   }
 
   /**

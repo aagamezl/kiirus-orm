@@ -1,6 +1,6 @@
-const test = require('ava')
+import test from 'ava'
 
-const { MySqlProcessor } = require('../../lib/Illuminate/Database/Query/Processors/MySqlProcessor')
+import { MySqlProcessor } from './../../src/Illuminate/Database/Query/Processors/MySqlProcessor'
 
 test('testProcessColumnListing', async (t) => {
   const processor = new MySqlProcessor()

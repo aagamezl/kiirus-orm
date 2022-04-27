@@ -7,7 +7,7 @@ export class Schema extends Facade {
    * @param  {string|undefined}  name
    * @return {\Illuminate\Database\Schema\Builder}
    */
-  connection (name) {
+  static connection (name) {
     return this.resolvedInstance.db.connection(name).getSchemaBuilder()
   }
 
