@@ -1,0 +1,1 @@
+{"version":3,"file":"Stringable.js","sourceRoot":"","sources":["../../../src/Illuminate/Support/Stringable.ts"],"names":[],"mappings":";;;AAAA,yEAAqE;AACrE,6DAAyD;AACzD,gDAA4C;AAC5C,sCAAkC;AAIlC,MAAa,UAAU;IAQrB,YAAa,KAAa;QACxB,IAAA,SAAG,EAAC,IAAI,CAAC,WAAW,EAAE,CAAC,6BAAa,EAAE,qBAAS,EAAE,mBAAQ,CAAC,CAAC,CAAA;QAE3D,IAAI,CAAC,KAAK,GAAG,KAAK,CAAA;IACpB,CAAC;CACF;AAbD,gCAaC"}
