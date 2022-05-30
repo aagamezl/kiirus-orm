@@ -12,16 +12,6 @@ export class MySqlGrammar extends Grammar {
   protected operators: string[] = ['sounds like']
 
   /**
-   * Wrap a single string in keyword identifiers.
-   *
-   * @param  {string}  value
-   * @return {string}
-   */
-  protected wrapValue (value: string): string {
-    return value === '*' ? value : '`' + value.replace('`', '``') + '`'
-  }
-
-  /**
    * Compile a "where fulltext" clause.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -42,5 +32,73 @@ export class MySqlGrammar extends Grammar {
       : ''
 
     return `match (${columns}) against (` + value + `${mode}${expanded})`
+  }
+
+  /**
+   * Add a "where null" clause to the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Where}  where
+   * @return {string}
+   */
+  protected whereNull (query: Builder, where: Where): string {
+    if (this.isJsonSelector(where.column)) {
+      const [field, path] = this.wrapJsonFieldAndPath(where.column)
+
+      return '(json_extract(' + field + path + ') is null OR json_type(json_extract(' + field + path + ')) = \'NULL\')'
+    }
+
+    return super.whereNull(query, where)
+  }
+
+  /**
+   * Add a "where not null" clause to the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Where}  where
+   * @return {string}
+   */
+  protected whereNotNull (query: Builder, where: Where): string {
+    if (this.isJsonSelector(where.column)) {
+      const [field, path] = this.wrapJsonFieldAndPath(where.column)
+
+      return '(json_extract(' + field + path + ') is not null AND json_type(json_extract(' + field + path + ')) != \'NULL\')'
+    }
+
+    return super.whereNotNull(query, where)
+  }
+
+  /**
+   * Wrap the given JSON selector for boolean values.
+   *
+   * @param  {string}  value
+   * @return {string}
+   */
+  protected wrapJsonBooleanSelector (value: string): string {
+    const [field, path] = this.wrapJsonFieldAndPath(value)
+
+    return `json_extract(${field}${path})`
+  }
+
+  /**
+   * Wrap the given JSON selector.
+   *
+   * @param  {string}  value
+   * @return {string}
+   */
+  protected wrapJsonSelector (value: string): string {
+    const [field, path] = this.wrapJsonFieldAndPath(value)
+
+    return 'json_unquote(json_extract(' + field + path + '))'
+  }
+
+  /**
+   * Wrap a single string in keyword identifiers.
+   *
+   * @param  {string}  value
+   * @return {string}
+   */
+  protected wrapValue (value: string): string {
+    return value === '*' ? value : '`' + value.replace('`', '``') + '`'
   }
 }

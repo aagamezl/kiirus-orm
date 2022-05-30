@@ -1,8 +1,31 @@
 import { lstatSync } from 'fs'
 
-import { getValue } from '@devnetic/utils'
+import { getValue, isFalsy, isTruthy } from '@devnetic/utils'
 
 import { HigherOrderTapProxy } from './HigherOrderTapProxy'
+
+/**
+ * Returns an array with all keys from array lowercased or uppercased.
+ *
+ * @param {Record<string, unknown>} value
+ * @param {string} [changeCase=CAMEL_CASE]
+ * @returns {Record<string, unknown>}
+ */
+export const changeKeyCase = (value: Record<string, unknown>, changeCase: string = 'CASE_LOWER'): Record<string, unknown> => {
+  const result: Record<string, unknown> = {}
+
+  if (isTruthy(value) && typeof value === 'object') {
+    const casefunction = (isFalsy(changeCase) || changeCase === 'CASE_LOWER') ? 'toLowerCase' : 'toUpperCase'
+
+    for (const key in value) {
+      result[key[casefunction]()] = value[key]
+    }
+
+    return result
+  }
+
+  return value
+}
 
 export const isDirectory = (path: string): boolean => {
   try {

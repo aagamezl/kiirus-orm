@@ -78,6 +78,16 @@ export const head = (value: any): unknown => {
 }
 
 /**
+ * Get the last element from an array.
+ *
+ * @param  {Array}  array
+ * @return {*}
+ */
+export const last = (array: any): any => {
+  return end(array)
+}
+
+/**
  * Get the first element of an array. Useful for method chaining.
  *
  * @param  {any}  array

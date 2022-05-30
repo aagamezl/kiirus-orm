@@ -5,7 +5,7 @@ import { CompilesJsonPaths } from '../../Concerns/CompilesJsonPaths'
 import { Expression } from '../Expression'
 import { Grammar as BaseGrammar } from '../../Grammar'
 import { JoinClause } from '..'
-import { collect, end, reset } from '../../../Collections/helpers'
+import { collect, end, head, last, reset } from '../../../Collections/helpers'
 import { use } from '../../../Support/Traits/use'
 
 export interface Grammar extends CompilesJsonPaths { }
@@ -23,6 +23,16 @@ export interface Where {
   value: any
   values: any[]
   columns: string[]
+}
+
+export interface Having extends Where {
+  // column: string
+  // not: boolean
+  boolean: string
+  type: string
+  // sql: string
+  // values: any[]
+  // operator: string
 }
 
 export class Grammar extends BaseGrammar {
@@ -80,11 +90,26 @@ export class Grammar extends BaseGrammar {
     // it into account when it performs the aggregating operations on the data.
     if (Array.isArray(query.distinctProperty)) {
       column = 'distinct ' + this.columnize(query.distinctProperty)
-    } else if (query.distinctProperty !== undefined && column !== '*') {
+    } else if (isTruthy(query.distinctProperty) && column !== '*') {
       column = 'distinct ' + column
     }
 
     return 'select ' + aggregate.function + '(' + column + ') as aggregate'
+  }
+
+  /**
+   * Compile a basic having clause.
+   *
+   * @param  {Having}  having
+   * @return {string}
+   */
+  protected compileBasicHaving (having: Having): string {
+    const column: string = this.wrap(having.column)
+
+    const parameter: string = this.parameter(having.value)
+
+    // return having.boolean + ' ' + column + ' ' + having.operator + ' ' + parameter
+    return column + ' ' + having.operator + ' ' + parameter
   }
 
   /**
@@ -139,6 +164,113 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile the "group by" portions of the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {string[]}  groups
+   * @return {string}
+   */
+  protected compileGroups (query: Builder, groups: string[]): string {
+    return `group by ${this.columnize(groups)}`
+  }
+
+  /**
+   * Compile a single having clause.
+   *
+   * @param  {Having}  having
+   * @return {string}
+   */
+  protected compileHaving (having: Having): string {
+    // If the having clause is "raw", we can just return the clause straight away
+    // without doing any more processing on it. Otherwise, we will compile the
+    // clause into SQL based on the components that make it up from builder.
+    if (having.type === 'Raw') {
+      return having.sql
+    } else if (having.type === 'between') {
+      return this.compileHavingBetween(having)
+    } else if (having.type === 'Null') {
+      return this.compileHavingNull(having)
+    } else if (having.type === 'NotNull') {
+      return this.compileHavingNotNull(having)
+    } else if (having.type === 'bit') {
+      return this.compileHavingBit(having)
+    } else if (having.type === 'Nested') {
+      return this.compileNestedHavings(having)
+    }
+
+    return this.compileBasicHaving(having)
+  }
+
+  /**
+   * Compile a "between" having clause.
+   *
+   * @param  {object}  having
+   * @return {string}
+   */
+  protected compileHavingBetween (having: Having): string {
+    const between = having.not ? 'not between' : 'between'
+
+    const column = this.wrap(having.column)
+
+    const min = this.parameter(head(having.values))
+
+    const max = this.parameter(last(having.values))
+
+    return having.boolean + ' ' + column + ' ' + between + ' ' + min + ' and ' + max
+  }
+
+  /**
+   * Compile a having clause involving a bit operator.
+   *
+   * @param  {Having}  having
+   * @return {string}
+   */
+  protected compileHavingBit (having: Having): string {
+    const column = this.wrap(having.column)
+
+    const parameter = this.parameter(having.value)
+
+    return '(' + column + ' ' + having.operator + ' ' + parameter + ') != 0'
+  }
+
+  /**
+   * Compile a having not null clause.
+   *
+   * @param  {Having}  having
+   * @return {string}
+   */
+  protected compileHavingNotNull (having: Having): string {
+    const column = this.wrap(having.column)
+
+    return column + ' is not null'
+  }
+
+  /**
+   * Compile a having null clause.
+   *
+   * @param  {Having}  having
+   * @return {string}
+   */
+  protected compileHavingNull (having: Having): string {
+    const column = this.wrap(having.column)
+
+    return column + ' is null'
+  }
+
+  /**
+ * Compile the "having" portions of the query.
+ *
+ * @param  {\Illuminate\Database\Query\Builder}  query
+ * @param  {Builder}  query
+ * @return {string}
+ */
+  protected compileHavings (query: Builder): string {
+    return 'having ' + this.removeLeadingBoolean(collect(query.havings).map((having: any) => {
+      return String(having.boolean) + ' ' + this.compileHaving(having)
+    }).implode(' '))
+  }
+
+  /**
    * Compile the "join" portions of the query.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -166,6 +298,16 @@ export class Grammar extends BaseGrammar {
    */
   protected compileLimit (query: Builder, limit: number): string {
     return `limit ${limit}`
+  }
+
+  /**
+   * Compile a nested having clause.
+   *
+   * @param  {Having}  having
+   * @return {string}
+   */
+  protected compileNestedHavings (having: Having): string {
+    return '(' + this.compileHavings(having.query).substring(7) + ')'
   }
 
   /**
@@ -202,8 +344,8 @@ export class Grammar extends BaseGrammar {
    * @return {Array}
    */
   protected compileOrdersToArray (query: Builder, orders: Order[]): string[] {
-    return orders.map((order) => {
-      return order.sql ?? this.wrap(order.column as any) + ' ' + order.direction
+    return orders.map((order: Order) => {
+      return order.sql ?? this.wrap(order.column as any) + ' ' + String(order.direction)
     })
   }
 
@@ -375,6 +517,15 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Get the grammar specific bitwise operators.
+   *
+   * @return {string[]}
+   */
+  public getBitwiseOperators (): string[] {
+    return this.bitwiseOperators
+  }
+
+  /**
    * Get the grammar specific operators.
    *
    * @return {Array}
@@ -404,7 +555,7 @@ export class Grammar extends BaseGrammar {
    * @return {string}
    */
   protected removeLeadingBoolean (value: string): string {
-    return value.replace(/and |or /i, '')
+    return value.replace(/(and |or )+/i, '')
   }
 
   /**
@@ -550,7 +701,7 @@ export class Grammar extends BaseGrammar {
    * @param  {Where}  where
    * @return {string}
    */
-  public whereNested (query: Builder, where: Where): string {
+  protected whereNested (query: Builder, where: Where): string {
     // Here we will calculate what portion of the string we need to remove. If this
     // is a join clause query, we need to remove the "on" portion of the SQL and
     // if it is a normal query we need to take the leading "where" of queries.
@@ -589,6 +740,28 @@ export class Grammar extends BaseGrammar {
     }
 
     return '1 = 1'
+  }
+
+  /**
+   * Compile a "where not null" clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Where}  where
+   * @return {string}
+   */
+  protected whereNotNull (query: Builder, where: Where): string {
+    return this.wrap(where.column) + ' is not null'
+  }
+
+  /**
+   * Compile a "where null" clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Where}  where
+   * @return {string}
+   */
+  protected whereNull (query: Builder, where: Where): string {
+    return this.wrap(where.column) + ' is null'
   }
 
   /**

@@ -11,7 +11,7 @@ import { Macroable } from '../../Macroable/Traits/Macroable'
 import { Processor } from './Processors'
 import { Relation } from '../Eloquent/Relations/Relation'
 import { collect, head } from '../../Collections/helpers'
-import { tap } from '../../Support'
+import { changeKeyCase, tap } from '../../Support'
 import { use } from '../../Support/Traits/use'
 
 // type Bindings = Record<string, unknown[]>
@@ -33,9 +33,10 @@ export interface Union {
 }
 
 export interface Order {
-  column: string | Expression | Function | Builder
-  direction: string
+  column?: string | Expression | Function | Builder
+  direction?: string
   sql?: string
+  type?: string
 }
 
 export interface Builder extends Macroable, BuildsQueries { }
@@ -64,6 +65,15 @@ export class Builder {
     union: [],
     unionOrder: []
   }
+
+  /**
+   * All of the available bitwise operators.
+   *
+   * @var string[]
+   */
+  public bitwiseOperators: string[] = [
+    '&', '|', '^', '<<', '>>', '&~'
+  ]
 
   /**
    * The callbacks that should be invoked before the query is executed.
@@ -297,6 +307,25 @@ export class Builder {
   }
 
   /**
+   * Add another query builder as a nested having to the query builder.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {string}  boolean
+   * @return {this}
+   */
+  public addNestedHavingQuery (query: Builder, boolean: string = 'and'): this {
+    if (query.havings.length > 0) {
+      const type = 'Nested'
+
+      this.havings.push({ type, query, boolean })
+
+      this.addBinding(query.getRawBindings().having, 'having')
+    }
+
+    return this
+  }
+
+  /**
    * Add another query builder as a nested where to the query builder.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -412,6 +441,16 @@ export class Builder {
   }
 
   /**
+   * Clone the existing query instance for usage in a pagination subquery.
+   *
+   * @return {this}
+   */
+  protected cloneForPaginationCount (): this {
+    return this.cloneWithout(['orders', 'limitProperty', 'offsetProperty'])
+      .cloneWithoutBindings(['order'])
+  }
+
+  /**
    * Clone the query without the given properties.
    *
    * @param  {Array}  properties
@@ -459,7 +498,7 @@ export class Builder {
    * @param  {Function|\Illuminate\Database\Query\Builder|EloquentBuilder|string}  query
    * @return {Array}
    */
-  protected createSub (query: Function | Builder | EloquentBuilder | string): [string, unknown[]] {
+  protected createSub (query: Function | Builder | Expression | EloquentBuilder | string): [string, unknown[]] {
     // If the given query is a Closure, we will execute it while passing in a new
     // query instance to the Closure. This will give the developer a chance to
     // format and work with the query before we cast it to a raw SQL string.
@@ -509,6 +548,17 @@ export class Builder {
   }
 
   /**
+   * Set the limit and offset for a given page.
+   *
+   * @param  {number}  page
+   * @param  {number}  [perPage=15]
+   * @return {this}
+   */
+  public forPage (page: number, perPage: number = 15): this {
+    return this.offset((page - 1) * perPage).limit(perPage)
+  }
+
+  /**
    * Create a new query instance for a sub-query.
    *
    * @return {\Illuminate\Database\Query\Builder}
@@ -525,7 +575,7 @@ export class Builder {
    * @return {this}
    * @memberof Builder
    */
-  public from (table: Function | Builder | string, as?: string): this {
+  public from (table: Function | Builder | Expression | string, as?: string): this {
     if (this.isQueryable(table)) {
       return this.fromSub(table, as as string)
     }
@@ -559,7 +609,7 @@ export class Builder {
    *
    * @throws {\InvalidArgumentException}
    */
-  public fromSub (query: Function | Builder | string, as: string): this {
+  public fromSub (query: Function | Builder | Expression | string, as: string): this {
     let bindings
 
     [query, bindings] = this.createSub(query)
@@ -598,6 +648,27 @@ export class Builder {
   }
 
   /**
+   * Get the count of the total records for the paginator.
+   *
+   * @param  {unknown[]}  [columns=[*]]
+   * @return {Promise<number>}
+   */
+  public async getCountForPagination (columns: unknown[] = ['*']): Promise<number> {
+    const results = await this.runPaginationCountQuery(columns)
+
+    // Once we have run the pagination count query, we will get the resulting count and
+    // take into account what type of query it was. When there is a group by we will
+    // just return the count of the entire results set since that will be correct.
+    if (isFalsy(results[0])) {
+      return 0
+    } else if (isPlainObject(results[0])) {
+      return Number(results[0]?.aggregate)
+    }
+
+    return Number(changeKeyCase(results[0]).aggregate)
+  }
+
+  /**
    * Get the query grammar instance.
    *
    * @return {\Illuminate\Database\Query\Grammars\Grammar}
@@ -625,14 +696,170 @@ export class Builder {
   }
 
   /**
+   * Add a "group by" clause to the query.
+   *
+   * @param  {string|string[]}  groups
+   * @return {this}
+   */
+  public groupBy (...groups: any): this {
+    for (const group of groups) {
+      this.groups = [
+        ...this.groups,
+        ...Arr.wrap(group)
+      ]
+    }
+
+    return this
+  }
+
+  /**
+   * Add a raw groupBy clause to the query.
+   *
+   * @param  {string}  sql
+   * @param  {string[]}  [bindings=[]]
+   * @return {this}
+   */
+  public groupByRaw (sql: string, bindings: string[] = []): this {
+    this.groups.push(new Expression(sql))
+
+    this.addBinding(bindings, 'groupBy')
+
+    return this
+  }
+
+  /**
+   * Add a "having" clause to the query.
+   *
+   * @param  {Function | string}  column
+   * @param  {string}  [operator]
+   * @param  {string}  [value]
+   * @param  {string}  [boolean]
+   * @return {this}
+   */
+  public having (column: Function | string, operator?: unknown, value?: unknown, boolean: string = 'and'): this {
+    // Here we will make some assumptions about the operator. If only 2 values are
+    // passed to the method, we will assume that the operator is an equals sign
+    // and keep going. Otherwise, we'll require the operator to be passed in.
+    [value, operator] = this.prepareValueAndOperator(
+      value as string, operator as string, arguments.length === 2
+    )
+
+    let type = 'Basic'
+
+    if (column instanceof Function && operator === undefined) {
+      return this.havingNested(column, boolean)
+    }
+
+    // If the given operator is not found in the list of valid operators we will
+    // assume that the developer is just short-cutting the '=' operators and
+    // we will set the operators to '=' and set the values appropriately.
+    if (this.invalidOperator(operator as string)) {
+      [value, operator] = [operator, '=']
+    }
+
+    if (this.isBitwiseOperator(operator as string)) {
+      type = 'Bitwise'
+    }
+
+    this.havings.push({ type, column, operator, value, boolean })
+
+    if (!(value instanceof Expression)) {
+      this.addBinding(this.flattenValue(value), 'having')
+    }
+
+    return this
+  }
+
+  /**
+   * Add a "having between " clause to the query.
+   *
+   * @param  {string}  column
+   * @param  {any[]}  values
+   * @param  {string}  [boolean=and]
+   * @param  {boolean}  [not=and]
+   * @return {this}
+   */
+  public havingBetween (column: string, values: any[], boolean: string = 'and', not: boolean = false): this {
+    const type = 'between'
+
+    this.havings.push({ type, column, values, boolean, not })
+
+    this.addBinding(this.cleanBindings(Arr.flatten(values)).slice(0, 2), 'having')
+
+    return this
+  }
+
+  /**
+   * Add a nested having statement to the query.
+   *
+   * @param  {Function}  callback
+   * @param  {string}  [boolean=and]
+   * @return {this}
+   */
+  public havingNested (callback: Function, boolean: string = 'and'): this {
+    const query = this.forNestedWhere()
+
+    callback(query)
+
+    return this.addNestedHavingQuery(query, boolean)
+  }
+
+  /**
+   * Add a "having not null" clause to the query.
+   *
+   * @param  {string|any[]}  columns
+   * @param  {string}  boolean
+   * @return {this}
+   */
+  public havingNotNull (columns: string | any[], boolean: string = 'and'): this {
+    return this.havingNull(columns, boolean, true)
+  }
+
+  /**
+   * Add a "having null" clause to the query.
+   *
+   * @param  {string | any[]}  columns
+   * @param  {string}  boolean
+   * @param  {boolean}  not
+   * @return {this}
+   */
+  public havingNull (columns: string | any[], boolean: string = 'and', not: boolean = false): this {
+    const type = not ? 'NotNull' : 'Null'
+
+    for (const column of Arr.wrap(columns)) {
+      this.havings.push({ type, column, boolean })
+    }
+
+    return this
+  }
+
+  /**
+   * Add a raw having clause to the query.
+   *
+   * @param  {string}  sql
+   * @param  {string[]}  [bindings=[]]
+   * @param  {string}  [boolean='and']
+   * @return {Builder}
+   */
+  public havingRaw (sql: string, bindings: string[] = [], boolean: string = 'and'): this {
+    const type = 'Raw'
+
+    this.havings.push({ type, sql, boolean })
+
+    this.addBinding(bindings, 'having')
+
+    return this
+  }
+
+  /**
    * Determine if the given operator is supported.
    *
    * @param  {string}  operator
    * @return {boolean}
    */
   protected invalidOperator (operator: string): boolean {
-    return !this.operators.includes(operator.toLowerCase()) &&
-      !this.grammar.getOperators().includes(operator.toLowerCase())
+    return !this.operators.includes(String(operator).toLowerCase()) &&
+      !this.grammar.getOperators().includes(String(operator).toLowerCase())
   }
 
   /**
@@ -647,6 +874,17 @@ export class Builder {
   protected invalidOperatorAndValue (operator: string, value: any): boolean { // TODO: verify the correct type
     return isNil(value) && this.operators.includes(operator) &&
       !['=', '<>', '!='].includes(operator)
+  }
+
+  /**
+   * Determine if the operator is a bitwise operator.
+   *
+   * @param  {string}  operator
+   * @return {boolean}
+   */
+  protected isBitwiseOperator (operator: string): boolean {
+    return this.bitwiseOperators.includes(operator.toLowerCase()) ||
+      this.grammar.getBitwiseOperators().includes(operator.toLowerCase())
   }
 
   /**
@@ -712,6 +950,20 @@ export class Builder {
 
     if (value >= 0) {
       this[property] = value
+    }
+
+    return this
+  }
+
+  /**
+   * Merge an array of bindings into our bindings.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @return {this}
+   */
+  public mergeBindings (query: Builder): this {
+    for (const [key, value] of Object.entries(query.bindings)) {
+      this.bindings[key] = this.bindings[key].concat(value)
     }
 
     return this
@@ -805,6 +1057,80 @@ export class Builder {
     })
 
     return this
+  }
+
+  /**
+   * Add a descending "order by" clause to the query.
+   *
+   * @param  {Function|\Illuminate\Database\Query\Builder|\Illuminate\Database\Query\Expression|string}  column
+   * @return {this}
+   */
+  public orderByDesc (column: Function | Builder | Expression | string): this {
+    return this.orderBy(column, 'desc')
+  }
+
+  /**
+   * Add a raw "order by" clause to the query.
+   *
+   * @param  {string}  sql
+   * @param  {Array}  bindings
+   * @return {this}
+   */
+  public orderByRaw (sql: string, bindings: unknown[] = []): this {
+    const type: string = 'Raw'
+
+    this[this.unions.length > 0 ? 'unionOrders' : 'orders'].push({ type, sql })
+
+    this.addBinding(bindings, this.unions.length > 0 ? 'unionOrder' : 'order')
+
+    return this
+  }
+
+  /**
+   * Add an "or having" clause to the query.
+   *
+   * @param  {Function | string}  column
+   * @param  {string}  [operator]
+   * @param  {string}  [value]
+   * @return {this}
+   */
+  public orHaving (column: Function | string, operator?: unknown, value?: string): this {
+    [value, operator] = this.prepareValueAndOperator(
+      value as string, operator as string, arguments.length === 2
+    )
+
+    return this.having(column as any, operator, value, 'or')
+  }
+
+  /**
+   * Add an "or having not null" clause to the query.
+   *
+   * @param  {string}  column
+   * @return {this}
+   */
+  public orHavingNotNull (column: string): this {
+    return this.havingNotNull(column, 'or')
+  }
+
+  /**
+   * Add an "or having null" clause to the query.
+   *
+   * @param  {string}  column
+   * @return {this}
+   */
+  public orHavingNull (column: string): this {
+    return this.havingNull(column, 'or')
+  }
+
+  /**
+   * Add a raw or having clause to the query.
+   *
+   * @param  {string}  sql
+   * @param  {any}  [bindings=[]]
+   * @return {this}
+   */
+  public orHavingRaw (sql: string, bindings: any[] = []): this {
+    return this.havingRaw(sql, bindings, 'or')
   }
 
   /**
@@ -929,6 +1255,26 @@ export class Builder {
   }
 
   /**
+   * Add an "or where not null" clause to the query.
+   *
+   * @param  {string} column
+   * @return {this}
+   */
+  public orWhereNotNull (column: string | string[]): this {
+    return this.whereNotNull(column, 'or')
+  }
+
+  /**
+   * Add an "or where null" clause to the query.
+   *
+   * @param  {string}  column
+   * @return {this}
+   */
+  public orWhereNull (column: string | string[]): this {
+    return this.whereNull(column, 'or')
+  }
+
+  /**
    * Add a raw or where clause to the query.
    *
    * @param  {string}  sql
@@ -1019,6 +1365,69 @@ export class Builder {
   }
 
   /**
+   * Remove all existing orders and optionally add a new order.
+   *
+   * @param  {string}  [column]
+   * @param  {string}  [direction=asc]
+   * @return {this}
+   */
+  public reorder (column: string = '', direction: string = 'asc'): this {
+    this.orders = []
+    this.unionOrders = []
+    this.bindings.order = []
+    this.bindings.unionOrder = []
+
+    if (isTruthy(column)) {
+      return this.orderBy(column, direction)
+    }
+
+    return this
+  }
+
+  /**
+   * Run a pagination count query.
+   *
+   * @param  {Array}  columns
+   * @return {Array}
+   */
+  protected async runPaginationCountQuery (columns: any[] = ['*']): Promise<any[]> {
+    // We need to save the original bindings, because the cloneWithoutBindings
+    // method delete them from the builder object
+    const bindings = clone(this.bindings)
+
+    if (this.groups.length > 0 || this.havings.length > 0) {
+      const clone = this.cloneForPaginationCount()
+
+      if (clone.columns.length === 0 && this.joins.length > 0) {
+        clone.select(String(this.fromProperty) + '.*')
+      }
+
+      const result = await this.newQuery()
+        .from(new Expression('(' + clone.toSql() + ') as ' + this.grammar.wrap('aggregate_table')))
+        .mergeBindings(clone)
+        .setAggregate('count', this.withoutSelectAliases(columns))
+        .get()
+
+      this.bindings = bindings
+
+      return result.all()
+    }
+
+    const without = this.unions.length > 0
+      ? ['orders', 'limitProperty', 'offsetProperty']
+      : ['columns', 'orders', 'limitProperty', 'offsetProperty']
+
+    const result = await this.cloneWithout(without)
+      .cloneWithoutBindings(this.unions.length > 0 ? ['order'] : ['select', 'order'])
+      .setAggregate('count', this.withoutSelectAliases(columns))
+      .get()
+
+    this.bindings = bindings
+
+    return result.all()
+  }
+
+  /**
    * Run the query as a "select" statement against the connection.
    *
    * @return {Array}
@@ -1036,7 +1445,7 @@ export class Builder {
    * @return {this}
    * @memberof Builder
    */
-  public select (...columns: string[]): this {
+  public select (...columns: any | string[]): this {
     columns = columns.length === 0 ? ['*'] : columns
 
     this.columns = []
@@ -1172,13 +1581,13 @@ export class Builder {
   /**
    * Add a basic where clause to the query.
    *
-   * @param  {Function|string|Expression}  column
+   * @param  {Function|string|Expression|any[]|Record<string, unknown>}  column
    * @param  {any}  [operator]
    * @param  {any}  [value]
    * @param  {string}  boolean
    * @return {this}
    */
-  public where (column: Function | string | Expression, operator?: any, value?: any, boolean: string = 'and'): this {
+  public where (column: Function | string | Expression | any[] | Record<string, unknown>, operator?: any, value?: any, boolean: string = 'and'): this {
     // If the column is an array, we will assume it is an array of key-value pairs
     // and can add them each as a where clause. We will maintain the boolean we
     // received when the method was called and pass it into the nested where.
@@ -1541,6 +1950,17 @@ export class Builder {
   }
 
   /**
+   * Add a "where not null" clause to the query.
+   *
+   * @param  {string|Array}  columns
+   * @param  {string}  [boolean=and]
+   * @return {this}
+   */
+  public whereNotNull (columns: string | string[], boolean: string = 'and'): this {
+    return this.whereNull(columns, boolean, true)
+  }
+
+  /**
    * Add a "where null" clause to the query.
    *
    * @param  {string|Array}  columns
@@ -1645,5 +2065,21 @@ export class Builder {
     }
 
     return this.addDateBasedWhere('Year', column, operator, value, boolean)
+  }
+
+  /**
+   * Remove the column aliases since they will break count queries.
+   *
+   * @param  {any[]}  columns
+   * @return {any[]}
+   */
+  protected withoutSelectAliases (columns: any[]): any[] {
+    return columns.map((column) => {
+      const aliasPosition = column.toLowerCase().indexOf(' as ')
+
+      return isString(column) && aliasPosition !== -1
+        ? column.substr(0, aliasPosition)
+        : column
+    })
   }
 }

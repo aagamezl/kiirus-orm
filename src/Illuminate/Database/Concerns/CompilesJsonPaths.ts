@@ -39,7 +39,7 @@ export class CompilesJsonPaths {
       .map((segment) => this.wrapJsonPathSegment(String(segment)))
       .join('.')
 
-    return "'" + (jsonPath.startsWith('[') ? '' : '.') + jsonPath + "'"
+    return "'$" + (jsonPath.startsWith('[') ? '' : '.') + jsonPath + "'"
   }
 
   /**

@@ -99,6 +99,28 @@ export class SqlServerGrammar extends Grammar {
   }
 
   /**
+   * Compile the "limit" portions of the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {number}  limit
+   * @return {string}
+   */
+  protected compileLimit (query: Builder, limit: number): string {
+    return ''
+  }
+
+  /**
+   * Compile the "offset" portions of the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {number}  offset
+   * @return {string}
+   */
+  protected compileOffset (query: Builder, offset: number): string {
+    return ''
+  }
+
+  /**
    * Compile the over statement for a table expression.
    *
    * @param  {string}  orderings
@@ -144,8 +166,17 @@ export class SqlServerGrammar extends Grammar {
       query.columns = ['*']
     }
 
+    const components = this.compileComponents(query)
+
+    if (components.orders.length > 0) {
+      return super.compileSelect(query) + ` offset ${String(query.offsetProperty)} rows fetch next ${String(query.limitProperty)} rows only`
+    }
+
+    // If an offset is present on the query, we will need to wrap the query in
+    // a big "ANSI" offset syntax block. This is very nasty compared to the
+    // other database systems but is necessary for implementing features.
     return this.compileAnsiOffset(
-      query, this.compileComponents(query)
+      query, components
     )
   }
 
