@@ -10,7 +10,7 @@ import { Grammar } from '../Query/Grammars'
 import { Macroable } from '../../Macroable/Traits/Macroable'
 import { Processor } from './Processors'
 import { Relation } from '../Eloquent/Relations/Relation'
-import { collect, head } from '../../Collections/helpers'
+import { collect, head, last, reset } from '../../Collections/helpers'
 import { changeKeyCase, tap } from '../../Support'
 import { use } from '../../Support/Traits/use'
 
@@ -87,7 +87,7 @@ export class Builder {
    *
    * @var unknown[]
    */
-  public columns: Array<string | Expression> = []
+  public columns: Array<string | Expression | any> = []
 
   /**
    * The database connection instance.
@@ -369,6 +369,24 @@ export class Builder {
   }
 
   /**
+   * Add an exists clause to the query.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {string}  boolean
+   * @param  {boolean}  not
+   * @return {this}
+   */
+  public addWhereExistsQuery (query: Builder, boolean: string = 'and', not: boolean = false): this {
+    const type = not ? 'NotExists' : 'Exists'
+
+    this.wheres.push({ type, query, boolean })
+
+    this.addBinding(query.getBindings(), 'where')
+
+    return this
+  }
+
+  /**
    * Execute an aggregate function on the database.
    *
    * @param  {string}  functionName
@@ -513,6 +531,25 @@ export class Builder {
   }
 
   /**
+   * Add a "cross join" clause to the query.
+   *
+   * @param  {string}  table
+   * @param  {Function|string}  {first}
+   * @param  {string}  [operator=undefined]
+   * @param  {string}  [second=undefined]
+   * @return {this}
+   */
+  public crossJoin (table: string, first?: string | Function, operator?: string, second?: string): this {
+    if (isTruthy(first)) {
+      return this.join(table, first as any, operator, second, 'cross')
+    }
+
+    this.joins.push(this.newJoinClause(this, 'cross', table))
+
+    return this
+  }
+
+  /**
    * Force the query to only return distinct results.
    *
    * @param  {string[]}  columns
@@ -526,6 +563,72 @@ export class Builder {
     }
 
     return this
+  }
+
+  /**
+   * Determine if no rows exist for the current query.
+   *
+   * @return {Promise<boolean>}
+   */
+  public async doesntExist (): Promise<boolean> {
+    const result = await this.exists()
+
+    return !result
+  }
+
+  /**
+   * Execute the given callback if rows exist for the current query.
+   *
+   * @param  {Function}  callback
+   * @return {*}
+   */
+  public async doesntExistOr (callback: Function): Promise<any> {
+    return await this.doesntExist() ? true : callback()
+  }
+
+  /**
+   * Determine if any rows exist for the current query.
+   *
+   * @return {Promise<boolean>}
+   */
+  public async exists (): Promise<boolean> {
+    this.applyBeforeQueryCallbacks()
+
+    let results = await this.connection.select(
+      this.grammar.compileExists(this), this.getBindings()
+    )
+
+    // If the results has rows, we will get the row and see if the exists column is a
+    // boolean true. If there is no results for this query we will return false as
+    // there are no rows for this query at all and we can return that info here.
+    if (results[0] !== undefined) {
+      results = results[0]
+
+      return Boolean(results.exists)
+    }
+
+    return false
+  }
+
+  /**
+   * Execute the given callback if no rows exist for the current query.
+   *
+   * @param  {Function}  callback
+   * @return {*}
+   */
+  public async existsOr (callback: Function): Promise<any> {
+    return await this.exists() ? true : callback()
+  }
+
+  /**
+   * Execute a query for a single record by ID.
+   *
+   * @param  {number|string}  id
+   * @param  {string[]}  columns
+   * @return {*|this}
+   */
+  public find (id: number | string, columns: string[] = ['*']): any | this {
+    return this.where('id', '=', id).first(columns)
   }
 
   /**
@@ -852,6 +955,110 @@ export class Builder {
   }
 
   /**
+   * Concatenate values of a given column as a string.
+   *
+   * @param  {string}  column
+   * @param  {string}  [glue='']
+   * @return {string}
+   */
+  public async implode (column: string, glue: string = ''): Promise<string> {
+    const result = await this.pluck(column)
+
+    return result.implode(glue)
+  }
+
+  /**
+   * Insert new records into the database.
+   *
+   * @param  {Array}  values
+   * @return {boolean}
+   */
+  public async insert (values: Record<string, any>): Promise<boolean> {
+    // Since every insert gets treated like a batch insert, we will make sure the
+    // bindings are structured in a way that is convenient when building these
+    // inserts statements by verifying these elements are actually an array.
+    if (Object.keys(values).length === 0 || values.length === 0) {
+      return true
+    }
+
+    if (!Array.isArray(reset(values)) && !isPlainObject(reset(values)) && !isPlainObject(values)) {
+      values = [values]
+    }
+
+    this.applyBeforeQueryCallbacks()
+
+    // Finally, we will run this query against the database connection and return
+    // the results. We will need to also flatten these bindings before running
+    // the query so they are all in one huge, flattened array for execution.
+    return await this.connection.insert(
+      this.grammar.compileInsert(this, values),
+      this.cleanBindings(Arr.flatten(values, 1))
+    )
+  }
+
+  /**
+   * Insert a new record and get the value of the primary key.
+   *
+   * @param  {Array}  values
+   * @param  {string|undefined}  [sequence]
+   * @return number
+   */
+  public async insertGetId (values: Record<string, any>, sequence?: string): Promise<number> {
+    this.applyBeforeQueryCallbacks()
+
+    if (!Array.isArray(reset(values)) && !isPlainObject(values)) {
+      values = [values]
+    }
+
+    const sql = this.grammar.compileInsertGetId(this, values, sequence as any)
+
+    values = this.cleanBindings(Arr.flatten(values, 1))
+
+    return await this.processor.processInsertGetId(this, sql, values, sequence)
+  }
+
+  /**
+   * Insert new records into the database while ignoring errors.
+   *
+   * @param  {Array}  values
+   * @return {number}
+   */
+  public async insertOrIgnore (values: Record<string, any>): Promise<number> {
+    if (values.length === 0 || Object.keys(values).length === 0) {
+      return 0
+    }
+
+    if (!Array.isArray(reset(values)) && !isPlainObject(values)) {
+      values = [values]
+    }
+
+    this.applyBeforeQueryCallbacks()
+
+    return await this.connection.affectingStatement(
+      this.grammar.compileInsertOrIgnore(this, values),
+      this.cleanBindings(Arr.flatten(values, 1))
+    )
+  }
+
+  /**
+   * Insert new records into the table using a subquery.
+   *
+   * @param  {Array}  columns
+   * @param  {Function|\Illuminate\Database\Query\Builder|string}  query
+   * @return {Promise<number>}
+   */
+  public async insertUsing (columns: any[], query: Function | Builder | string): Promise<number> {
+    this.applyBeforeQueryCallbacks()
+
+    const [sql, bindings] = this.createSub(query)
+
+    return await this.connection.affectingStatement(
+      this.grammar.compileInsertUsing(this, columns, sql),
+      this.cleanBindings(bindings)
+    )
+  }
+
+  /**
    * Determine if the given operator is supported.
    *
    * @param  {string}  operator
@@ -913,7 +1120,7 @@ export class Builder {
    * @param  {boolean}  [where=false]
    * @return {this}
    */
-  public join (table: string, first: string | Function, operator?: string, second?: string, type: string = 'inner', where: boolean = false): this {
+  public join (table: string | Expression, first: string | Function, operator?: string, second?: string, type: string = 'inner', where: boolean = false): this {
     const join: any = this.newJoinClause(this, type, table)
 
     // If the first "column" of the join is really a Closure instance the developer
@@ -940,6 +1147,46 @@ export class Builder {
   }
 
   /**
+   * Add a subquery join clause to the query.
+   *
+   * @param  {Function|\Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder|string}  query
+   * @param  {string}  as
+   * @param  {Function|string}  first
+   * @param  {string|undefined}  operator
+   * @param  {string|undefined}  second
+   * @param  {string}  [type=inner]
+   * @param  {boolean}  [where=false]
+   * @return {this}
+   *
+   * @throws \InvalidArgumentException
+   */
+  public joinSub (query: Function | Builder | EloquentBuilder | string, as: string, first: Function | string, operator?: string, second?: any, type: string = 'inner', where: boolean = false): this {
+    let bindings
+
+    [query, bindings] = this.createSub(query)
+
+    const expression = '(' + String(query) + ') as ' + this.grammar.wrapTable(as)
+
+    this.addBinding(bindings, 'join')
+
+    return this.join(new Expression(expression), first, operator, second, type, where)
+  }
+
+  /**
+   * Add a "join where" clause to the query.
+   *
+   * @param  {string}  table
+   * @param  {Function|string}  first
+   * @param  {string}  operator
+   * @param  {string}  second
+   * @param  {string}  [type=inner]
+   * @return {this}
+   */
+  public joinWhere (table: string, first: Function | string, operator: string, second: string, type: string = 'inner'): this {
+    return this.join(table, first, operator, second, type, true)
+  }
+
+  /**
    * Set the "limit" value of the query.
    *
    * @param  {number}  value
@@ -953,6 +1200,56 @@ export class Builder {
     }
 
     return this
+  }
+
+  /**
+   * Add a left join to the query.
+   *
+   * @param  {string}  table
+   * @param  {Function|string}  first
+   * @param  {string}  [operator]
+   * @param  {string}  [second]
+   * @return {this}
+   */
+  public leftJoin (table: string, first: Function | string, operator?: string, second?: string): this {
+    return this.join(table, first, operator, second, 'left')
+  }
+
+  /**
+   * Add a subquery left join to the query.
+   *
+   * @param  {Function|\Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder|string}  query
+   * @param  {string}  as
+   * @param  {Function|string}  first
+   * @param  {string}  operator
+   * @param  {string}  {second}
+   * @return {this}
+   */
+  public leftJoinSub (query: Function | Builder | EloquentBuilder | string, as: string, first: Function | string, operator: string, second: string): this {
+    return this.joinSub(query, as, first, operator, second, 'left')
+  }
+
+  /**
+   * Add a "join where" clause to the query.
+   *
+   * @param  {string}  table
+   * @param  {Function|string}  first
+   * @param  {string}  operator
+   * @param  {string}  second
+   * @return {this}
+   */
+  public leftJoinWhere (table: string, first: Function | string, operator: string, second: string): this {
+    return this.joinWhere(table, first, operator, second, 'left')
+  }
+
+  /**
+   * Retrieve the maximum value of a given column.
+   *
+   * @param  {string}  column
+   * @return {*}
+   */
+  public max (column: string): any {
+    return this.aggregate('max', [column])
   }
 
   /**
@@ -970,6 +1267,16 @@ export class Builder {
   }
 
   /**
+   * Retrieve the minimum value of a given column.
+   *
+   * @param  {string}  column
+   * @return {*}
+   */
+  public min (column: string): any {
+    return this.aggregate('min', [column])
+  }
+
+  /**
    * Get a new join clause.
    *
    * @param  {\Illuminate\Database\Query\Builder}  parentQuery
@@ -977,7 +1284,7 @@ export class Builder {
    * @param  {string}  table
    * @return {\Illuminate\Database\Query\JoinClause}
    */
-  protected newJoinClause (parentQuery: Builder, type: string, table: string): JoinClause {
+  protected newJoinClause (parentQuery: Builder, type: string, table: string | Expression): JoinClause {
     return new JoinClause(parentQuery, type, table)
   }
 
@@ -1009,11 +1316,11 @@ export class Builder {
    *
    * After running the callback, the columns are reset to the original value.
    *
-   * @param  {Array}  columns
+   * @param  {Array<string | Expression>}  columns
    * @param  {Function}  callback
    * @return {any}
    */
-  protected async onceWithColumns (columns: Array<string | Expression>, callback: Function): Promise<unknown> {
+  protected async onceWithColumns (columns: Array<string | Expression>, callback: Function): Promise<any> {
     const original = this.columns
 
     if (original.length === 0) {
@@ -1076,7 +1383,7 @@ export class Builder {
    * @param  {Array}  bindings
    * @return {this}
    */
-  public orderByRaw (sql: string, bindings: unknown[] = []): this {
+  public orderByRaw (sql: string, bindings: any = []): this {
     const type: string = 'Raw'
 
     this[this.unions.length > 0 ? 'unionOrders' : 'orders'].push({ type, sql })
@@ -1195,6 +1502,17 @@ export class Builder {
   }
 
   /**
+   * Add an or exists clause to the query.
+   *
+   * @param  {Function}  callback
+   * @param  {boolean}  [not=false]
+   * @return {this}
+   */
+  public orWhereExists (callback: Function, not: boolean = false): this {
+    return this.whereExists(callback, 'or', not)
+  }
+
+  /**
    * Add an "or where in" clause to the query.
    *
    * @param  {string}  column
@@ -1241,6 +1559,28 @@ export class Builder {
     )
 
     return this.whereMonth(column, operator, value, 'or')
+  }
+
+  /**
+   * Add an "or where not" clause to the query.
+   *
+   * @param  {Function|string|any[]}  column
+   * @param  {any}  operator
+   * @param  {any}  value
+   * @return {this}
+   */
+  public orWhereNot (column: Function | string | any[], operator?: unknown, value?: unknown): this {
+    return this.whereNot(column, operator, value, 'or')
+  }
+
+  /**
+   * Add a where not exists clause to the query.
+   *
+   * @param  {Function}  callback
+   * @return {this}
+   */
+  public orWhereNotExists (callback: Function): this {
+    return this.orWhereExists(callback, true)
   }
 
   /**
@@ -1310,7 +1650,8 @@ export class Builder {
    * @throws {\InvalidArgumentException}
    */
   protected parseSub (query: any): [string, unknown[]] {
-    if (query instanceof this.constructor ||
+    if (query instanceof Builder ||
+      query instanceof this.constructor ||
       query instanceof EloquentBuilder ||
       query instanceof Relation
     ) {
@@ -1324,6 +1665,67 @@ export class Builder {
         'InvalidArgumentException: A subquery must be a query builder instance, a Closure, or a string.'
       )
     }
+  }
+
+  /**
+   * Get an array with the values of a given column.
+   *
+   * @param  {string}  column
+   * @param  {string|undefined}  key
+   * @return {\Illuminate\Support\Collection}
+   */
+  public async pluck (column: string, key?: string): Promise<Collection> {
+    // First, we will need to select the results of the query accounting for the
+    // given columns / key. Once we have the results, we will be able to take
+    // the results and get the exact data that was requested for the query.
+    const queryResult = await this.onceWithColumns(
+      isFalsy(key) ? [column] : [column, key as string], () => {
+        return this.processor.processSelect(
+          this, this.runSelect()
+        )
+      }
+    )
+
+    if (queryResult.length === 0) {
+      return collect()
+    }
+
+    // If the columns are qualified with a table or have an alias, we cannot use
+    // those directly in the "pluck" operations since the results from the DB
+    // are only keyed by the column itself. We'll strip the table out here.
+    column = this.stripTableForPluck(column) as any
+
+    key = this.stripTableForPluck(key)
+
+    return this.pluckFromObjectColumn(queryResult, column, key as string)
+  }
+
+  /**
+   * Retrieve column values from rows represented as objects.
+   *
+   * @param  {any[]}  queryResult
+   * @param  {string}  column
+   * @param  {string}  key
+   * @return {\Illuminate\Support\Collection}
+   */
+  protected pluckFromObjectColumn (queryResult: any[], column: string, key: string): Collection {
+    let results: any
+
+    if (isFalsy(key)) {
+      results = []
+
+      for (const row of queryResult) {
+        results.push(row[column])
+      }
+    } else {
+      results = {}
+
+      for (const row of queryResult) {
+        results[row[key]] = row[column]
+      }
+    }
+
+    return collect(results)
   }
 
   /**
@@ -1382,6 +1784,20 @@ export class Builder {
     }
 
     return this
+  }
+
+  /**
+   * Add a subquery right join to the query.
+   *
+   * @param  {Function|\Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder|string}  query
+   * @param  {string}  as
+   * @param  {Function|string}  first
+   * @param  {string|undefined}  [operator=undefined]
+   * @param  {string|undefined}  [second=undefined]
+   * @return {this}
+   */
+  public rightJoinSub (query: Function | Builder | EloquentBuilder | string, as: string, first: Function | string, operator?: string, second?: string): this {
+    return this.joinSub(query, as, first, operator, second, 'right')
   }
 
   /**
@@ -1526,6 +1942,34 @@ export class Builder {
   }
 
   /**
+   * Strip off the table name or alias from a column identifier.
+   *
+   * @param  {string}  column
+   * @return {string|undefined}
+   */
+  protected stripTableForPluck (column?: string): string | undefined {
+    if (isFalsy(column)) {
+      return column
+    }
+
+    const separator = String(column).toLowerCase().includes(' as ') ? ' as ' : '\\.'
+
+    return last(String(column).split('~' + separator + '~i'))
+  }
+
+  /**
+   * Retrieve the sum of the values of a given column.
+   *
+   * @param  {string}  column
+   * @return {*}
+   */
+  public async sum (column: string): Promise<any> {
+    const result = await this.aggregate('sum', [column])
+
+    return result ?? 0
+  }
+
+  /**
    * Alias to set the "limit" value of the query.
    *
    * @param  {number}  value
@@ -1576,6 +2020,18 @@ export class Builder {
    */
   public unionAll (query: Builder | Function): this {
     return this.union(query, true)
+  }
+
+  /**
+   * Get a single column's value from the first result of a query.
+   *
+   * @param  {string}  column
+   * @return {*}
+   */
+  public async value (column: string): Promise<any> {
+    const result: any = await this.first([column])
+
+    return result.length > 0 || Object.keys(result).length > 0 ? reset(result) : undefined
   }
 
   /**
@@ -1788,6 +2244,25 @@ export class Builder {
   }
 
   /**
+   * Add an exists clause to the query.
+   *
+   * @param  {Function}  callback
+   * @param  {string}  [boolean=and]
+   * @param  {boolean}  [not=false]
+   * @return {this}
+   */
+  public whereExists (callback: Function, boolean: string = 'and', not: boolean = false): this {
+    const query = this.forSubQuery()
+
+    // Similar to the sub-select clause, we will create a new query instance so
+    // the developer may cleanly specify the entire exists query and we will
+    // compile the whole thing in the grammar and insert it into the SQL.
+    callback(query)
+
+    return this.addWhereExistsQuery(query, boolean, not)
+  }
+
+  /**
    * Add a "where fulltext" clause to the query.
    *
    * @param  {string|string[]}  columns
@@ -1914,6 +2389,19 @@ export class Builder {
   }
 
   /**
+   * Add a basic "where not" clause to the query.
+   *
+   * @param  {Function|string|any[]}  column
+   * @param  {any}  operator
+   * @param  {any}  value
+   * @param  {string}  boolean
+   * @return {this}
+   */
+  public whereNot (column: Function | string | any[], operator?: any, value?: any, boolean: string = 'and'): this {
+    return this.where(column, operator, value, boolean + ' not')
+  }
+
+  /**
    * Add a where not between statement to the query.
    *
    * @param  {string}  column
@@ -1935,6 +2423,17 @@ export class Builder {
    */
   public whereNotBetweenColumns (column: string, values: any[], boolean: string = 'and'): this {
     return this.whereBetweenColumns(column, values, boolean, true)
+  }
+
+  /**
+   * Add a where not exists clause to the query.
+   *
+   * @param  {Function}  callback
+   * @param  {string}  [boolean=and]
+   * @return {this}
+   */
+  public whereNotExists (callback: Function, boolean: string = 'and'): this {
+    return this.whereExists(callback, boolean, true)
   }
 
   /**

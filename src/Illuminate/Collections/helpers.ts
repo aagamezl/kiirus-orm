@@ -3,7 +3,7 @@ import { isObject } from '@devnetic/utils'
 import { Arr } from './Arr'
 import { Collection } from './Collection'
 
-export const collect = (value: unknown): Collection => {
+export const collect = (value?: unknown): Collection => {
   return new Collection(value)
 }
 

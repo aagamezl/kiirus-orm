@@ -48,6 +48,17 @@ export class PostgresGrammar extends Grammar {
   }
 
   /**
+   * Compile an insert ignore statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Record<string, any>}  values
+   * @return {string}
+   */
+  public compileInsertOrIgnore (query: Builder, values: Record<string, any>): string {
+    return this.compileInsert(query, values) + ' on conflict do nothing'
+  }
+
+  /**
    * Compile a date based where clause.
    *
    * @param  {string}  type

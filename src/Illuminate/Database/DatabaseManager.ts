@@ -68,7 +68,7 @@ export class DatabaseManager {
       this.reconnect(connection.getName())
     }
 
-    return instanceProxy(this) as unknown as DatabaseManager
+    return instanceProxy(this) as unknown as this
   }
 
   /**

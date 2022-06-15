@@ -13,7 +13,7 @@ export class PostgresProcessor extends Processor {
    * @param  {string}  {sequence}
    * @return {number}
    */
-  public processInsertGetId (query: Builder, sql: string, values: Record<string, any>, sequence?: string): number {
+  public async processInsertGetId (query: Builder, sql: string, values: Record<string, any>, sequence?: string): Promise<number> {
     const connection = query.getConnection()
 
     connection.recordsHaveBeenModified()

@@ -1,4 +1,5 @@
-import { isFalsy, isNumeric, isString, isTruthy } from '@devnetic/utils'
+import { clone, isFalsy, isNumeric, isString, isTruthy } from '@devnetic/utils'
+
 import { Arr } from '../../../Collections/Arr'
 import { Bindings, Builder } from '../Builder'
 import { Expression } from '../Expression'
@@ -75,6 +76,20 @@ export class SqlServerGrammar extends Grammar {
     }
 
     return select + this.columnize(columns)
+  }
+
+  /**
+   * Compile an exists statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder } query
+   * @return {string}
+   */
+  public compileExists (query: Builder): string {
+    const existsQuery: Builder = clone(query)
+
+    existsQuery.columns = []
+
+    return this.compileSelect(existsQuery.selectRaw('1 [exists]').limit(1))
   }
 
   /**

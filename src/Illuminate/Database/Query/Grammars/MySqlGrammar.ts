@@ -12,6 +12,17 @@ export class MySqlGrammar extends Grammar {
   protected operators: string[] = ['sounds like']
 
   /**
+   * Compile an insert ignore statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Record<string, any>}  values
+   * @return {string}
+   */
+  public compileInsertOrIgnore (query: Builder, values: Record<string, any>): string {
+    return this.compileInsert(query, values).replace('insert', 'insert ignore')
+  }
+
+  /**
    * Compile a "where fulltext" clause.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query

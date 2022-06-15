@@ -23,13 +23,15 @@ export interface Where {
   value: any
   values: any[]
   columns: string[]
+  type?: string
+  boolean: string
 }
 
 export interface Having extends Where {
   // column: string
   // not: boolean
-  boolean: string
-  type: string
+  // boolean: string
+  // type: string
   // sql: string
   // values: any[]
   // operator: string
@@ -153,6 +155,18 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile an exists statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @return {string}
+   */
+  public compileExists (query: Builder): string {
+    const select = this.compileSelect(query)
+
+    return `select exists(${select}) as ${this.wrap('exists')}`
+  }
+
+  /**
    * Compile the "from" portion of the query.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -268,6 +282,76 @@ export class Grammar extends BaseGrammar {
     return 'having ' + this.removeLeadingBoolean(collect(query.havings).map((having: any) => {
       return String(having.boolean) + ' ' + this.compileHaving(having)
     }).implode(' '))
+  }
+
+  /**
+   * Compile an insert statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  values
+   * @return {string}
+   */
+  public compileInsert (query: Builder, values: Record<string, any>): string {
+    // Essentially we will force every insert to be treated as a batch insert which
+    // simply makes creating the SQL easier for us since we can utilize the same
+    // basic routine regardless of an amount of records given to us to insert.
+    const table = this.wrapTable(query.fromProperty)
+
+    if (values.length === 0) {
+      return `insert into ${table} default values`
+    }
+
+    if (!Array.isArray(values) && !Array.isArray(reset(values))) {
+      values = [values]
+    }
+
+    const columns = this.columnize(Object.keys(values[0]))
+
+    // We need to build a list of parameter place-holders of values that are bound
+    // to the query. Each insert should have the exact same amount of parameter
+    // bindings so we will loop through the record and parameterize them all.
+    const parameters = collect(values).map((record: any) => {
+      return '(' + this.parameterize(record) + ')'
+    }).implode(', ')
+
+    return `insert into ${table} (${columns}) values ${parameters}`
+  }
+
+  /**
+   * Compile an insert and get ID statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Array}  values
+   * @param  {string}  [sequence]
+   * @return {string}
+   */
+  public compileInsertGetId (query: Builder, values: Record<string, any>, sequence: string): string {
+    return this.compileInsert(query, values)
+  }
+
+  /**
+   * Compile an insert ignore statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Record<string, any>}  values
+   * @return {string}
+   *
+   * @throws{ \RuntimeException}
+   */
+  public compileInsertOrIgnore (query: Builder, values: Record<string, any>): string {
+    throw new Error('RuntimeException: This database engine does not support inserting while ignoring errors.')
+  }
+
+  /**
+   * Compile an insert statement using a subquery into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {any[]}  columns
+   * @param  {string}  sql
+   * @return {string}
+   */
+  public compileInsertUsing (query: Builder, columns: any[], sql: string): string {
+    return `insert into ${this.wrapTable(query.fromProperty)} (${this.columnize(columns)}) ${sql}`
   }
 
   /**
@@ -641,6 +725,17 @@ export class Grammar extends BaseGrammar {
   }
 
   /**
+   * Compile a where exists clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Where}  where
+   * @return {string}
+   */
+  protected whereExists (query: Builder, where: Where): string {
+    return 'exists (' + this.compileSelect(where.query) + ')'
+  }
+
+  /**
    * Compile a "where fulltext" clause.
    *
    * @param  {\Illuminate\Database\Query\Builder}  query
@@ -707,7 +802,18 @@ export class Grammar extends BaseGrammar {
     // if it is a normal query we need to take the leading "where" of queries.
     const offset = query instanceof JoinClause ? 3 : 6
 
-    return '(' + this.compileWheres(where.query).substr(offset) + ')'
+    return '(' + this.compileWheres(where.query).substring(offset) + ')'
+  }
+
+  /**
+   * Compile a where exists clause.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Where}  where
+   * @return {string}
+   */
+  protected whereNotExists (query: Builder, where: Where): string {
+    return 'not exists (' + this.compileSelect(where.query) + ')'
   }
 
   /**
@@ -773,6 +879,19 @@ export class Grammar extends BaseGrammar {
    */
   protected whereRaw (query: Builder, where: Where): string {
     return where.sql
+  }
+
+  /**
+   * Compile a where condition with a sub-select.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Where}  where
+   * @return {string}
+   */
+  protected whereSub (query: Builder, where: Where): string {
+    const select = this.compileSelect(where.query)
+
+    return this.wrap(where.column) + ' ' + where.operator + ` (${select})`
   }
 
   /**

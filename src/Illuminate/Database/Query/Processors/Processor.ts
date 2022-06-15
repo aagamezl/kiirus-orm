@@ -1,3 +1,5 @@
+import { isNumeric } from '@devnetic/utils'
+
 import { Builder } from '../Builder'
 
 export class Processor {
@@ -20,13 +22,21 @@ export class Processor {
    * @param  {string|undefined}  [sequence]
    * @return {number}
    */
-  // public processInsertGetId (query: Builder, sql: string, values: object, sequence?: string): number {
-  //   query.getConnection().insert(sql, values)
+  public async processInsertGetId (query: Builder, sql: string, values: object, sequence?: string): Promise<number> {
+    const connection = query.getConnection()
 
-  //   const id = query.getConnection().getNdo().lastInsertId(sequence)
+    connection.recordsHaveBeenModified()
 
-  //   return isNumeric(id) ? Number(id) : id
-  // }
+    connection.recordsHaveBeenModified()
+
+    const result: any = await connection.select(sql, values)
+
+    sequence = sequence ?? 'id'
+
+    const id = result[0][sequence]
+
+    return isNumeric(id) ? Number(id) : id
+  }
 
   /**
    * Process the results of a "select" query.

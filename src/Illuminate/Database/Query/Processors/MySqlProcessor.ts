@@ -24,7 +24,7 @@ export class MySqlProcessor extends Processor {
    * @return {*}
    * @memberof MySqlProcessor
    */
-  public processInsertGetId (query: Builder, sql: string, values: Record<string, any>, sequence: string): number {
+  public async processInsertGetId (query: Builder, sql: string, values: Record<string, any>, sequence: string): Promise<number> {
     const connection = query.getConnection()
 
     connection.recordsHaveBeenModified()

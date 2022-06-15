@@ -167,6 +167,36 @@ export class Connection {
   }
 
   /**
+   * Run an SQL statement and get the number of rows affected.
+   *
+   * @param  {string}  query
+   * @param  {object}  bindings
+   * @return {number}
+   */
+  public async affectingStatement (query: string, bindings: Record<string, any> = {}): Promise<number> {
+    return await this.run(query, bindings, async (query: string, bindings: Record<string, any>) => {
+      if (this.pretending()) {
+        return 0
+      }
+
+      // For update or delete statements, we want to get the number of rows affected
+      // by the statement and return that back to the developer. We'll first need
+      // to execute the statement and then we'll use PDO to fetch the affected.
+      const statement = this.getNdo().prepare(query)
+
+      this.bindValues(statement, this.prepareBindings(bindings))
+
+      await statement.execute()
+
+      const count = statement.rowCount()
+
+      this.recordsHaveBeenModified(count > 0)
+
+      return count
+    })
+  }
+
+  /**
    * Bind values to their parameters in the given statement.
    *
    * @param  {\Illuminate\Database\Statements\Statement}  statement
@@ -342,6 +372,17 @@ export class Connection {
     return this.tryAgainIfCausedByLostConnection(
       error, query, bindings, callback
     )
+  }
+
+  /**
+   * Run an insert statement against the database.
+   *
+   * @param  {string}  query
+   * @param  {object}  bindings
+   * @return {boolean}
+   */
+  public async insert (query: string, bindings: Record<string, any> = {}): Promise<boolean> {
+    return await this.statement(query, bindings)
   }
 
   /**
@@ -530,7 +571,7 @@ export class Connection {
    * @param  {object}  [bindings]
    * @return {object}
    */
-  public async select (query: string, bindings: object): Promise<any> {
+  public async select (query: string, bindings: Record<string, any>): Promise<any> {
     return await this.run(query, bindings, async (query: string, bindings: object) => {
       if (this.pretending()) {
         return []
@@ -588,6 +629,31 @@ export class Connection {
     this.reconnector = reconnector
 
     return this
+  }
+
+  /**
+   * Execute an SQL statement and return the boolean result.
+   *
+   * @param  {string}  query
+   * @param  {object}  bindings
+   * @return {Promise<boolean>}
+   */
+  public async statement (query: string, bindings: Record<string, any> = {}): Promise<boolean> {
+    return await this.run(query, bindings, async (query: string, bindings: Record<string, any>) => {
+      if (this.pretending()) {
+        return true
+      }
+
+      const statement = this.getNdo().prepare(query)
+
+      this.bindValues(statement, this.prepareBindings(bindings))
+
+      this.recordsHaveBeenModified()
+
+      const result = await statement.execute()
+
+      return result
+    })
   }
 
   /**

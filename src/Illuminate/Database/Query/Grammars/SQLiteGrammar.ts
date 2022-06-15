@@ -14,6 +14,17 @@ export class SQLiteGrammar extends Grammar {
   ]
 
   /**
+   * Compile an insert ignore statement into SQL.
+   *
+   * @param  {\Illuminate\Database\Query\Builder}  query
+   * @param  {Record<string, any>}  values
+   * @return {string}
+   */
+  public compileInsertOrIgnore (query: Builder, values: Record<string, any>): string {
+    return this.compileInsert(query, values).replace('insert', 'insert or ignore')
+  }
+
+  /**
    * Compile a date based where clause.
    *
    * @param  {string}  type
@@ -24,7 +35,7 @@ export class SQLiteGrammar extends Grammar {
   protected dateBasedWhere (type: string, query: Builder, where: Where): string {
     const value = this.parameter(where.value)
 
-    return `strftime('${type}', ${this.wrap(where.column)}) ${where.operator as string} cast(${value} as text)`
+    return `strftime('${type}', ${this.wrap(where.column)}) ${where.operator} cast(${value} as text)`
   }
 
   /**

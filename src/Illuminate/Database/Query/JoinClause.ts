@@ -3,6 +3,8 @@ import { Builder, Expression } from './internal'
 import { Grammar } from './Grammars/Grammar'
 import { Processor } from './Processors'
 
+type Constructor<T extends {} = {}> = new (...args: any[]) => T
+
 /**
  *
  *
@@ -16,7 +18,7 @@ export class JoinClause extends Builder {
    *
    * @var string
    */
-  protected parentClass: Function
+  protected parentClass: Constructor<Builder>
 
   /**
    * The connection of the parent query builder.
@@ -42,9 +44,9 @@ export class JoinClause extends Builder {
   /**
    * The table the join clause is joining to.
    *
-   * @var string
+   * @var string | Expression
    */
-  public table: string
+  public table: string | Expression
 
   /**
    * The type of join being performed.
@@ -62,7 +64,7 @@ export class JoinClause extends Builder {
    * @param  {string}  table
    * @return {void}
    */
-  constructor (parentQuery: Builder, type: string, table: string) {
+  public constructor (parentQuery: Builder, type: string, table: string | Expression) {
     super(
       parentQuery.getConnection(),
       parentQuery.getGrammar(),
@@ -71,10 +73,39 @@ export class JoinClause extends Builder {
 
     this.type = type
     this.table = table
-    this.parentClass = parentQuery.constructor
+    this.parentClass = parentQuery.constructor as any
     this.parentGrammar = parentQuery.getGrammar()
     this.parentProcessor = parentQuery.getProcessor()
     this.parentConnection = parentQuery.getConnection()
+  }
+
+  /**
+   * Create a new query instance for sub-query.
+   *
+   * @return {\Illuminate\Database\Query\Builder}
+   */
+  protected forSubQuery (): Builder {
+    return this.newParentQuery().newQuery()
+  }
+
+  /**
+   * Create a new parent query instance.
+   *
+   * @return {\Illuminate\Database\Query\Builder}
+   */
+  protected newParentQuery (): Builder {
+    const constructor = this.parentClass
+
+    return new constructor(this.parentConnection, this.parentGrammar, this.parentProcessor)
+  }
+
+  /**
+   * Get a new instance of the join clause builder.
+   *
+   * @return {\Illuminate\Database\Query\JoinClause}
+   */
+  public newQuery (): JoinClause {
+    return new JoinClause(this.newParentQuery(), this.type, this.table)
   }
 
   /**
@@ -103,5 +134,17 @@ export class JoinClause extends Builder {
     }
 
     return this.whereColumn(first, operator, second as any, boolean)
+  }
+
+  /**
+   * Add an "or on" clause to the join.
+   *
+   * @param  {Function|string}  first
+   * @param  {string}  [operator=undefined]
+   * @param  {string}  [second=undefined]
+   * @return {\Illuminate\Database\Query\JoinClause}
+   */
+  public orOn (first: Function | string, operator?: string, second?: string): this {
+    return this.on(first, operator, second, 'or')
   }
 }
