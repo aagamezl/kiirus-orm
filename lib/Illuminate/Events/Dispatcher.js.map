@@ -1,1 +1,1 @@
-{"version":3,"file":"Dispatcher.js","sourceRoot":"","sources":["../../../src/Illuminate/Events/Dispatcher.ts"],"names":[],"mappings":";;;AAAA,MAAa,UAAU;CAEtB;AAFD,gCAEC"}
+{"version":3,"file":"Dispatcher.js","sourceRoot":"","sources":["../../../src/Illuminate/Events/Dispatcher.ts"],"names":[],"mappings":";;;AAAA,sDAAkD;AAElD,MAAa,UAAU;IAQrB;;;;;OAKG;IACH,YAAoB,SAAqB;QACvC,IAAI,CAAC,SAAS,GAAG,SAAS,IAAI,IAAI,qBAAS,EAAE,CAAA;IAC/C,CAAC;CACF;AAjBD,gCAiBC"}

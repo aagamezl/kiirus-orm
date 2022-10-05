@@ -1,2 +1,2 @@
-export declare class AbstractPostgreSQLDriver {
+export declare abstract class AbstractPostgreSQLDriver {
 }

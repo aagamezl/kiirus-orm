@@ -23,6 +23,15 @@ export declare class Collection {
      */
     all(): any[];
     /**
+      * Determine if an item exists in the collection.
+      *
+      * @param  {*}  key
+      * @param  {*}  operator
+      * @param  {*}  value
+      * @return {boolean}
+      */
+    contains(key: any, operator?: any, value?: any): boolean;
+    /**
      * Count the number of items in the collection.
      *
      * @return {number}
@@ -35,7 +44,7 @@ export declare class Collection {
      * @param  {unknown}  [defaultValue]
      * @return {unknown}
      */
-    first(callback?: (...args: any[]) => void, defaultValue?: unknown): unknown;
+    first(callback?: (...args: any[]) => void, defaultValue?: unknown): any;
     /**
      * Concatenate values of a given key as a string.
      *
@@ -67,12 +76,28 @@ export declare class Collection {
      */
     last(callback?: Function, defaultValue?: unknown): unknown;
     /**
-   * Run a map over each of the items.
-   *
-   * @param  {Function}  callback
-   * @return {Collection}
-   */
+     * Create a new collection instance if the value isn't one already.
+     *
+     * @param  {*}  items
+     * @return {static}
+     */
+    static make(items?: any): Collection;
+    /**
+     * Run a map over each of the items.
+     *
+     * @param  {Function}  callback
+     * @return {Collection}
+     */
     map(callback: <I, K>(item: I, key: K) => unknown): Collection;
+    /**
+      * Get an operator checker callback.
+      *
+      * @param  {string}  key
+      * @param  {string|null}  operator
+      * @param  {*}  value
+      * @return {Function}
+      */
+    protected operatorForWhere(key: string, operator?: string, value?: any): Function;
     /**
      * Get the values of a given key.
      *
@@ -88,4 +113,19 @@ export declare class Collection {
      * @return {static<int, TValue>|TValue|undefined}
      */
     pop(count?: number): unknown;
+    /**
+     * Sort the collection using the given callback.
+     *
+     * @param  {Function|Array|string}  callback
+     * @param  {boolean}  descending
+     * @return {this}
+     */
+    sortBy(callback: Function, descending?: boolean): Collection;
+    /**
+     * Sort the collection using multiple comparisons.
+     *
+     * @param  {any[]}  comparisons
+     * @return {Collection}
+     */
+    protected sortByMany(comparisons?: any[]): Collection;
 }

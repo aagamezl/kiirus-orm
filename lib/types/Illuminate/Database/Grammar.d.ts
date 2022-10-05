@@ -1,4 +1,4 @@
-import { Expression } from './Query';
+import { Expression } from './Query/internal';
 export declare abstract class Grammar {
     /**
      * The grammar table prefix.
@@ -40,6 +40,20 @@ export declare abstract class Grammar {
      * @return {boolean}
      */
     protected isJsonSelector(value: string): boolean;
+    /**
+     * Get the appropriate query parameter place-holder for a value.
+     *
+     * @param  {any}  value
+     * @return {string}
+     */
+    parameter(value: any): string;
+    /**
+     * Create query parameter place-holders for an array.
+     *
+     * @param  {Array}  values
+     * @return {string}
+     */
+    parameterize(values: string | string[]): string;
     /**
      * Set the grammar's table prefix.
      *

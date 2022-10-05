@@ -18,5 +18,5 @@ export declare class MySqlProcessor extends Processor {
      * @return {*}
      * @memberof MySqlProcessor
      */
-    processInsertGetId(query: Builder, sql: string, values: Record<string, any>, sequence: string): number;
+    processInsertGetId(query: Builder, sql: string, values: Record<string, any>, sequence: string): Promise<number>;
 }

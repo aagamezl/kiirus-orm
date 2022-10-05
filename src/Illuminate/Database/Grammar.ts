@@ -1,5 +1,5 @@
 import { collect } from '../Collections/helpers'
-import { Expression } from './Query'
+import { Expression } from './Query/internal'
 
 export abstract class Grammar {
   /**

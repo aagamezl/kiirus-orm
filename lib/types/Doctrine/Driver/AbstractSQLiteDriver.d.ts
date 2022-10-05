@@ -1,2 +1,2 @@
-export declare class AbstractSQLiteDriver {
+export declare abstract class AbstractSQLiteDriver {
 }

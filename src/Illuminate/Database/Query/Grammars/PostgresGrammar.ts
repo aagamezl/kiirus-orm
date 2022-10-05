@@ -1,9 +1,10 @@
-import { isTruthy } from '@devnetic/utils'
+// import { isTruthy } from '@devnetic/utils'
 
 import { Builder } from '../Builder'
 import { Expression } from '../Expression'
 import { Grammar, Where } from './Grammar'
 import { collect } from '../../../Collections/helpers'
+import { isTruthy } from '../../../Support'
 
 export class PostgresGrammar extends Grammar {
   /**

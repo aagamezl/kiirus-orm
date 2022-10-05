@@ -1,8 +1,8 @@
 import test from 'ava'
 
-import { Builder, JoinClause } from '../../src/Illuminate/Database/Query'
+import { Builder, JoinClause } from '../../src/Illuminate/Database/Query/internal'
 import { Builder as EloquentBuilder } from '../../src/Illuminate/Database/Eloquent/Builder'
-import { Expression as Raw } from './../../src/Illuminate/Database/Query'
+import { Expression as Raw } from './../../src/Illuminate/Database/Query/internal'
 import { getBuilder } from './helpers/getBuilder'
 import { getMySqlBuilder } from './helpers/getMySqlBuilder'
 import { getMySqlBuilderWithProcessor } from './helpers/getMySqlBuilderWithProcessor'

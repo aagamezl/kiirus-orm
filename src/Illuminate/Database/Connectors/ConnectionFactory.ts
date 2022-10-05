@@ -1,4 +1,4 @@
-import { isNil, isTruthy, setValue } from '@devnetic/utils'
+import { isNil/* , isTruthy */, setValue } from '@devnetic/utils'
 
 import { Arr } from '../../Collections/Arr'
 import { Connection } from '../Connection'
@@ -11,6 +11,7 @@ import { SQLiteConnection } from './../SQLiteConnection'
 import { SQLiteConnector } from './SQLiteConnector'
 import { SqlServerConnection } from './../SqlServerConnection'
 import { SqlServerConnector } from './SqlServerConnector'
+import { isTruthy } from '../../Support'
 
 export class ConnectionFactory {
   /**

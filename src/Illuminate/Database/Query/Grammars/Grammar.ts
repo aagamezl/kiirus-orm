@@ -1,12 +1,13 @@
-import { capitalize, isTruthy } from '@devnetic/utils'
+import { capitalize/* , isTruthy */ } from '@devnetic/utils'
 
 import { Aggregate, Builder, Order, Union } from '../Builder'
 import { CompilesJsonPaths } from '../../Concerns/CompilesJsonPaths'
 import { Expression } from '../Expression'
 import { Grammar as BaseGrammar } from '../../Grammar'
-import { JoinClause } from '..'
+import { JoinClause } from './../internal'
 import { collect, end, head, last, reset } from '../../../Collections/helpers'
 import { use } from '../../../Support/Traits/use'
+import { isTruthy } from '../../../Support'
 
 export interface Grammar extends CompilesJsonPaths { }
 

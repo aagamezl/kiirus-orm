@@ -1,4 +1,6 @@
-import { isFalsy, isTruthy } from '@devnetic/utils'
+// import { isFalsy, isTruthy } from '@devnetic/utils'
+
+import { isFalsy, isTruthy } from '../../Support'
 
 export class Conditionable {
   /**

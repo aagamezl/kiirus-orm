@@ -1,5 +1,6 @@
-import { isTruthy } from '@devnetic/utils'
+// import { isTruthy } from '@devnetic/utils'
 
+import { isTruthy } from '../../../Support'
 import { Builder } from '../Builder'
 import { Grammar, Where } from './Grammar'
 

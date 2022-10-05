@@ -51,10 +51,10 @@ export declare class Arr {
      *
      * @param  {object|Array}  array
      * @param  {string|number|undefined}  key
-     * @param  {*}  default
-     * @return {*}
+     * @param  {any}  default
+     * @return {any}
      */
-    static get(array: any, key?: any, defaultValue?: null): any;
+    static get(array: any, key?: any, defaultValue?: unknown): any;
     /**
      *
      *
@@ -89,6 +89,15 @@ export declare class Arr {
      * @return {Array}
      */
     static shuffle(array: any[]): any[];
+    /**
+     * Sort the array using the given callback or "dot" notation.
+     *
+     * @param  {Record<string, any>}  array
+     * @param  {Function|Array|string}  callback
+     * @return {any[]}
+     */
+    static sort(target: Record<string, any>, callback?: Function | any[] | string): any[];
+    static values(target: Record<string, any>): any[];
     /**
      * If the given value is not an array and not null, wrap it in one.
      *

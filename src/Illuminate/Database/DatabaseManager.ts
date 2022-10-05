@@ -1,4 +1,4 @@
-import { getValue, isNil, isTruthy } from '@devnetic/utils'
+import { getValue, isNil/* , isTruthy */ } from '@devnetic/utils'
 
 import { Application } from '../Foundation/Application'
 import { ConfigurationUrlParser } from './../Support/ConfigurationUrlParser'
@@ -8,6 +8,7 @@ import { Macroable } from '../Macroable/Traits/Macroable'
 import { Str } from '../Support/Str'
 import { instanceProxy } from '../Support/Proxies/InstanceProxy'
 import { use } from '../Support/Traits/use'
+import { isTruthy } from '../Support'
 
 export interface DatabaseManager extends Macroable {}
 

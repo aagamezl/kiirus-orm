@@ -1,6 +1,7 @@
-import { castArray } from '@devnetic/utils'
+// import { castArray } from '@devnetic/utils'
 
 import { Macroable } from '../Macroable/Traits/Macroable'
+import { castArray } from './helpers'
 import { Stringable } from './Stringable'
 import { use } from './Traits/use'
 

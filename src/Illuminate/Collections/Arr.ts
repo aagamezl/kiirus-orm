@@ -1,4 +1,5 @@
-import { isFalsy, isObject, isPlainObject } from '@devnetic/utils'
+import { /* isFalsy, */ isObject, isPlainObject } from '@devnetic/utils'
+import { isFalsy } from '../Support'
 
 import { Collection } from './Collection'
 import { dataGet, value as getValue } from './helpers'

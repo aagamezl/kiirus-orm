@@ -1,8 +1,22 @@
 import { lstatSync } from 'fs'
 
-import { getValue, isFalsy, isTruthy } from '@devnetic/utils'
+import {
+  getValue,
+  // isFalsy,
+  // isTruthy
+  isNil,
+  isObject
+} from '@devnetic/utils'
 
 import { HigherOrderTapProxy } from './HigherOrderTapProxy'
+
+export const castArray = <T>(value?: T | T[]): T[] => {
+  if (value === undefined) {
+    return []
+  }
+
+  return Array.isArray(value) ? value : [value]
+}
 
 /**
  * Returns an array with all keys from array lowercased or uppercased.
@@ -27,12 +41,32 @@ export const changeKeyCase = (value: Record<string, unknown>, changeCase: string
   return value
 }
 
+export const clone = <T>(target: T): T => {
+  if (isNil(target) || !isObject(target)) {
+    return target
+  }
+
+  return Object.create(Object.getPrototypeOf(target), Object.getOwnPropertyDescriptors(target))
+}
+
 export const isDirectory = (path: string): boolean => {
   try {
     return lstatSync(path).isDirectory()
   } catch (error) {
     return false
   }
+}
+
+export const isBoolean = (value: unknown): boolean => {
+  return typeof value === 'boolean'
+}
+
+export const isFalsy = (value: unknown): boolean => {
+  return !value // eslint-disable-line
+}
+
+export const isTruthy = (value: unknown): boolean => {
+  return !isFalsy(value)
 }
 
 export const objectDiffKey = (target: object, ...from: Array<Record<string, unknown>>): object => {

@@ -8,10 +8,10 @@ export declare class Expression {
     /**
      * Create a new raw query expression.
      *
-     * @param  {unknown}  value
+     * @param  {any}  value
      * @return {void}
      */
-    constructor(value: unknown);
+    constructor(value: any);
     /**
      * Get the value of the expression.
      *

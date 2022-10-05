@@ -115,6 +115,14 @@ export declare class Connection {
     constructor(ndo: Statement | Function | any, // TODO: verify the real type and remove the any
     database?: string, tablePrefix?: string, config?: object);
     /**
+     * Run an SQL statement and get the number of rows affected.
+     *
+     * @param  {string}  query
+     * @param  {object}  bindings
+     * @return {number}
+     */
+    affectingStatement(query: string, bindings?: Record<string, any>): Promise<number>;
+    /**
      * Bind values to their parameters in the given statement.
      *
      * @param  {\Illuminate\Database\Statements\Statement}  statement
@@ -224,6 +232,14 @@ export declare class Connection {
      */
     protected handleQueryException(error: Error, query: string, bindings: object, callback: Function): unknown;
     /**
+     * Run an insert statement against the database.
+     *
+     * @param  {string}  query
+     * @param  {object}  bindings
+     * @return {boolean}
+     */
+    insert(query: string, bindings?: Record<string, any>): Promise<boolean>;
+    /**
      * Log a query in the connection's query log.
      *
      * @param  {string}  query
@@ -308,7 +324,7 @@ export declare class Connection {
      * @param  {object}  [bindings]
      * @return {object}
      */
-    select(query: string, bindings: object): Promise<any>;
+    select(query: string, bindings: Record<string, any>): Promise<any>;
     /**
      * Set the event dispatcher instance on the connection.
      *
@@ -330,6 +346,14 @@ export declare class Connection {
      * @return {this}
      */
     setReconnector(reconnector: Function): this;
+    /**
+     * Execute an SQL statement and return the boolean result.
+     *
+     * @param  {string}  query
+     * @param  {object}  bindings
+     * @return {Promise<boolean>}
+     */
+    statement(query: string, bindings?: Record<string, any>): Promise<boolean>;
     /**
      * Handle a query exception that occurred during query execution.
      *

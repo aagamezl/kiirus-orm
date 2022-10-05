@@ -1,2 +1,2 @@
-export declare class AbstractSQLServerDriver {
+export declare abstract class AbstractSQLServerDriver {
 }

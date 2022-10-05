@@ -1,2 +1,2 @@
-export declare class AbstractMySQLDriver {
+export declare abstract class AbstractMySQLDriver {
 }

@@ -7,13 +7,13 @@ export declare class Container {
     /**
      * The registered aliases keyed by the abstract name.
      *
-     * @var Record<string, unknown>
+     * @var Record<string, any>
      */
     protected abstractAliases: Record<string, any>;
     /**
      * The registered type aliases.
      *
-     * @var Record<string, string>
+     * @var Record<string, any>
      */
     protected aliases: Record<string, any>;
     /**

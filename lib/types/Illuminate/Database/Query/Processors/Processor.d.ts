@@ -16,6 +16,7 @@ export declare class Processor {
      * @param  {string|undefined}  [sequence]
      * @return {number}
      */
+    processInsertGetId(query: Builder, sql: string, values: object, sequence?: string): Promise<number>;
     /**
      * Process the results of a "select" query.
      *

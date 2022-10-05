@@ -1,5 +1,6 @@
-import { clone, isFalsy, isNil, isTruthy, merge } from '@devnetic/utils'
+import { clone, /* isFalsy, */ isNil, /* isTruthy, */ merge } from '@devnetic/utils'
 import { collect } from '../../Collections/helpers'
+import { isFalsy, isTruthy } from '../../Support'
 import { instanceProxy } from '../../Support/Proxies/InstanceProxy'
 import { ForwardsCalls } from '../../Support/Traits/ForwardsCalls'
 import { use } from '../../Support/Traits/use'
